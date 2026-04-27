@@ -686,54 +686,297 @@
         // 7. Event Listeners & Global Error Handling
         window.addEventListener('DOMContentLoaded', initApp);
 
+        /* =========================================
+           PHASE 2: ADVANCED STATE, ROUTER, MODALS
+           ========================================= */
+
+        // 2.1 Enhanced Global State Manager (Pub/Sub Pattern)
+        const AppState = {
+            state: {
+                currentUser: null,
+                currentView: 'dashboard',
+                settings: { company: 'ALMASFUFA', vatRate: 5, currency: 'AED' },
+                cart: [],
+                notifications: []
+            },
+            listeners: new Map(),
+
+            subscribe(key, callback) {
+                if (!this.listeners.has(key)) this.listeners.set(key, new Set());
+                this.listeners.get(key).add(callback);
+                return () => this.listeners.get(key).delete(callback);
+            },
+
+            setState(key, value) {
+                this.state[key] = value;
+                if (this.listeners.has(key)) {
+                    this.listeners.get(key).forEach(cb => cb(value));
+                }
+                // Persist critical state
+                if (key === 'settings') {
+                    localStorage.setItem('almasfufa_settings', JSON.stringify(value));
+                }
+            },
+
+            getState(key) {
+                return key ? this.state[key] : this.state;
+            },
+
+            init() {
+                const saved = localStorage.getItem('almasfufa_settings');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        this.state.settings = { ...this.state.settings, ...parsed };
+                    } catch(e) {
+                        Logger.warn("Failed to parse saved settings");
+                    }
+                }
+            }
+        };
+
+        // 2.2 Advanced Router with Hash Navigation
+        const Router = {
+            routes: {
+                'dashboard': 'Dashboard',
+                'scanner': 'Scanner',
+                'inventory': 'Inventory',
+                'parts': 'Parts',
+                'tracks': 'Processing Tracks',
+                'wip': 'WIP Jobs',
+                'sales': 'Sales',
+                'purchases': 'Purchases',
+                'finance': 'Finance',
+                'reports': 'Reports',
+                'masters': 'Master Data',
+                'settings': 'Settings'
+            },
+
+            init() {
+                window.addEventListener('hashchange', () => this.handleRoute());
+                // Handle initial load
+                if (!window.location.hash) {
+                    window.location.hash = '#dashboard';
+                } else {
+                    this.handleRoute();
+                }
+            },
+
+            handleRoute() {
+                let hash = window.location.hash.slice(1);
+                if (!this.routes[hash]) {
+                    hash = 'dashboard';
+                    window.location.hash = '#dashboard';
+                }
+                
+                AppState.setState('currentView', hash);
+                this.updateSidebar(hash);
+                this.loadView(hash);
+            },
+
+            updateSidebar(activeHash) {
+                document.querySelectorAll('.nav-item').forEach(el => {
+                    el.classList.toggle('active', el.dataset.view === activeHash);
+                });
+                const item = MENU_ITEMS.find(i => i.id === activeHash);
+                if (item) {
+                    document.getElementById('page-title').textContent = item.label;
+                }
+            },
+
+            loadView(viewId) {
+                const container = document.getElementById('view-container');
+                // Hide all views
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                
+                let target = document.getElementById(`view-${viewId}`);
+                
+                if (!target) {
+                    // Create view placeholder
+                    target = document.createElement('div');
+                    target.id = `view-${viewId}`;
+                    target.className = 'view-section';
+                    target.innerHTML = `<div class="card"><h2>${this.routes[viewId]}</h2><p>Loading module...</p></div>`;
+                    container.appendChild(target);
+                    
+                    // Dispatch custom event for view-specific controllers
+                    window.dispatchEvent(new CustomEvent('view-load', { detail: viewId }));
+                }
+                
+                target.classList.add('active');
+                
+                // Mobile: Close sidebar
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.remove('open');
+                }
+            },
+
+            navigate(viewId) {
+                window.location.hash = `#${viewId}`;
+            }
+        };
+
+        // 2.3 Enhanced Modal System with Focus Trapping
+        const ModalSystem = {
+            activeModal: null,
+            backdrop: null,
+            previousFocus: null,
+
+            init() {
+                this.backdrop = document.getElementById('modal-backdrop');
+                
+                // Escape key closes modal
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.activeModal) {
+                        this.close();
+                    }
+                });
+                
+                // Backdrop click closes modal
+                if (this.backdrop) {
+                    this.backdrop.addEventListener('click', (e) => {
+                        if (e.target === this.backdrop) this.close();
+                    });
+                }
+            },
+
+            open(modalId, data = null) {
+                const modal = document.getElementById(modalId);
+                if (!modal) {
+                    Logger.error(`Modal #${modalId} not found`);
+                    return;
+                }
+                
+                this.previousFocus = document.activeElement;
+                this.activeModal = modal;
+                
+                // Show backdrop and modal
+                if (this.backdrop) this.backdrop.classList.add('open');
+                modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
+                
+                // Pass data if provided (for dynamic content)
+                if (data && modal.dataset.onOpen) {
+                    const handler = window[modal.dataset.onOpen];
+                    if (typeof handler === 'function') handler(data, modal);
+                }
+                
+                // Focus trap: focus first focusable element
+                const focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                if (focusable.length) focusable[0].focus();
+            },
+
+            close() {
+                if (!this.activeModal) return;
+                
+                this.activeModal.classList.remove('open');
+                this.activeModal.setAttribute('aria-hidden', 'true');
+                if (this.backdrop) this.backdrop.classList.remove('open');
+                
+                // Restore focus
+                if (this.previousFocus && typeof this.previousFocus.focus === 'function') {
+                    this.previousFocus.focus();
+                }
+                
+                this.activeModal = null;
+            },
+
+            // Legacy wrapper for backward compatibility
+            show: function(title, contentHtml, footerHtml = '') {
+                document.getElementById('modal-title').textContent = title;
+                document.getElementById('modal-body').innerHTML = contentHtml;
+                document.getElementById('modal-footer').innerHTML = footerHtml;
+                this.open('generic-modal');
+            }
+        };
+
+        // 2.4 Enhanced Toast with Queue
+        const ToastQueue = {
+            queue: [],
+            isAnimating: false,
+
+            show(message, type = 'info', duration = 3000) {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerHTML = `<span>${sanitize(message)}</span>`;
+                
+                container.appendChild(toast);
+                
+                // Animate in
+                requestAnimationFrame(() => {
+                    toast.style.opacity = '1';
+                    toast.style.transform = 'translateX(0)';
+                });
+
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            },
+            success: (msg) => ToastQueue.show(msg, 'success'),
+            error: (msg) => ToastQueue.show(msg, 'error'),
+            warning: (msg) => ToastQueue.show(msg, 'warning'),
+            info: (msg) => ToastQueue.show(msg, 'info')
+        };
+
+        // 2.5 Utility: Sanitize HTML (XSS Prevention)
+        function sanitize(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // 2.6 Enhanced Error Boundaries
         window.addEventListener('unhandledrejection', event => {
             Logger.error("Unhandled Promise Rejection:", event.reason);
-            Toast.error("System Error: " + (event.reason?.message || "Unknown"));
+            const errorMsg = event.reason?.message || event.reason?.toString() || "Unknown promise rejection";
+            ToastQueue.error("System Error: " + errorMsg);
+            event.preventDefault(); // Prevent console spam in some browsers
         });
 
         window.addEventListener('error', event => {
             Logger.error("Global Error:", event.error);
-            // Only toast if it's a runtime error, not a resource load error
-            if (event.error) Toast.error("Critical Error Detected");
+            if (event.error) {
+                ToastQueue.error("Critical Error: " + event.error.message);
+            }
         });
 
-        // Theme Toggle
+        // Theme Toggle (Enhanced)
         document.getElementById('theme-toggle').addEventListener('click', () => {
             const body = document.body;
             const isDark = body.getAttribute('data-theme') === 'dark';
             body.setAttribute('data-theme', isDark ? 'light' : 'dark');
             APP.config.theme = isDark ? 'light' : 'dark';
-            // Save preference (will be fully implemented in Settings phase)
+            AppState.setState('settings', APP.config);
             if(APP.isReady) DB.put('settings', { id: 1, key: 'config', value: APP.config });
+            ToastQueue.info(`Switched to ${isDark ? 'Light' : 'Dark'} mode`);
         });
 
-        // Modal Logic (Basic)
-        const modalBackdrop = document.getElementById('modal-backdrop');
-        const modalCloseBtn = document.getElementById('modal-close-btn');
+        // Initialize Phase 2 Systems
+        AppState.init();
+        ModalSystem.init();
+        // Override legacy Modal with enhanced version
+        window.Modal = ModalSystem;
+        // Override legacy Toast with enhanced version
+        window.Toast = ToastQueue;
         
-        window.Modal = {
-            open: (title, contentHtml, footerHtml = '') => {
-                document.getElementById('modal-title').textContent = title;
-                document.getElementById('modal-body').innerHTML = contentHtml;
-                document.getElementById('modal-footer').innerHTML = footerHtml;
-                modalBackdrop.classList.add('open');
-                modalBackdrop.setAttribute('aria-hidden', 'false');
-                // Focus trap start
-                modalCloseBtn.focus();
-            },
-            close: () => {
-                modalBackdrop.classList.remove('open');
-                modalBackdrop.setAttribute('aria-hidden', 'true');
-            }
+        // Update navigation to use router
+        window.navigateTo = (viewId) => Router.navigate(viewId);
+        
+        // Replace renderNavigation to sync with router
+        const originalRenderNav = window.renderNavigation;
+        window.renderNavigation = function() {
+            if (originalRenderNav) originalRenderNav();
+            // Add click handlers that use router
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    Router.navigate(item.dataset.view);
+                });
+            });
         };
-
-        modalCloseBtn.addEventListener('click', Modal.close);
-        modalBackdrop.addEventListener('click', (e) => {
-            if (e.target === modalBackdrop) Modal.close();
-        });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modalBackdrop.classList.contains('open')) Modal.close();
-        });
 
     </script>
 </body>
