@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALMASFUFA Manager | ERP</title>
+    <meta name="description" content="Offline-first Laptop Refurbishment ERP">
+    <meta name="theme-color" content="#2563eb">
+    
+    <!-- External Libraries (CDN with Fallback logic in JS) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <style>
+        /* =========================================
+           1. CSS VARIABLES & THEME
+           ========================================= */
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            
+            --bg-body: #f1f5f9;
+            --bg-card: #ffffff;
+            --bg-sidebar: #0f172a;
+            
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --text-light: #f8fafc;
+            
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --radius: 0.5rem;
+            
+            --font-sans: 'Segoe UI', system-ui, sans-serif;
+            --header-height: 60px;
+            --sidebar-width: 260px;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --bg-sidebar: #020617;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        /* =========================================
+           2. RESET & BASE STYLES
+           ========================================= */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        button, input, select, textarea {
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        a { text-decoration: none; color: inherit; }
+        ul { list-style: none; }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        /* =========================================
+           3. LAYOUT GRID
+           ========================================= */
+        #app-layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-sidebar);
+            color: var(--text-light);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+
+        .brand {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 1.5rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: #60a5fa;
+        }
+
+        .nav-menu {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: background 0.2s;
+            color: #cbd5e1;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+            border-left: 4px solid var(--primary);
+        }
+
+        /* Main Content */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Header */
+        header {
+            height: var(--header-height);
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.5rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        }
+
+        .header-title { font-size: 1.1rem; font-weight: 600; }
+        
+        .header-actions { display: flex; gap: 1rem; align-items: center; }
+
+        /* View Container */
+        #view-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        .view-section { display: none; animation: fadeIn 0.3s ease; }
+        .view-section.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* =========================================
+           4. UTILITIES & COMPONENTS
+           ========================================= */
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-secondary { background: var(--secondary); color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+
+        .form-group { margin-bottom: 1rem; }
+        .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; }
+        .form-control {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-card);
+            color: var(--text-main);
+        }
+        .form-control:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+        /* Table Styles */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: rgba(0,0,0,0.02); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        tr:hover { background: rgba(0,0,0,0.02); }
+
+        /* Badge */
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-success { background: #dcfce7; color: #166534; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-danger { background: #fee2e2; color: #991b1b; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
+
+        /* Toast Notifications */
+        #toast-container {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .toast {
+            background: var(--bg-card);
+            color: var(--text-main);
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            border-left: 4px solid var(--primary);
+            min-width: 300px;
+            animation: slideIn 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toast.error { border-left-color: var(--danger); }
+        .toast.success { border-left-color: var(--success); }
+        .toast.warning { border-left-color: var(--warning); }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        /* Modal */
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: var(--bg-card);
+            padding: 1.5rem;
+            border-radius: var(--radius);
+            width: 90%; max-width: 600px;
+            max-height: 90vh; overflow-y: auto;
+            transform: scale(0.95); transition: transform 0.2s;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
+        .modal-backdrop.open .modal-content { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+
+        /* Print Frame (Hidden) */
+        #printFrame { position: absolute; width: 0; height: 0; border: 0; visibility: hidden; }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(2px);
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #sidebar { position: fixed; transform: translateX(-100%); height: 100%; }
+            #sidebar.open { transform: translateX(0); }
+            .header-title { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Print Frame -->
+    <iframe id="printFrame"></iframe>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- App Layout -->
+    <div id="app-layout">
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <div class="brand">
+                <span>💎 ALMASFUFA</span>
+            </div>
+            <nav class="nav-menu" id="nav-menu">
+                <!-- Populated by JS -->
+            </nav>
+            <div style="padding: 1rem; font-size: 0.8rem; color: #64748b; text-align: center;">
+                v1.0.0 • Offline Mode
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main id="main-content">
+            <header>
+                <div class="header-title" id="page-title">Dashboard</div>
+                <div class="header-actions">
+                    <button class="btn btn-outline" id="theme-toggle" title="Toggle Theme">🌓</button>
+                    <div style="width: 30px; height: 30px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">A</div>
+                </div>
+            </header>
+
+            <div id="view-container">
+                <!-- Views injected here -->
+                <div id="view-dashboard" class="view-section active">
+                    <div class="card">
+                        <h2>Welcome to ALMASFUFA Manager</h2>
+                        <p style="color: var(--text-muted); margin-top: 0.5rem;">Initializing system components...</p>
+                        <div id="db-status" style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+                            Checking Database...
+                        </div>
+                    </div>
+                </div>
+                <!-- Other views will be appended in subsequent phases -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Global Modal Container -->
+    <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Modal Title</h3>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div id="modal-body">
+                <!-- Dynamic Content -->
+            </div>
+            <div id="modal-footer" style="margin-top: 1.5rem; text-align: right; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <!-- Dynamic Buttons -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        "use strict";
+
+        /* =========================================
+           PHASE 1: CORE ARCHITECTURE & INDEXEDDB
+           ========================================= */
+
+        // 1. Global State & Constants
+        const APP = {
+            version: '1.0.0',
+            dbName: 'AlmasfufaERP_DB',
+            dbVersion: 1,
+            stores: ['settings', 'logs', 'suppliers', 'lots', 'laptops', 'parts', 'movements', 'wip_jobs', 'sales', 'purchases', 'cash', 'owner_ledger'],
+            config: {
+                vatRate: 0.05,
+                currency: 'AED',
+                theme: 'light'
+            },
+            db: null,
+            isReady: false
+        };
+
+        // 2. Utility: Logger
+        const Logger = {
+            log: (msg) => console.log(`[ALMASFUFA] ${msg}`),
+            error: (msg, err) => console.error(`[ALMASFUFA ERROR] ${msg}`, err),
+            warn: (msg) => console.warn(`[ALMASFUFA WARN] ${msg}`)
+        };
+
+        // 3. Utility: Toast Notifications
+        const Toast = {
+            show: (message, type = 'info', duration = 3000) => {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.innerHTML = `<span>${message}</span>`;
+                
+                container.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            },
+            success: (msg) => Toast.show(msg, 'success'),
+            error: (msg) => Toast.show(msg, 'error'),
+            warning: (msg) => Toast.show(msg, 'warning')
+        };
+
+        // 4. IndexedDB Wrapper (Promise-based)
+        const DB = {
+            open: () => {
+                return new Promise((resolve, reject) => {
+                    if (!window.indexedDB) {
+                        reject(new Error("IndexedDB not supported in this browser."));
+                        return;
+                    }
+
+                    const request = indexedDB.open(APP.dbName, APP.dbVersion);
+
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        Logger.log("Database upgrade needed. Creating schema...");
+
+                        // Create Stores
+                        APP.stores.forEach(storeName => {
+                            if (!db.objectStoreNames.contains(storeName)) {
+                                let objectStore;
+                                if (storeName === 'settings' || storeName === 'logs') {
+                                    objectStore = db.createObjectStore(storeName, { keyPath: 'id', autoIncrement: true });
+                                } else {
+                                    // Default keyPath for entities
+                                    objectStore = db.createObjectStore(storeName, { keyPath: 'id' });
+                                }
+
+                                // Create Indexes based on store type
+                                if (storeName === 'laptops') {
+                                    objectStore.createIndex('barcode', 'barcode', { unique: true });
+                                    objectStore.createIndex('status', 'status', { unique: false });
+                                    objectStore.createIndex('track', 'track', { unique: false });
+                                    objectStore.createIndex('lotId', 'lotId', { unique: false });
+                                } else if (storeName === 'parts') {
+                                    objectStore.createIndex('barcode', 'barcode', { unique: true });
+                                    objectStore.createIndex('type', 'type', { unique: false });
+                                } else if (storeName === 'movements') {
+                                    objectStore.createIndex('itemId', 'itemId', { unique: false });
+                                    objectStore.createIndex('timestamp', 'timestamp', { unique: false });
+                                } else if (storeName === 'sales') {
+                                    objectStore.createIndex('date', 'date', { unique: false });
+                                    objectStore.createIndex('customerId', 'customerId', { unique: false });
+                                }
+                            }
+                        });
+                    };
+
+                    request.onsuccess = (event) => {
+                        APP.db = event.target.result;
+                        Logger.log("Database connected successfully.");
+                        
+                        // Handle Version Change in other tabs
+                        APP.db.onversionchange = () => {
+                            APP.db.close();
+                            Toast.warning("Database updated in another tab. Please refresh.");
+                        };
+
+                        resolve(APP.db);
+                    };
+
+                    request.onerror = (event) => {
+                        Logger.error("Database error:", event.target.errorCode);
+                        reject(event.target.errorCode);
+                    };
+
+                    request.onblocked = () => {
+                        Logger.warn("Database blocked. Close other tabs using this app.");
+                        Toast.error("Database blocked! Please close other tabs and refresh.");
+                    };
+                });
+            },
+
+            // Transaction Helper
+            tx: (stores, mode = 'readonly') => {
+                return new Promise((resolve, reject) => {
+                    if (!APP.db) {
+                        reject(new Error("Database not initialized"));
+                        return;
+                    }
+                    try {
+                        const transaction = APP.db.transaction(stores, mode);
+                        const objectStores = stores.map(s => transaction.objectStore(s));
+                        
+                        transaction.oncomplete = () => resolve(objectStores.length === 1 ? objectStores[0] : objectStores);
+                        transaction.onerror = (e) => reject(e.target.error);
+                        transaction.onabort = (e) => reject(new Error("Transaction aborted"));
+                    } catch (e) {
+                        reject(e);
+                    }
+                });
+            },
+
+            // Generic CRUD Helpers
+            add: async (storeName, data) => {
+                const tx = await DB.tx([storeName], 'readwrite');
+                return new Promise((resolve, reject) => {
+                    const req = tx.add(data);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            get: async (storeName, key) => {
+                const tx = await DB.tx([storeName], 'readonly');
+                return new Promise((resolve, reject) => {
+                    const req = tx.get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            getAll: async (storeName) => {
+                const tx = await DB.tx([storeName], 'readonly');
+                return new Promise((resolve, reject) => {
+                    const req = tx.getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            put: async (storeName, data) => {
+                const tx = await DB.tx([storeName], 'readwrite');
+                return new Promise((resolve, reject) => {
+                    const req = tx.put(data);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            delete: async (storeName, key) => {
+                const tx = await DB.tx([storeName], 'readwrite');
+                return new Promise((resolve, reject) => {
+                    const req = tx.delete(key);
+                    req.onsuccess = () => resolve();
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            },
+            
+            count: async (storeName) => {
+                const tx = await DB.tx([storeName], 'readonly');
+                return new Promise((resolve, reject) => {
+                    const req = tx.count();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            }
+        };
+
+        // 5. Initialization Sequence
+        async function initApp() {
+            const overlay = document.getElementById('loading-overlay');
+            const statusDiv = document.getElementById('db-status');
+
+            try {
+                statusDiv.textContent = "Connecting to IndexedDB...";
+                await DB.open();
+                
+                statusDiv.textContent = "Loading Settings...";
+                // Check if settings exist, if not create default
+                const settings = await DB.getAll('settings');
+                if (settings.length === 0) {
+                    await DB.add('settings', { id: 1, key: 'config', value: APP.config });
+                    Logger.log("Default settings created.");
+                } else {
+                    // Merge loaded settings
+                    const loadedConfig = settings.find(s => s.key === 'config')?.value;
+                    if (loadedConfig) Object.assign(APP.config, loadedConfig);
+                }
+
+                statusDiv.innerHTML = `<span style="color: var(--success)">● System Ready</span><br>DB: ${APP.dbName}<br>Version: ${APP.db.version}`;
+                
+                APP.isReady = true;
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    Toast.success("ALMASFUFA Manager Loaded");
+                    renderNavigation();
+                }, 500);
+
+            } catch (err) {
+                Logger.error("Init failed", err);
+                statusDiv.innerHTML = `<span style="color: var(--danger)">● Critical Error</span><br>${err.message}`;
+                Toast.error("Failed to initialize database");
+                overlay.style.display = 'none';
+            }
+        }
+
+        // 6. Navigation Renderer
+        const MENU_ITEMS = [
+            { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+            { id: 'scanner', label: 'Scanner', icon: '📷' },
+            { id: 'inventory', label: 'Inventory', icon: '💻' },
+            { id: 'parts', label: 'Parts', icon: '🔌' },
+            { id: 'tracks', label: 'Tracks', icon: '🔄' },
+            { id: 'wip', label: 'WIP Jobs', icon: '🔧' },
+            { id: 'sales', label: 'Sales', icon: '💰' },
+            { id: 'purchases', label: 'Purchases', icon: '🛒' },
+            { id: 'finance', label: 'Finance', icon: '🏦' },
+            { id: 'reports', label: 'Reports', icon: '📈' },
+            { id: 'masters', label: 'Master Data', icon: '🗄️' },
+            { id: 'settings', label: 'Settings', icon: '⚙️' }
+        ];
+
+        function renderNavigation() {
+            const nav = document.getElementById('nav-menu');
+            nav.innerHTML = '';
+            MENU_ITEMS.forEach(item => {
+                const div = document.createElement('div');
+                div.className = `nav-item ${item.id === 'dashboard' ? 'active' : ''}`;
+                div.dataset.view = item.id;
+                div.innerHTML = `<span>${item.icon}</span> <span>${item.label}</span>`;
+                div.onclick = () => navigateTo(item.id);
+                nav.appendChild(div);
+            });
+        }
+
+        function navigateTo(viewId) {
+            // Update Sidebar
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            const activeNav = document.querySelector(`.nav-item[data-view="${viewId}"]`);
+            if (activeNav) activeNav.classList.add('active');
+
+            // Update Title
+            const item = MENU_ITEMS.find(i => i.id === viewId);
+            document.getElementById('page-title').textContent = item ? item.label : 'Unknown';
+
+            // Show View (Placeholder for now)
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            let target = document.getElementById(`view-${viewId}`);
+            
+            if (!target) {
+                // Create placeholder if not exists yet (Phases 2-20 will fill these)
+                const container = document.getElementById('view-container');
+                target = document.createElement('div');
+                target.id = `view-${viewId}`;
+                target.className = 'view-section';
+                target.innerHTML = `
+                    <div class="card">
+                        <h2>${item.label}</h2>
+                        <p style="color: var(--text-muted); margin-top: 0.5rem;">Module under construction. Coming in Phase ${MENU_ITEMS.indexOf(item) + 2}.</p>
+                    </div>
+                `;
+                container.appendChild(target);
+            }
+            target.classList.add('active');
+
+            // Mobile: Close sidebar if open
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('open');
+            }
+        }
+
+        // 7. Event Listeners & Global Error Handling
+        window.addEventListener('DOMContentLoaded', initApp);
+
+        window.addEventListener('unhandledrejection', event => {
+            Logger.error("Unhandled Promise Rejection:", event.reason);
+            Toast.error("System Error: " + (event.reason?.message || "Unknown"));
+        });
+
+        window.addEventListener('error', event => {
+            Logger.error("Global Error:", event.error);
+            // Only toast if it's a runtime error, not a resource load error
+            if (event.error) Toast.error("Critical Error Detected");
+        });
+
+        // Theme Toggle
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            const body = document.body;
+            const isDark = body.getAttribute('data-theme') === 'dark';
+            body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            APP.config.theme = isDark ? 'light' : 'dark';
+            // Save preference (will be fully implemented in Settings phase)
+            if(APP.isReady) DB.put('settings', { id: 1, key: 'config', value: APP.config });
+        });
+
+        // Modal Logic (Basic)
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        
+        window.Modal = {
+            open: (title, contentHtml, footerHtml = '') => {
+                document.getElementById('modal-title').textContent = title;
+                document.getElementById('modal-body').innerHTML = contentHtml;
+                document.getElementById('modal-footer').innerHTML = footerHtml;
+                modalBackdrop.classList.add('open');
+                modalBackdrop.setAttribute('aria-hidden', 'false');
+                // Focus trap start
+                modalCloseBtn.focus();
+            },
+            close: () => {
+                modalBackdrop.classList.remove('open');
+                modalBackdrop.setAttribute('aria-hidden', 'true');
+            }
+        };
+
+        modalCloseBtn.addEventListener('click', Modal.close);
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) Modal.close();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modalBackdrop.classList.contains('open')) Modal.close();
+        });
+
+    </script>
+</body>
+</html>
