@@ -13,6 +13,27 @@ import (
 // ErrUnsupported is returned on non-Windows platforms.
 var ErrUnsupported = errors.New("maintenance operations are only supported on Windows")
 
+const (
+	// Enumeration bounds for FindPackagesForUser. The per-value HSTRING check
+	// alone still permits a corrupt or hostile package repository to force
+	// WinForge to walk 100,000 packages and retain a 1 MiB identity string for
+	// each. These budgets bound both the walk and the retained result.
+	//
+	// maxPackageCount comfortably exceeds a real per-user package set (a stock
+	// Windows install reports a few hundred) while ending a runaway iterator.
+	maxPackageCount = 8192
+	// maxHSTRINGChars bounds one HSTRING conversion, in UTF-16 code units.
+	// Package identity strings are short; 32 Ki units rejects absurd buffers.
+	maxHSTRINGChars = 32 << 10
+	// maxPackageIdentityBytes bounds a single package identity field. Package
+	// full names are limited by Windows itself to far below this.
+	maxPackageIdentityBytes = 1024
+	// maxMatchedPackages and maxMatchedPackageBytes bound the full names
+	// retained for a single removal request.
+	maxMatchedPackages     = 256
+	maxMatchedPackageBytes = 256 << 10
+)
+
 // LogFunc receives streaming command output (may be nil).
 type LogFunc func(line string)
 

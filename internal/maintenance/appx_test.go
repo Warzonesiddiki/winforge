@@ -67,3 +67,22 @@ func TestParseProvisionedPackagesRejectsUnexpectedEmptyOutput(t *testing.T) {
 		}
 	}
 }
+
+// TestPackageEnumerationBoundsAreRealistic pins the aggregate AppX enumeration
+// budgets. The previous limits (100,000 packages each allowed a 1 MiB identity
+// HSTRING) let a corrupt package repository exhaust memory during a removal.
+func TestPackageEnumerationBoundsAreRealistic(t *testing.T) {
+	if maxPackageCount > 32768 {
+		t.Errorf("maxPackageCount = %d, which is too permissive for a per-user package set", maxPackageCount)
+	}
+	if maxHSTRINGChars > 1<<20 {
+		t.Errorf("maxHSTRINGChars = %d, which still allows megabyte-scale identity strings", maxHSTRINGChars)
+	}
+	if maxPackageIdentityBytes > maxMatchedPackageBytes {
+		t.Errorf("per-identity bound %d exceeds the aggregate budget %d", maxPackageIdentityBytes, maxMatchedPackageBytes)
+	}
+	// A single removal request must never retain an unbounded match set.
+	if worst := maxMatchedPackages * maxPackageIdentityBytes; worst > 1<<20 {
+		t.Errorf("worst-case retained match set is %d bytes", worst)
+	}
+}

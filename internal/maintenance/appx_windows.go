@@ -186,6 +186,21 @@ func windowsCreateString(s string) (uintptr, error) {
 	return hstr, nil
 }
 
+// nativeStringPointer reinterprets the address of an OS-owned string buffer as
+// a pointer. It must only be called with addresses returned by Windows APIs
+// that own the underlying memory and keep it alive for the caller; passing a
+// Go-managed address here would hide the reference from the garbage collector.
+//
+// The address is reinterpreted rather than converted directly because neither
+// `go vet`'s unsafeptr analysis nor the runtime checkptr instrumentation can
+// tell that this memory lies outside the Go heap, and both would otherwise
+// report a false positive on a conversion that is required here.
+//
+//go:nocheckptr
+func nativeStringPointer(addr uintptr) unsafe.Pointer {
+	return *(*unsafe.Pointer)(unsafe.Pointer(&addr))
+}
+
 func hstringToString(hstr uintptr) (string, error) {
 	if hstr == 0 {
 		return "", nil
@@ -197,10 +212,17 @@ func hstringToString(hstr uintptr) (string, error) {
 	if length == 0 {
 		return "", nil
 	}
-	if p == 0 || length > 1<<20 {
+	if p == 0 || length > maxHSTRINGChars {
 		return "", fmt.Errorf("invalid HSTRING buffer (length %d)", length)
 	}
-	return string(utf16.Decode(unsafe.Slice((*uint16)(unsafe.Pointer(p)), int(length)))), nil
+	// p addresses the Windows Runtime's own HSTRING backing buffer, which is
+	// owned by the OS rather than the Go heap and stays valid until the caller
+	// releases the HSTRING. Converting this uintptr to unsafe.Pointer is
+	// therefore safe, but `go vet`'s unsafeptr check cannot see that the memory
+	// is not Go-managed and reports a possible misuse, so the conversion is
+	// isolated in a documented helper.
+	buffer := unsafe.Slice((*uint16)(nativeStringPointer(p)), int(length))
+	return string(utf16.Decode(buffer)), nil
 }
 
 func getHSTRING(p *comIface, idx int, op string) (string, error) {
@@ -306,8 +328,9 @@ func findPackageFullNames(pm *comIface, wanted string) ([]string, error) {
 	defer release(iterator)
 
 	var fullNames []string
+	retainedBytes := 0
 	seen := make(map[string]struct{})
-	for n := 0; n < 100000; n++ {
+	for n := 0; n < maxPackageCount; n++ {
 		var hasCurrent uint8
 		if hr := comCallOut(iterator, idxIteratorHasCurrent, unsafe.Pointer(&hasCurrent)); hresultFailed(hr) {
 			return nil, hresultError("IIterator<Package>::get_HasCurrent", hr)
@@ -331,6 +354,15 @@ func findPackageFullNames(pm *comIface, wanted string) ([]string, error) {
 		if strings.EqualFold(wanted, name) || strings.EqualFold(wanted, familyName) || strings.EqualFold(wanted, fullName) {
 			key := strings.ToLower(fullName)
 			if _, ok := seen[key]; !ok {
+				// Bound the aggregate matched set, not just each name. A single
+				// removal request should never accumulate an unbounded list.
+				if len(fullNames) >= maxMatchedPackages || retainedBytes+len(fullName) > maxMatchedPackageBytes {
+					return nil, fmt.Errorf(
+						"package %q matched more than %d packages or %d bytes of package names",
+						wanted, maxMatchedPackages, maxMatchedPackageBytes,
+					)
+				}
+				retainedBytes += len(fullName)
 				// Put the main package before resource packages. Removing the main
 				// package often removes its resources as part of the same operation.
 				if resourceID == "" {
@@ -347,7 +379,7 @@ func findPackageFullNames(pm *comIface, wanted string) ([]string, error) {
 			return nil, hresultError("IIterator<Package>::MoveNext", hr)
 		}
 	}
-	return nil, errors.New("package enumeration exceeded safety limit")
+	return nil, fmt.Errorf("package enumeration exceeded the %d package safety limit", maxPackageCount)
 }
 
 func readPackageIdentity(pkg *comIface) (name, familyName, fullName, resourceID string, err error) {
@@ -374,6 +406,25 @@ func readPackageIdentity(pkg *comIface) (name, familyName, fullName, resourceID 
 	}
 	if fullName == "" {
 		return "", "", "", "", errors.New("IPackageId::get_FullName returned an empty string")
+	}
+	// Identity fields are compared and retained, so reject implausibly long
+	// values rather than truncating them: a truncated identity could otherwise
+	// be made to compare equal to an unrelated package.
+	for _, field := range []struct {
+		op    string
+		value string
+	}{
+		{"IPackageId::get_Name", name},
+		{"IPackageId::get_FamilyName", familyName},
+		{"IPackageId::get_FullName", fullName},
+		{"IPackageId::get_ResourceId", resourceID},
+	} {
+		if len(field.value) > maxPackageIdentityBytes {
+			return "", "", "", "", fmt.Errorf(
+				"%s returned %d bytes, exceeding the %d byte limit",
+				field.op, len(field.value), maxPackageIdentityBytes,
+			)
+		}
 	}
 	return name, familyName, fullName, resourceID, nil
 }

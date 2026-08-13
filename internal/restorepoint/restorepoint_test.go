@@ -3,6 +3,7 @@ package restorepoint
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestParseWmiTime(t *testing.T) {
@@ -63,5 +64,66 @@ func TestDigits(t *testing.T) {
 	}
 	if _, err := digits("12x"); err == nil {
 		t.Error("digits(12x): expected error")
+	}
+}
+
+// TestTruncateUTF8 covers the aggregate description-bound helper. Descriptions
+// come from WMI, so the helper must never split a multi-byte rune and must
+// always respect the byte limit.
+func TestTruncateUTF8(t *testing.T) {
+	cases := []struct {
+		name  string
+		in    string
+		limit int
+		want  string
+	}{
+		{"under limit is unchanged", "Install", 64, "Install"},
+		{"exactly at limit is unchanged", "abcd", 4, "abcd"},
+		{"ascii is truncated with ellipsis", "abcdefghij", 6, "abc…"},
+		{"multibyte runes are not split", "Wiederherstellungspünkt", 10, "Wiederh…"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := truncateUTF8(c.in, c.limit)
+			if got != c.want {
+				t.Errorf("truncateUTF8(%q, %d) = %q, want %q", c.in, c.limit, got, c.want)
+			}
+			if len(got) > c.limit {
+				t.Errorf("truncateUTF8(%q, %d) returned %d bytes, over the limit", c.in, c.limit, len(got))
+			}
+			if !utf8.ValidString(got) {
+				t.Errorf("truncateUTF8(%q, %d) = %q, which is not valid UTF-8", c.in, c.limit, got)
+			}
+		})
+	}
+}
+
+// TestTruncateUTF8RespectsLimitForAllPrefixes guards the byte bound against
+// off-by-one errors at every cut point of a multi-byte string.
+func TestTruncateUTF8RespectsLimitForAllPrefixes(t *testing.T) {
+	const input = "Sicherungspünkt vör dem Änderung 😀 der Systemkonfiguration"
+	for limit := 4; limit <= len(input)+4; limit++ {
+		got := truncateUTF8(input, limit)
+		if len(got) > limit {
+			t.Fatalf("truncateUTF8(input, %d) returned %d bytes", limit, len(got))
+		}
+		if !utf8.ValidString(got) {
+			t.Fatalf("truncateUTF8(input, %d) = %q, which is not valid UTF-8", limit, got)
+		}
+	}
+}
+
+// TestEnumerationBoundsAreRealistic pins the aggregate enumeration budgets so a
+// future change cannot quietly restore effectively unbounded retention.
+func TestEnumerationBoundsAreRealistic(t *testing.T) {
+	if maxRestorePoints > 4096 {
+		t.Errorf("maxRestorePoints = %d, which is too permissive for real systems", maxRestorePoints)
+	}
+	if maxDescriptionBytes > maxDescriptionBudgetBytes {
+		t.Errorf("per-description bound %d exceeds the aggregate budget %d", maxDescriptionBytes, maxDescriptionBudgetBytes)
+	}
+	// The worst case a single enumeration can retain must stay well bounded.
+	if worst := maxDescriptionBudgetBytes + maxRowErrorBudgetBytes; worst > 8<<20 {
+		t.Errorf("worst-case retained enumeration memory is %d bytes", worst)
 	}
 }
