@@ -91,11 +91,15 @@ func (e *stubExecutor) RegistryGetDword(hive, path, name string) (uint32, bool, 
 	return v, ok, nil
 }
 func (e *stubExecutor) RegistryGetString(_, _, _ string) (string, bool, error) { return "", false, nil }
+func (e *stubExecutor) RegistryGetQword(_, _, _ string) (uint64, bool, error) {
+	return 0, false, nil
+}
 func (e *stubExecutor) RegistrySetDword(hive, path, name string, value uint32) error {
 	e.dwords[e.key(hive, path, name)] = value
 	return nil
 }
 func (e *stubExecutor) RegistrySetString(_, _, _ string, _ string) error { return nil }
+func (e *stubExecutor) RegistrySetQword(_, _, _ string, _ uint64) error  { return nil }
 func (e *stubExecutor) RegistryDeleteValue(hive, path, name string) error {
 	delete(e.dwords, e.key(hive, path, name))
 	return nil
@@ -113,6 +117,8 @@ func (e *stubExecutor) AppxRemove(_ string) error   { return nil }
 func (e *stubExecutor) RunCommand(_ string, _ []string) error {
 	return nil
 }
+func (e *stubExecutor) PowerGetActive() (string, error) { return "", nil }
+func (e *stubExecutor) PowerSetActive(_ string) error   { return nil }
 
 func dwordTweak(id string, val uint32) config.Tweak {
 	return config.Tweak{

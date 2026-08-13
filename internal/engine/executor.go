@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"winforge/internal/maintenance"
+	"winforge/internal/power"
 	"winforge/internal/registry"
 	"winforge/internal/scheduler"
 	"winforge/internal/service"
@@ -52,6 +53,18 @@ func (e *Executor) RegistryGetString(hive, path, name string) (string, bool, err
 	return v, true, nil
 }
 
+// RegistryGetQword reads a REG_QWORD value.
+func (e *Executor) RegistryGetQword(hive, path, name string) (uint64, bool, error) {
+	v, err := registry.Qword(registry.Hive(hive), path, name)
+	if err != nil {
+		if err == registry.ErrNotFound {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return v, true, nil
+}
+
 // RegistrySetDword writes a REG_DWORD value.
 func (e *Executor) RegistrySetDword(hive, path, name string, value uint32) error {
 	return registry.SetDword(registry.Hive(hive), path, name, value)
@@ -60,6 +73,11 @@ func (e *Executor) RegistrySetDword(hive, path, name string, value uint32) error
 // RegistrySetString writes a REG_SZ value.
 func (e *Executor) RegistrySetString(hive, path, name string, value string) error {
 	return registry.SetString(registry.Hive(hive), path, name, value)
+}
+
+// RegistrySetQword writes a REG_QWORD value.
+func (e *Executor) RegistrySetQword(hive, path, name string, value uint64) error {
+	return registry.SetQword(registry.Hive(hive), path, name, value)
 }
 
 // RegistryDeleteValue deletes a value.
@@ -103,9 +121,23 @@ func (e *Executor) TaskEnable(path string) error { return scheduler.Enable(path)
 // TaskDelete removes a scheduled task via schtasks.exe.
 func (e *Executor) TaskDelete(path string) error { return scheduler.Delete(path) }
 
-// AppxRemove removes a provisioned Appx package via DISM. Per-user package
-// removal (which requires PackageManager/WinRT) is a later phase.
-func (e *Executor) AppxRemove(name string) error { return maintenance.RemoveProvisionedAppx(name) }
+// AppxRemove removes an Appx package by full name. It first attempts
+// per-user removal via the WinRT PackageManager (RoActivateInstance), then
+// removes the provisioned registration via DISM when applicable. The
+// operation is considered successful if either path succeeded.
+func (e *Executor) AppxRemove(name string) error {
+	var errs []string
+	if err := maintenance.RemoveAppxPackageByFullName(name); err != nil {
+		errs = append(errs, "per-user: "+err.Error())
+	}
+	if err := maintenance.RemoveProvisionedAppx(name); err != nil {
+		errs = append(errs, "provisioned: "+err.Error())
+	}
+	if len(errs) == 2 {
+		return fmt.Errorf("appx removal failed for %q (%s)", name, strings.Join(errs, "; "))
+	}
+	return nil
+}
 
 // RunCommand executes a native command line. Used by explicit command tweaks
 // and the winget fallback. PowerShell is deliberately never invoked here.
@@ -113,3 +145,9 @@ func (e *Executor) RunCommand(cmdline string, args []string) error {
 	cmd := exec.Command(cmdline, args...)
 	return cmd.Run()
 }
+
+// PowerGetActive returns the GUID of the active power scheme.
+func (e *Executor) PowerGetActive() (string, error) { return power.Active() }
+
+// PowerSetActive activates a power scheme by GUID.
+func (e *Executor) PowerSetActive(guid string) error { return power.SetActive(guid) }

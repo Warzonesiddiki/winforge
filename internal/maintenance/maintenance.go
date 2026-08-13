@@ -33,6 +33,14 @@ func DisableFeature(name string, log LogFunc) error { return disableFeature(name
 // RemoveProvisionedAppx removes a provisioned Appx package via DISM.
 func RemoveProvisionedAppx(packageName string) error { return removeProvisionedAppx(packageName) }
 
+// RemoveAppxPackageByFullName removes an Appx package by its full name using
+// the Windows.Management.Deployment.PackageManager WinRT interface. This is
+// the stdlib-only, CGO-free equivalent of PowerShell's Remove-AppxPackage,
+// using raw ole32/combase P/Invoke (RoActivateInstance). Per-user Appx
+// packages have no clean CLI alternative; Remove-AppxPackage is
+// PowerShell-only → banned.
+func RemoveAppxPackageByFullName(packageName string) error { return removeAppxPackageByFullName(packageName) }
+
 // SetDns sets static DNS servers on a named adapter.
 func SetDns(adapter, primary, secondary string) error { return setDns(adapter, primary, secondary) }
 

@@ -9,8 +9,10 @@ package tweak
 type Executor interface {
 	RegistryGetDword(hive, path, name string) (uint32, bool, error)
 	RegistryGetString(hive, path, name string) (string, bool, error)
+	RegistryGetQword(hive, path, name string) (uint64, bool, error)
 	RegistrySetDword(hive, path, name string, value uint32) error
 	RegistrySetString(hive, path, name string, value string) error
+	RegistrySetQword(hive, path, name string, value uint64) error
 	RegistryDeleteValue(hive, path, name string) error
 
 	ServiceSetStartMode(name string, mode string) error
@@ -25,4 +27,7 @@ type Executor interface {
 	AppxRemove(name string) error
 
 	RunCommand(cmdline string, args []string) error
+
+	PowerGetActive() (string, error)
+	PowerSetActive(guid string) error
 }

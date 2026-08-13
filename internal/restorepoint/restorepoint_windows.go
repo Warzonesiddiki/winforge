@@ -150,22 +150,26 @@ type variant struct {
 	data      [16]byte // union; BSTR/uint32 values are read from the low bytes
 }
 
+// comIface is an opaque COM interface pointer. Concrete interfaces are
+// interchangeable: method dispatch only reads the vtable.
+type comIface struct{}
+
 // vtable returns the address of the i-th virtual method of the COM object
 // whose interface pointer is p.
-func vtable(p uintptr, i int) uintptr {
-	vtbl := *(*uintptr)(unsafe.Pointer(p))
-	return *(*uintptr)(unsafe.Pointer(vtbl + uintptr(i)*unsafe.Sizeof(uintptr(0))))
+func vtable(p *comIface, i int) uintptr {
+	vtbl := *(**uintptr)(unsafe.Pointer(p))
+	return *(*uintptr)(unsafe.Add(unsafe.Pointer(vtbl), uintptr(i)*unsafe.Sizeof(uintptr(0))))
 }
 
 // comCall invokes a COM virtual method and returns its HRESULT.
-func comCall(p uintptr, i int, args ...uintptr) uint32 {
+func comCall(p *comIface, i int, args ...uintptr) uint32 {
 	r1, _, _ := syscall.SyscallN(vtable(p, i), args...)
 	return uint32(r1)
 }
 
 // release decrements a COM object's reference count (IUnknown::Release).
-func release(p uintptr) {
-	if p != 0 {
+func release(p *comIface) {
+	if p != nil {
 		_ = comCall(p, 2)
 	}
 }
@@ -174,7 +178,7 @@ func hresultError(op string, hr uint32) error {
 	return fmt.Errorf("%s failed: HRESULT 0x%08X", op, hr)
 }
 
-func coCreateInstance(clsid *guid, outer uintptr, ctx uint32, iid *guid, out *uintptr) uint32 {
+func coCreateInstance(clsid *guid, outer uintptr, ctx uint32, iid *guid, out **comIface) uint32 {
 	r, _, _ := procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(clsid)),
 		outer,
@@ -205,20 +209,20 @@ func variantClear(v *variant) {
 }
 
 // bstrToString converts a BSTR (length-prefixed UTF-16) to a Go string.
-func bstrToString(p uintptr) string {
-	if p == 0 {
+func bstrToString(p *uint16) string {
+	if p == nil {
 		return ""
 	}
-	byteLen := *(*uint32)(unsafe.Pointer(p - 4))
+	byteLen := *(*uint32)(unsafe.Add(unsafe.Pointer(p), -4))
 	if byteLen == 0 || byteLen > 1<<20 {
 		return ""
 	}
-	units := unsafe.Slice((*uint16)(unsafe.Pointer(p)), int(byteLen/2))
+	units := unsafe.Slice(p, int(byteLen/2))
 	return string(utf16.Decode(units))
 }
 
 // getProp fetches a named property into v.
-func getProp(obj uintptr, name string, v *variant) uint32 {
+func getProp(obj *comIface, name string, v *variant) uint32 {
 	pname, err := syscall.UTF16PtrFromString(name)
 	if err != nil {
 		return 0x80070057 // E_INVALIDARG
@@ -226,7 +230,7 @@ func getProp(obj uintptr, name string, v *variant) uint32 {
 	return comCall(obj, iwbemClassObjectGet, uintptr(unsafe.Pointer(pname)), 0, uintptr(unsafe.Pointer(v)), 0, 0)
 }
 
-func readUint32Prop(obj uintptr, name string) (uint32, error) {
+func readUint32Prop(obj *comIface, name string) (uint32, error) {
 	var v variant
 	if hr := getProp(obj, name, &v); hr != 0 {
 		return 0, hresultError("IWbemClassObject::Get("+name+")", hr)
@@ -241,7 +245,7 @@ func readUint32Prop(obj uintptr, name string) (uint32, error) {
 	}
 }
 
-func readStringProp(obj uintptr, name string) (string, error) {
+func readStringProp(obj *comIface, name string) (string, error) {
 	var v variant
 	if hr := getProp(obj, name, &v); hr != 0 {
 		return "", hresultError("IWbemClassObject::Get("+name+")", hr)
@@ -250,10 +254,10 @@ func readStringProp(obj uintptr, name string) (string, error) {
 	if v.vt != vtBstr {
 		return "", fmt.Errorf("unexpected variant type %d for %s", v.vt, name)
 	}
-	return bstrToString(*(*uintptr)(unsafe.Pointer(&v.data[0]))), nil
+	return bstrToString(*(**uint16)(unsafe.Pointer(&v.data[0]))), nil
 }
 
-func readRestorePoint(obj uintptr) (Info, error) {
+func readRestorePoint(obj *comIface) (Info, error) {
 	var info Info
 
 	seq, err := readUint32Prop(obj, "SequenceNumber")
@@ -291,7 +295,7 @@ func list() ([]Info, error) {
 		return nil, hresultError("CoInitializeEx", uint32(r))
 	}
 
-	var locator uintptr
+	var locator *comIface
 	if hr := coCreateInstance(&clsidWbemLocator, 0, clsctxInprocServer, &iidIWbemLocator, &locator); hr != 0 {
 		return nil, hresultError("CoCreateInstance(WbemLocator)", hr)
 	}
@@ -299,7 +303,7 @@ func list() ([]Info, error) {
 
 	netRes := sysAllocString(`root\default`)
 	defer sysFreeString(netRes)
-	var services uintptr
+	var services *comIface
 	if hr := comCall(locator, iwbemLocatorConnectServer, netRes, 0, 0, 0, 0, 0, 0, uintptr(unsafe.Pointer(&services))); hr != 0 {
 		return nil, hresultError("IWbemLocator::ConnectServer", hr)
 	}
@@ -310,7 +314,7 @@ func list() ([]Info, error) {
 	query := sysAllocString("SELECT * FROM SystemRestore")
 	defer sysFreeString(query)
 
-	var enum uintptr
+	var enum *comIface
 	flags := uintptr(wbemFlagForwardOnly | wbemFlagReturnImmediately)
 	if hr := comCall(services, iwbemServicesExecQuery, lang, query, flags, 0, uintptr(unsafe.Pointer(&enum))); hr != 0 {
 		return nil, hresultError("IWbemServices::ExecQuery", hr)
@@ -319,7 +323,7 @@ func list() ([]Info, error) {
 
 	var out []Info
 	for {
-		var obj uintptr
+		var obj *comIface
 		var returned uint32
 		if hr := comCall(enum, ienumWbemClassObjectNext, uintptr(wbemInfinite), 1, uintptr(unsafe.Pointer(&obj)), uintptr(unsafe.Pointer(&returned))); hr != 0 {
 			return nil, hresultError("IEnumWbemClassObject::Next", hr)

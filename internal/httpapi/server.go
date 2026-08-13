@@ -23,6 +23,11 @@ import (
 	"winforge/internal/updater"
 )
 
+// maxJobs is the maximum number of completed/errored jobs retained in memory.
+// Older entries are pruned when the limit is exceeded to prevent unbounded
+// memory growth during long-lived server sessions.
+const maxJobs = 100
+
 // job tracks an in-flight async operation (winget install, maintenance fix,
 // DISM feature change) for progress polling.
 type job struct {
@@ -123,6 +128,7 @@ func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *j
 	s.seq++
 	j := &job{ID: fmt.Sprintf("job-%d", s.seq), Kind: kind, Status: "running"}
 	s.jobs[j.ID] = j
+	s.pruneJobs()
 	s.mu.Unlock()
 
 	go func() {
@@ -143,6 +149,40 @@ func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *j
 	}()
 
 	return j
+}
+
+// pruneJobs removes the oldest completed/errored jobs when the count exceeds
+// maxJobs. Caller must hold s.mu.
+func (s *Server) pruneJobs() {
+	if len(s.jobs) <= maxJobs {
+		return
+	}
+	// Collect IDs of finished jobs sorted by sequence (embedded in the ID
+	// string "job-N") so we can drop the oldest.
+	type entry struct {
+		id  string
+		seq int
+	}
+	var finished []entry
+	for id, j := range s.jobs {
+		if j.Done {
+			var n int
+			fmt.Sscanf(id, "job-%d", &n)
+			finished = append(finished, entry{id: id, seq: n})
+		}
+	}
+	// Sort ascending by seq (oldest first).
+	for i := 1; i < len(finished); i++ {
+		for j := i; j > 0 && finished[j].seq < finished[j-1].seq; j-- {
+			finished[j], finished[j-1] = finished[j-1], finished[j]
+		}
+	}
+	// Remove oldest until we're at or below the limit.
+	excess := len(s.jobs) - maxJobs
+	for i := 0; i < len(finished) && excess > 0; i++ {
+		delete(s.jobs, finished[i].id)
+		excess--
+	}
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -290,15 +330,14 @@ func (s *Server) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.mu.Lock()
 	j, ok := s.jobs[id]
-	s.mu.Unlock()
-	if !ok {
-		writeErr(w, http.StatusNotFound, fmt.Errorf("job %q not found", id))
+	if ok {
+		out := *j
+		s.mu.Unlock()
+		writeJSON(w, http.StatusOK, out)
 		return
 	}
-	s.mu.Lock()
-	out := *j
 	s.mu.Unlock()
-	writeJSON(w, http.StatusOK, out)
+	writeErr(w, http.StatusNotFound, fmt.Errorf("job %q not found", id))
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, _ *http.Request) {

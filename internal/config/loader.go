@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"winforge"
 )
@@ -93,7 +92,7 @@ func (l *Loader) LoadDns() (*DnsConfig, error) {
 func (l *Loader) LoadProtectedServices() ([]string, error) {
 	b, err := l.readFile("config/protectedServices.json")
 	if err != nil {
-		if strings.Contains(err.Error(), "protectedServices.json") {
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
 			return nil, nil // optional file
 		}
 		return nil, err

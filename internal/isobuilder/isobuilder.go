@@ -184,13 +184,19 @@ func selectIndexes(all []Edition, wanted []string) ([]int, error) {
 	}
 
 	var out []int
+	seen := make(map[int]bool, len(all))
 	for _, w := range wanted {
 		key := strings.ToLower(strings.TrimSpace(w))
 		idx, ok := byName[key]
 		if !ok {
 			return nil, fmt.Errorf("edition %q not found in image (available: %s)", w, editionNames(all))
 		}
-		out = append(out, idx...)
+		for _, i := range idx {
+			if !seen[i] {
+				seen[i] = true
+				out = append(out, i)
+			}
+		}
 	}
 	return out, nil
 }

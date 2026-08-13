@@ -57,22 +57,26 @@ var (
 	procSysFreeString    = oleaut32.NewProc("SysFreeString")
 )
 
+// comIface is an opaque COM interface pointer. Concrete interfaces are
+// interchangeable: method dispatch only reads the vtable.
+type comIface struct{}
+
 // vtable returns the address of the i-th virtual method of the COM object
 // whose interface pointer is p.
-func vtable(p uintptr, i int) uintptr {
-	vtbl := *(*uintptr)(unsafe.Pointer(p))
-	return *(*uintptr)(unsafe.Pointer(vtbl + uintptr(i)*unsafe.Sizeof(uintptr(0))))
+func vtable(p *comIface, i int) uintptr {
+	vtbl := *(**uintptr)(unsafe.Pointer(p))
+	return *(*uintptr)(unsafe.Add(unsafe.Pointer(vtbl), uintptr(i)*unsafe.Sizeof(uintptr(0))))
 }
 
 // comCall invokes a COM virtual method and returns its HRESULT.
-func comCall(p uintptr, i int, args ...uintptr) uint32 {
+func comCall(p *comIface, i int, args ...uintptr) uint32 {
 	r1, _, _ := syscall.SyscallN(vtable(p, i), args...)
 	return uint32(r1)
 }
 
 // release decrements a COM object's reference count (IUnknown::Release).
-func release(p uintptr) {
-	if p != 0 {
+func release(p *comIface) {
+	if p != nil {
 		_ = comCall(p, 2)
 	}
 }
@@ -81,7 +85,7 @@ func hresultError(op string, hr uint32) error {
 	return fmt.Errorf("%s failed: HRESULT 0x%08X", op, hr)
 }
 
-func coCreateInstance(clsid *guid, outer uintptr, ctx uint32, iid *guid, out *uintptr) uint32 {
+func coCreateInstance(clsid *guid, outer uintptr, ctx uint32, iid *guid, out **comIface) uint32 {
 	r, _, _ := procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(clsid)),
 		outer,
@@ -108,22 +112,22 @@ func sysFreeString(p uintptr) {
 }
 
 // bstrToString converts a BSTR (length-prefixed UTF-16) to a Go string.
-func bstrToString(p uintptr) string {
-	if p == 0 {
+func bstrToString(p *uint16) string {
+	if p == nil {
 		return ""
 	}
-	byteLen := *(*uint32)(unsafe.Pointer(p - 4))
+	byteLen := *(*uint32)(unsafe.Add(unsafe.Pointer(p), -4))
 	if byteLen == 0 || byteLen > 1<<20 {
 		return ""
 	}
-	units := unsafe.Slice((*uint16)(unsafe.Pointer(p)), int(byteLen/2))
+	units := unsafe.Slice(p, int(byteLen/2))
 	return string(utf16.Decode(units))
 }
 
 // connect initializes COM (pinning the OS thread) and creates an
 // IUpdateSession. The returned cleanup must be deferred; it releases the
 // session and uninitializes COM on the same thread.
-func connect() (session uintptr, cleanup func(), err error) {
+func connect() (session *comIface, cleanup func(), err error) {
 	// COM apartment init/uninit must happen on the same OS thread.
 	runtime.LockOSThread()
 
@@ -133,7 +137,7 @@ func connect() (session uintptr, cleanup func(), err error) {
 	case r == 1: // S_FALSE — already initialized on this thread
 	default:
 		runtime.UnlockOSThread()
-		return 0, nil, hresultError("CoInitializeEx", uint32(r))
+		return nil, nil, hresultError("CoInitializeEx", uint32(r))
 	}
 	initialized := r == 0
 
@@ -142,7 +146,7 @@ func connect() (session uintptr, cleanup func(), err error) {
 			procCoUninitialize.Call()
 		}
 		runtime.UnlockOSThread()
-		return 0, nil, hresultError("CoCreateInstance(UpdateSession)", hr)
+		return nil, nil, hresultError("CoCreateInstance(UpdateSession)", hr)
 	}
 
 	cleanup = func() {
@@ -162,7 +166,7 @@ func search(installedOnly bool) ([]Update, error) {
 	}
 	defer cleanup()
 
-	var searcher uintptr
+	var searcher *comIface
 	if hr := comCall(session, idxCreateUpdateSearcher, uintptr(unsafe.Pointer(&searcher))); hr != 0 {
 		return nil, hresultError("CreateUpdateSearcher", hr)
 	}
@@ -171,13 +175,13 @@ func search(installedOnly bool) ([]Update, error) {
 	criteria := sysAllocString(searchCriteria(installedOnly))
 	defer sysFreeString(criteria)
 
-	var result uintptr
+	var result *comIface
 	if hr := comCall(searcher, idxSearch, criteria, uintptr(unsafe.Pointer(&result))); hr != 0 {
 		return nil, hresultError("IUpdateSearcher::Search", hr)
 	}
 	defer release(result)
 
-	var collection uintptr
+	var collection *comIface
 	if hr := comCall(result, idxGetUpdates, uintptr(unsafe.Pointer(&collection))); hr != 0 {
 		return nil, hresultError("ISearchResult::get_Updates", hr)
 	}
@@ -190,7 +194,7 @@ func search(installedOnly bool) ([]Update, error) {
 
 	updates := make([]Update, 0, count)
 	for i := int32(0); i < count; i++ {
-		var upd uintptr
+		var upd *comIface
 		if hr := comCall(collection, idxGetItem, uintptr(i), uintptr(unsafe.Pointer(&upd))); hr != 0 {
 			return nil, hresultError("IUpdateCollection::get_Item", hr)
 		}
@@ -208,14 +212,14 @@ func installAll() (InstallResult, error) {
 	}
 	defer cleanup()
 
-	var installer uintptr
+	var installer *comIface
 	if hr := comCall(session, idxCreateUpdateInstaller, uintptr(unsafe.Pointer(&installer))); hr != 0 {
 		return InstallResult{}, hresultError("CreateUpdateInstaller", hr)
 	}
 	defer release(installer)
 
 	// Locate the not-installed updates to feed the installer.
-	var searcher uintptr
+	var searcher *comIface
 	if hr := comCall(session, idxCreateUpdateSearcher, uintptr(unsafe.Pointer(&searcher))); hr != 0 {
 		return InstallResult{}, hresultError("CreateUpdateSearcher", hr)
 	}
@@ -224,23 +228,23 @@ func installAll() (InstallResult, error) {
 	criteria := sysAllocString(searchCriteria(false))
 	defer sysFreeString(criteria)
 
-	var result uintptr
+	var result *comIface
 	if hr := comCall(searcher, idxSearch, criteria, uintptr(unsafe.Pointer(&result))); hr != 0 {
 		return InstallResult{}, hresultError("IUpdateSearcher::Search", hr)
 	}
 	defer release(result)
 
-	var collection uintptr
+	var collection *comIface
 	if hr := comCall(result, idxGetUpdates, uintptr(unsafe.Pointer(&collection))); hr != 0 {
 		return InstallResult{}, hresultError("ISearchResult::get_Updates", hr)
 	}
 	defer release(collection)
 
-	if hr := comCall(installer, idxPutUpdates, collection); hr != 0 {
+	if hr := comCall(installer, idxPutUpdates, uintptr(unsafe.Pointer(collection))); hr != 0 {
 		return InstallResult{}, hresultError("IUpdateInstaller::put_Updates", hr)
 	}
 
-	var installResult uintptr
+	var installResult *comIface
 	if hr := comCall(installer, idxInstall, uintptr(unsafe.Pointer(&installResult))); hr != 0 {
 		return InstallResult{}, hresultError("IUpdateInstaller::Install", hr)
 	}
@@ -255,7 +259,7 @@ func installAll() (InstallResult, error) {
 }
 
 // readUpdate reads the display fields of an IUpdate.
-func readUpdate(p uintptr) Update {
+func readUpdate(p *comIface) Update {
 	var u Update
 	if b := getBSTR(p, idxGetTitle); b != "" {
 		u.Title = b
@@ -266,16 +270,16 @@ func readUpdate(p uintptr) Update {
 	return u
 }
 
-func getBSTR(p uintptr, idx int) string {
-	var b uintptr
-	if hr := comCall(p, idx, uintptr(unsafe.Pointer(&b))); hr != 0 || b == 0 {
+func getBSTR(p *comIface, idx int) string {
+	var b *uint16
+	if hr := comCall(p, idx, uintptr(unsafe.Pointer(&b))); hr != 0 || b == nil {
 		return ""
 	}
-	defer sysFreeString(b)
+	defer sysFreeString(uintptr(unsafe.Pointer(b)))
 	return bstrToString(b)
 }
 
-func getBool(p uintptr, idx int) bool {
+func getBool(p *comIface, idx int) bool {
 	var vb int16 // VARIANT_BOOL
 	if hr := comCall(p, idx, uintptr(unsafe.Pointer(&vb))); hr != 0 {
 		return false

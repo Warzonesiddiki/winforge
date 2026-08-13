@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -49,6 +50,7 @@ type Operation struct {
 const (
 	OpRegistrySetDword  = "registry_set_dword"
 	OpRegistrySetString = "registry_set_string"
+	OpRegistrySetQword  = "registry_set_qword"
 	OpRegistryDelete    = "registry_delete"
 	OpServiceStartMode  = "service_start_mode"
 	OpServiceStart      = "service_start"
@@ -58,6 +60,7 @@ const (
 	OpTaskDelete        = "task_delete"
 	OpAppxRemove        = "appx_remove"
 	OpCommand           = "command"
+	OpPowerScheme       = "power_scheme"
 )
 
 // Value helpers decode the raw JSON value into the type an operation expects.
@@ -71,6 +74,9 @@ func (o Operation) DwordValue() (uint32, error) {
 	if n < 0 {
 		return 0, fmt.Errorf("operation %q expects a non-negative integer", o.Type)
 	}
+	if n > math.MaxUint32 {
+		return 0, fmt.Errorf("operation %q value %d exceeds the DWORD range", o.Type, n)
+	}
 	return uint32(n), nil
 }
 
@@ -81,6 +87,18 @@ func (o Operation) StringValue() (string, error) {
 		return "", fmt.Errorf("operation %q expects a string value: %w", o.Type, err)
 	}
 	return s, nil
+}
+
+// QwordValue returns the operation's value as a uint64.
+func (o Operation) QwordValue() (uint64, error) {
+	var n int64
+	if err := json.Unmarshal(o.Value, &n); err != nil {
+		return 0, fmt.Errorf("operation %q expects an integer value: %w", o.Type, err)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("operation %q expects a non-negative integer", o.Type)
+	}
+	return uint64(n), nil
 }
 
 // App is one installable application surfaced in the package manager.

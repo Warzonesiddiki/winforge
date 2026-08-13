@@ -51,10 +51,11 @@ design optimizes for the stated constraints:
 - **No native WPF/Mica chrome** — the dashboard is served on `127.0.0.1` and
   opened in the browser. This is also a *security* choice: a system-control
   surface must not be network-reachable.
-- **COM-heavy features are phased** — restore-point *listing* is implemented via
-  raw WMI COM interop (the `SystemRestore` class), while Appx `PackageManager`,
-  Task Scheduler, and Windows Update COM interop remain large, hand-rolled
-  P/Invoke efforts that land in later phases.
+- **COM-heavy features are implemented as hand-rolled P/Invoke** — restore-point
+  *listing* uses raw WMI COM interop (the `SystemRestore` class), Appx
+  `PackageManager` uses raw WinRT interop (`RoActivateInstance` +
+  `RemovePackageAsync`), and Windows Update uses the `Microsoft.Update.Session`
+  COM API. Task Scheduler deliberately uses `schtasks.exe` instead.
 
 ---
 
@@ -218,7 +219,7 @@ Malformed plugins are skipped (best-effort).
 - [x] DNS per-adapter configuration (`netsh`, `net.Interfaces` discovery)
 - [x] Provisioned Appx removal via `dism.exe`
 - [x] List existing restore points (WMI `SystemRestore` class)
-- [ ] Per-user Appx removal (`PackageManager` WinRT interop)
+- [x] Per-user Appx removal (`PackageManager` WinRT interop via `RoActivateInstance`)
 - [x] ISO builder (MicroWin-style: edition slim via dism + bootable ISO via oscdimg)
 - [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
 - [x] Scheduled maintenance task registration + `run-maintenance`

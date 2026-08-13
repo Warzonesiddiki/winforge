@@ -6,6 +6,7 @@ import (
 
 	"winforge/internal/audit"
 	"winforge/internal/config"
+	"winforge/internal/power"
 )
 
 // Effect records the outcome of a single operation within a tweak.
@@ -92,6 +93,32 @@ func (o *Orchestrator) applyOp(t config.Tweak, op config.Operation, dryRun bool)
 		}
 		return eff
 
+	case config.OpRegistrySetQword:
+		val, err := op.QwordValue()
+		if err != nil {
+			eff.Err = err
+			return eff
+		}
+		cur, exists, err := o.exec.RegistryGetQword(op.Hive, op.Path, op.Name)
+		if err != nil {
+			eff.Err = err
+			return eff
+		}
+		eff.PreviousValue = fmt.Sprintf("%d", cur)
+		eff.NewValue = fmt.Sprintf("%d", val)
+		if !exists || cur != val {
+			eff.Changed = true
+		}
+		if !dryRun && eff.Changed {
+			if err := o.exec.RegistrySetQword(op.Hive, op.Path, op.Name, val); err != nil {
+				eff.Err = err
+				return eff
+			}
+			eff.Applied = true
+			o.record(t, op, eff, nil)
+		}
+		return eff
+
 	case config.OpRegistrySetString:
 		val, err := op.StringValue()
 		if err != nil {
@@ -150,6 +177,37 @@ func (o *Orchestrator) applyOp(t config.Tweak, op config.Operation, dryRun bool)
 		}
 		if !dryRun && eff.Changed {
 			if err := o.exec.ServiceSetStartMode(op.Name, mode); err != nil {
+				eff.Err = err
+				return eff
+			}
+			eff.Applied = true
+			o.record(t, op, eff, nil)
+		}
+		return eff
+
+	case config.OpPowerScheme:
+		val, err := op.StringValue()
+		if err != nil {
+			eff.Err = err
+			return eff
+		}
+		guid, err := power.Resolve(val)
+		if err != nil {
+			eff.Err = err
+			return eff
+		}
+		cur, err := o.exec.PowerGetActive()
+		if err != nil {
+			eff.Err = err
+			return eff
+		}
+		eff.PreviousValue = cur
+		eff.NewValue = guid
+		if !strings.EqualFold(cur, guid) {
+			eff.Changed = true
+		}
+		if !dryRun && eff.Changed {
+			if err := o.exec.PowerSetActive(guid); err != nil {
 				eff.Err = err
 				return eff
 			}
@@ -232,6 +290,7 @@ func (o *Orchestrator) record(t config.Tweak, op config.Operation, eff Effect, e
 func isRegistryOp(opType string) bool {
 	return opType == config.OpRegistrySetDword ||
 		opType == config.OpRegistrySetString ||
+		opType == config.OpRegistrySetQword ||
 		opType == config.OpRegistryDelete
 }
 
@@ -290,6 +349,15 @@ func (o *Orchestrator) Undo(t config.Tweak) Result {
 			if err != nil {
 				eff.Err = err
 			} else if err := o.exec.RegistrySetString(op.Hive, op.Path, op.Name, val); err != nil {
+				eff.Err = err
+			} else {
+				eff.Applied = true
+			}
+		case config.OpRegistrySetQword:
+			val, err := op.QwordValue()
+			if err != nil {
+				eff.Err = err
+			} else if err := o.exec.RegistrySetQword(op.Hive, op.Path, op.Name, val); err != nil {
 				eff.Err = err
 			} else {
 				eff.Applied = true
@@ -367,8 +435,39 @@ func (o *Orchestrator) IsApplied(t config.Tweak) bool {
 			if err != nil || !exists || cur != val {
 				return false
 			}
+		case config.OpRegistrySetQword:
+			val, err := op.QwordValue()
+			if err != nil {
+				return false
+			}
+			cur, exists, err := o.exec.RegistryGetQword(op.Hive, op.Path, op.Name)
+			if err != nil || !exists || cur != val {
+				return false
+			}
 		case config.OpRegistryDelete:
 			if o.valueExists(op.Hive, op.Path, op.Name) {
+				return false
+			}
+		case config.OpServiceStartMode:
+			mode, err := op.StringValue()
+			if err != nil {
+				return false
+			}
+			cur, err := o.exec.ServiceGetStartMode(op.Name)
+			if err != nil || !strings.EqualFold(cur, mode) {
+				return false
+			}
+		case config.OpPowerScheme:
+			val, err := op.StringValue()
+			if err != nil {
+				return false
+			}
+			guid, err := power.Resolve(val)
+			if err != nil {
+				return false
+			}
+			cur, err := o.exec.PowerGetActive()
+			if err != nil || !strings.EqualFold(cur, guid) {
 				return false
 			}
 		default:
@@ -396,7 +495,7 @@ func deriveRevert(ops []config.Operation) []config.Operation {
 	var out []config.Operation
 	for _, op := range ops {
 		switch op.Type {
-		case config.OpRegistrySetDword, config.OpRegistrySetString:
+		case config.OpRegistrySetDword, config.OpRegistrySetString, config.OpRegistrySetQword:
 			out = append(out, config.Operation{Type: config.OpRegistryDelete, Hive: op.Hive, Path: op.Path, Name: op.Name})
 		}
 	}
@@ -406,7 +505,7 @@ func deriveRevert(ops []config.Operation) []config.Operation {
 // opTarget builds a human-readable target string for logs and UI.
 func opTarget(op config.Operation) string {
 	switch op.Type {
-	case config.OpRegistrySetDword, config.OpRegistrySetString, config.OpRegistryDelete:
+	case config.OpRegistrySetDword, config.OpRegistrySetString, config.OpRegistrySetQword, config.OpRegistryDelete:
 		return fmt.Sprintf("%s\\%s\\%s", op.Hive, op.Path, op.Name)
 	case config.OpServiceStartMode, config.OpServiceStart, config.OpServiceStop:
 		return "service:" + op.Name
@@ -414,6 +513,9 @@ func opTarget(op config.Operation) string {
 		return "task:" + op.Path
 	case config.OpAppxRemove:
 		return "appx:" + op.Name
+	case config.OpPowerScheme:
+		s, _ := op.StringValue()
+		return "power:" + s
 	case config.OpCommand:
 		s, _ := op.StringValue()
 		return "cmd:" + s

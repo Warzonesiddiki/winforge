@@ -28,6 +28,11 @@ func Dword(h Hive, path, name string) (uint32, error) {
 	return dword(h, path, name)
 }
 
+// Qword returns the uint64 value at path\name, or ErrNotFound.
+func Qword(h Hive, path, name string) (uint64, error) {
+	return qword(h, path, name)
+}
+
 // String returns the string value at path\name, or ErrNotFound.
 func String(h Hive, path, name string) (string, error) {
 	return str(h, path, name)
@@ -36,6 +41,11 @@ func String(h Hive, path, name string) (string, error) {
 // SetDword writes a REG_DWORD value, creating the key if necessary.
 func SetDword(h Hive, path, name string, value uint32) error {
 	return setDword(h, path, name, value)
+}
+
+// SetQword writes a REG_QWORD value, creating the key if necessary.
+func SetQword(h Hive, path, name string, value uint64) error {
+	return setQword(h, path, name, value)
 }
 
 // SetString writes a REG_SZ value, creating the key if necessary.

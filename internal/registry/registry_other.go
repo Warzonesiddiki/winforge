@@ -7,9 +7,13 @@ package registry
 
 func dword(_ Hive, _, _ string) (uint32, error) { return 0, ErrUnsupported }
 
+func qword(_ Hive, _, _ string) (uint64, error) { return 0, ErrUnsupported }
+
 func str(_ Hive, _, _ string) (string, error) { return "", ErrUnsupported }
 
 func setDword(_ Hive, _, _ string, _ uint32) error { return ErrUnsupported }
+
+func setQword(_ Hive, _, _ string, _ uint64) error { return ErrUnsupported }
 
 func setString(_ Hive, _, _ string, _ string) error { return ErrUnsupported }
 

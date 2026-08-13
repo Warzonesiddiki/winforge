@@ -30,8 +30,12 @@ type tokenElevationInfo struct {
 // P/Invoke, keeping the binary free of third-party modules.
 func isElevated() bool {
 	var token syscall.Handle
+	proc, err := syscall.GetCurrentProcess()
+	if err != nil {
+		return false
+	}
 	r, _, _ := procOpenProcessToken.Call(
-		uintptr(syscall.GetCurrentProcess()),
+		uintptr(proc),
 		uintptr(tokenQuery),
 		uintptr(unsafe.Pointer(&token)),
 	)

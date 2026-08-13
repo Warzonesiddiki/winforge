@@ -126,7 +126,8 @@ func (l *Logger) readFile(path string) ([]Entry, error) {
 	return out, nil
 }
 
-// NewID returns a compact unique identifier for an operation.
+// NewID returns a compact unique identifier for an operation. The PID is
+// included so concurrent WinForge processes cannot collide.
 func NewID() string {
-	return fmt.Sprintf("op-%d", time.Now().UnixNano())
+	return fmt.Sprintf("op-%d-%d", time.Now().UnixNano(), os.Getpid())
 }

@@ -19,3 +19,5 @@ func removeProvisionedAppx(_ string) error { return ErrUnsupported }
 func setDns(_, _, _ string) error { return ErrUnsupported }
 
 func setDnsOnAll(_, _ string) error { return ErrUnsupported }
+
+func removeAppxPackageByFullName(_ string) error { return ErrUnsupported }

@@ -302,19 +302,18 @@ func installCmd(args []string) error {
 	if !res.Success {
 		return fmt.Errorf("install failed (winget exited non-zero)")
 	}
-	fmt.Println(strings.Join(res.Lines, "\n"))
 	return nil
 }
 
 func searchCmd(args []string) error {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		return fmt.Errorf("search requires a query")
 	}
 	a, err := newApp()
 	if err != nil {
 		return err
 	}
-	ids, err := a.Packages.Search(context.Background(), args[1])
+	ids, err := a.Packages.Search(context.Background(), args[0])
 	if err != nil {
 		return err
 	}

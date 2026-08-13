@@ -11,16 +11,19 @@ import (
 const (
 	regSz    = 1
 	regDword = 4
+	regQword = 11
 
 	rrfRtRegSz       = 0x00000002
 	rrfRtRegExpandSz = 0x00000004
 	rrfRtRegDword    = 0x00000010
+	rrfRtRegQword    = 0x00000040
 
 	keySetValue         = 0x0002
 	keyQueryValue       = 0x0001
 	keyEnumerateSubKeys = 0x0008
 
 	errorFileNotFound = 2
+	errorMoreData     = 234
 	errorNoMoreItems  = 259
 
 	hkeyClassesRoot  = 0x80000000
@@ -167,6 +170,17 @@ func dword(h Hive, path, name string) (uint32, error) {
 	return *(*uint32)(unsafe.Pointer(&buf[0])), nil
 }
 
+func qword(h Hive, path, name string) (uint64, error) {
+	buf, _, err := regGetValue(h, path, name, rrfRtRegQword)
+	if err != nil {
+		return 0, err
+	}
+	if len(buf) < 8 {
+		return 0, ErrNotFound
+	}
+	return *(*uint64)(unsafe.Pointer(&buf[0])), nil
+}
+
 func str(h Hive, path, name string) (string, error) {
 	// Accept both REG_SZ and REG_EXPAND_SZ; both are UTF-16LE, null-terminated.
 	buf, _, err := regGetValue(h, path, name, rrfRtRegSz|rrfRtRegExpandSz)
@@ -184,6 +198,11 @@ func str(h Hive, path, name string) (string, error) {
 func setDword(h Hive, path, name string, value uint32) error {
 	buf := (*[4]byte)(unsafe.Pointer(&value))[:]
 	return regSetValue(h, path, name, regDword, buf)
+}
+
+func setQword(h Hive, path, name string, value uint64) error {
+	buf := (*[8]byte)(unsafe.Pointer(&value))[:]
+	return regSetValue(h, path, name, regQword, buf)
 }
 
 func setString(h Hive, path, name, value string) error {
@@ -243,6 +262,11 @@ func enumSubkeys(h Hive, path string) ([]string, error) {
 			uintptr(unsafe.Pointer(&size)),
 			0, 0, 0, 0,
 		)
+		if r == errorMoreData {
+			buf = make([]uint16, len(buf)*2)
+			i-- // retry the same index with the larger buffer
+			continue
+		}
 		if r == errorNoMoreItems {
 			break
 		}
