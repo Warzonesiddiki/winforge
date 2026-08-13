@@ -9,10 +9,10 @@ import (
 
 // mockExecutor is an in-memory Executor used to verify orchestration logic.
 type mockExecutor struct {
-	dwords  map[string]uint32
-	strings map[string]string
+	dwords     map[string]uint32
+	strings    map[string]string
 	startModes map[string]string
-	commands []string
+	commands   []string
 }
 
 func newMock() *mockExecutor {
@@ -56,12 +56,12 @@ func (m *mockExecutor) ServiceGetStartMode(name string) (string, error) {
 	}
 	return "manual", nil
 }
-func (m *mockExecutor) ServiceStart(string) error   { return nil }
-func (m *mockExecutor) ServiceStop(string) error    { return nil }
-func (m *mockExecutor) TaskDisable(string) error    { return nil }
-func (m *mockExecutor) TaskEnable(string) error     { return nil }
-func (m *mockExecutor) TaskDelete(string) error     { return nil }
-func (m *mockExecutor) AppxRemove(string) error     { return nil }
+func (m *mockExecutor) ServiceStart(string) error { return nil }
+func (m *mockExecutor) ServiceStop(string) error  { return nil }
+func (m *mockExecutor) TaskDisable(string) error  { return nil }
+func (m *mockExecutor) TaskEnable(string) error   { return nil }
+func (m *mockExecutor) TaskDelete(string) error   { return nil }
+func (m *mockExecutor) AppxRemove(string) error   { return nil }
 func (m *mockExecutor) RunCommand(c string, _ []string) error {
 	m.commands = append(m.commands, c)
 	return nil
@@ -69,8 +69,8 @@ func (m *mockExecutor) RunCommand(c string, _ []string) error {
 
 func dwordOp(hive, path, name string, val int) config.Operation {
 	return config.Operation{
-		Type:  config.OpRegistrySetDword,
-		Hive:  hive, Path: path, Name: name,
+		Type: config.OpRegistrySetDword,
+		Hive: hive, Path: path, Name: name,
 		Value: json.RawMessage([]byte{byte('0' + val)}),
 	}
 }

@@ -47,17 +47,17 @@ type Operation struct {
 
 // Operation type constants understood by the engine.
 const (
-	OpRegistrySetDword   = "registry_set_dword"
-	OpRegistrySetString  = "registry_set_string"
-	OpRegistryDelete     = "registry_delete"
-	OpServiceStartMode   = "service_start_mode"
-	OpServiceStart       = "service_start"
-	OpServiceStop        = "service_stop"
-	OpTaskDisable        = "task_disable"
-	OpTaskEnable         = "task_enable"
-	OpTaskDelete         = "task_delete"
-	OpAppxRemove         = "appx_remove"
-	OpCommand            = "command"
+	OpRegistrySetDword  = "registry_set_dword"
+	OpRegistrySetString = "registry_set_string"
+	OpRegistryDelete    = "registry_delete"
+	OpServiceStartMode  = "service_start_mode"
+	OpServiceStart      = "service_start"
+	OpServiceStop       = "service_stop"
+	OpTaskDisable       = "task_disable"
+	OpTaskEnable        = "task_enable"
+	OpTaskDelete        = "task_delete"
+	OpAppxRemove        = "appx_remove"
+	OpCommand           = "command"
 )
 
 // Value helpers decode the raw JSON value into the type an operation expects.
@@ -85,7 +85,7 @@ func (o Operation) StringValue() (string, error) {
 
 // App is one installable application surfaced in the package manager.
 type App struct {
-	ID          string   `json:"id"`          // winget package id
+	ID          string   `json:"id"` // winget package id
 	Name        string   `json:"name"`
 	Category    string   `json:"category"`
 	Description string   `json:"description"`
@@ -94,9 +94,9 @@ type App struct {
 
 // DnsEntry describes a DNS server preset for a named adapter profile.
 type DnsEntry struct {
-	Profile  string   `json:"profile"`
-	Primary  string   `json:"primary"`
-	Secondary string  `json:"secondary,omitempty"`
+	Profile   string `json:"profile"`
+	Primary   string `json:"primary"`
+	Secondary string `json:"secondary,omitempty"`
 }
 
 // TweakConfig is the root shape of tweaks.json.

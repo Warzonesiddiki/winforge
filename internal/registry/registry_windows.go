@@ -15,7 +15,7 @@ const (
 	rrfRtRegSz    = 0x00000002
 	rrfRtRegDword = 0x00000010
 
-	keySetValue      = 0x0002
+	keySetValue       = 0x0002
 	errorFileNotFound = 2
 
 	hkeyClassesRoot  = 0x80000000

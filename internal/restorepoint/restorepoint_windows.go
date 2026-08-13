@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	beginSystemChange = 100 // BEGIN_SYSTEM_CHANGE
-	endSystemChange   = 101 // END_SYSTEM_CHANGE
-	applicationInstall = 20 // APPLICATION_INSTALL
+	beginSystemChange  = 100 // BEGIN_SYSTEM_CHANGE
+	endSystemChange    = 101 // END_SYSTEM_CHANGE
+	applicationInstall = 20  // APPLICATION_INSTALL
 )
 
 var (
