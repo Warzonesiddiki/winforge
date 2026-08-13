@@ -15,6 +15,8 @@ winforge history
 winforge install --id <winget-id>
 winforge search  <query>
 winforge restore-point [--description "…"]
+winforge restore-points    # list existing restore points (WMI)
+winforge plugins           # list installed plugins
 winforge reset-windows-update | repair-image | flush-dns | network-reset
 winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
 winforge enable-feature  --name <feature>
@@ -42,10 +44,10 @@ design optimizes for the stated constraints:
 - **No native WPF/Mica chrome** — the dashboard is served on `127.0.0.1` and
   opened in the browser. This is also a *security* choice: a system-control
   surface must not be network-reachable.
-- **COM-heavy features are phased** — WMI restore points, Appx `PackageManager`,
-  Task Scheduler, DISM, and Windows Update COM interop are large, hand-rolled
-  P/Invoke efforts. They are stubbed now (they return a clear
-  `not implemented` error) and land in later phases.
+- **COM-heavy features are phased** — restore-point *listing* is implemented via
+  raw WMI COM interop (the `SystemRestore` class), while Appx `PackageManager`,
+  Task Scheduler, and Windows Update COM interop remain large, hand-rolled
+  P/Invoke efforts that land in later phases.
 
 ---
 
@@ -85,6 +87,7 @@ config/                    default tweaks, applications, DNS, protected services
 internal/
   app/                     composition root (wires everything, shared by CLI+HTTP)
   config/                  config models + loader (embedded → user override)
+  plugin/                  plugin discovery + merge (manifest.json + tweaks.json)
   registry/                stdlib-only advapi32 registry client (windows + stub)
   service/                 Service Control Manager: start type, start/stop
   platform/                elevation check + OS identity (build-tagged)
@@ -143,6 +146,21 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 | `dns.json` | DNS presets (Cloudflare, Google, Quad9, OpenDNS). |
 | `protectedServices.json` | Services that must not be modified. |
 
+### Plugins
+
+Drop a plugin into `%LOCALAPPDATA%\WinForge\plugins\<name>\` (or
+`<dataDir>\plugins\<name>\`) to extend WinForge without recompiling. A plugin
+directory contains:
+
+| File | Purpose |
+|------|---------|
+| `manifest.json` | `{"name","version","description","author"}` metadata. |
+| `tweaks.json` | Extra tweaks, same schema as the built-in `tweaks.json`. |
+
+Plugins are scanned at startup and their tweaks are merged into the
+configuration. On id collisions, built-in (and user-override) tweaks win.
+Malformed plugins are skipped (best-effort).
+
 ### Operation types
 
 `registry_set_dword`, `registry_set_string`, `registry_delete`,
@@ -159,11 +177,11 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 - [x] One-click fixes (reset Windows Update, repair image, network reset, flush DNS)
 - [x] DNS per-adapter configuration (`netsh`, `net.Interfaces` discovery)
 - [x] Provisioned Appx removal via `dism.exe`
-- [ ] List existing restore points (WMI `SystemRestore` class)
+- [x] List existing restore points (WMI `SystemRestore` class)
 - [ ] Per-user Appx removal (`PackageManager` WinRT interop)
 - [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
 - [ ] ISO builder (MicroWin-style)
-- [ ] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
+- [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
 - [ ] Scheduled maintenance task registration
 - [ ] Smart bloatware detection + recommendations
 

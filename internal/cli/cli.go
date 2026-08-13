@@ -50,6 +50,8 @@ func Run(args []string) error {
 		return searchCmd(args[1:])
 	case "restore-point":
 		return restorePointCmd(args[1:])
+	case "restore-points":
+		return listRestorePointsCmd()
 	case "reset-windows-update":
 		return maintenanceCmd("reset-windows-update", args[1:])
 	case "repair-image":
@@ -91,6 +93,7 @@ Usage:
   winforge install --id <winget-id>
   winforge search  <query>
   winforge restore-point [--description "…"]
+  winforge restore-points    list existing restore points
   winforge reset-windows-update | repair-image | flush-dns | network-reset
   winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
   winforge enable-feature  --name <feature>
@@ -306,6 +309,21 @@ func restorePointCmd(args []string) error {
 		return err
 	}
 	fmt.Printf("restore point created: sequence=%d\n", info.SequenceNumber)
+	return nil
+}
+
+func listRestorePointsCmd() error {
+	points, err := restorepoint.List()
+	if err != nil {
+		return err
+	}
+	if len(points) == 0 {
+		fmt.Println("no restore points found")
+		return nil
+	}
+	for _, p := range points {
+		fmt.Printf("%-6d %s  %s\n", p.SequenceNumber, p.CreatedAt.Format("2006-01-02 15:04:05"), p.Description)
+	}
 	return nil
 }
 

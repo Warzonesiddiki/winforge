@@ -175,8 +175,7 @@ func (a *App) CreateRestorePoint(description string) (restorepoint.Info, error) 
 	return info, err
 }
 
-// ListRestorePoints enumerates existing restore points (WMI-backed; not yet
-// implemented, returns an empty list with a clear error).
+// ListRestorePoints enumerates existing restore points via WMI (newest first).
 func (a *App) ListRestorePoints() ([]restorepoint.Info, error) {
 	return restorepoint.List()
 }

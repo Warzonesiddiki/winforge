@@ -18,6 +18,7 @@ import (
 	"winforge/internal/appmanager"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
+	"winforge/internal/restorepoint"
 )
 
 // job tracks an in-flight async operation (winget install, maintenance fix,
@@ -64,6 +65,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/history/undo", s.handleUndoEntry)
 
+	mux.HandleFunc("GET /api/restore-points", s.handleListRestorePoints)
 	mux.HandleFunc("POST /api/restore-point", s.handleRestorePoint)
 
 	mux.HandleFunc("POST /api/maintenance/reset-windows-update", s.handleResetWindowsUpdate)
@@ -299,6 +301,18 @@ func (s *Server) handleUndoEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleListRestorePoints(w http.ResponseWriter, _ *http.Request) {
+	points, err := s.App.ListRestorePoints()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if points == nil {
+		points = []restorepoint.Info{}
+	}
+	writeJSON(w, http.StatusOK, points)
 }
 
 func (s *Server) handleRestorePoint(w http.ResponseWriter, r *http.Request) {
