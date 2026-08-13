@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
+	"winforge/internal/audit"
 	"winforge/internal/httpapi"
 	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
@@ -130,6 +132,28 @@ func newApp() (*app.App, error) {
 	return app.New(dir)
 }
 
+func standaloneAuditLogger(elevated bool) *audit.Logger {
+	if elevated {
+		return nil
+	}
+	dataDir := os.Getenv("WINFORGE_DATA_DIR")
+	if dataDir == "" {
+		dataDir = app.DefaultDataDir()
+	}
+	return audit.NewLogger(filepath.Join(dataDir, "logs"))
+}
+
+func ensureRestorePoint(description string) {
+	// Standalone maintenance commands do not otherwise need the full config.
+	// Build only the safety dependencies so a malformed optional override cannot
+	// turn a best-effort restore point into a blocker for an unrelated repair.
+	a := &app.App{
+		Logger:           standaloneAuditLogger(platform.IsElevated()),
+		AutoRestorePoint: os.Getenv("WINFORGE_NO_RESTORE_POINT") == "",
+	}
+	a.EnsureRestorePoint(description)
+}
+
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	host := fs.String("host", "127.0.0.1", "bind address")
@@ -137,21 +161,39 @@ func serve(args []string) error {
 	noBrowser := fs.Bool("no-browser", false, "do not open the browser")
 	_ = fs.Parse(args)
 
+	hostValue := *host
+	if strings.EqualFold(hostValue, "localhost") {
+		// Do not rely on a hosts-file mapping for the loopback-only security
+		// boundary; bind the literal address after accepting the friendly alias.
+		hostValue = "127.0.0.1"
+	}
+	ip := net.ParseIP(hostValue)
+	if ip == nil || !ip.IsLoopback() {
+		return fmt.Errorf("dashboard host must be a loopback address")
+	}
+	portNumber, err := strconv.Atoi(*port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return fmt.Errorf("dashboard port must be an integer between 1 and 65535")
+	}
+
 	a, err := newApp()
 	if err != nil {
 		return err
 	}
 
-	addr := net.JoinHostPort(*host, *port)
+	addr := net.JoinHostPort(hostValue, strconv.Itoa(portNumber))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           httpapi.New(a),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	url := "http://" + addr + "/"
 	fmt.Printf("WinForge dashboard: %s\n", url)
-	fmt.Printf("Elevated: %v\n", platform.IsElevated())
+	fmt.Printf("Elevated: %v\n", a.Elevated())
 	fmt.Printf("(Press Ctrl+C to stop.)\n")
 
 	if !*noBrowser {
@@ -177,7 +219,7 @@ func applyCmd(args []string) error {
 		return err
 	}
 	printResult(res)
-	return nil
+	return res.Failure()
 }
 
 func undoCmd(args []string) error {
@@ -196,7 +238,7 @@ func undoCmd(args []string) error {
 		return err
 	}
 	printResult(res)
-	return nil
+	return res.Failure()
 }
 
 func printResult(res tweak.Result) {
@@ -266,10 +308,7 @@ func historyCmd() error {
 	if err != nil {
 		return err
 	}
-	entries, err := a.History()
-	if err != nil {
-		return err
-	}
+	entries, readErr := a.History()
 	for _, e := range entries {
 		status := "ok"
 		if !e.Success {
@@ -277,7 +316,7 @@ func historyCmd() error {
 		}
 		fmt.Printf("%s  %-8s %-24s %s\n", e.Timestamp.Format("2006-01-02 15:04:05"), status, e.OperationType, e.Target)
 	}
-	return nil
+	return readErr
 }
 
 func installCmd(args []string) error {
@@ -287,11 +326,14 @@ func installCmd(args []string) error {
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
+	if err := appmanager.ValidatePackageID(*id); err != nil {
+		return err
+	}
 	a, err := newApp()
 	if err != nil {
 		return err
 	}
-	res, err := a.Packages.Install(context.Background(), *id, func(p appmanager.Progress) {
+	res, err := a.InstallPackage(context.Background(), *id, func(p appmanager.Progress) {
 		if p.Line != "" {
 			fmt.Println(p.Line)
 		}
@@ -313,7 +355,7 @@ func searchCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	ids, err := a.Packages.Search(context.Background(), args[0])
+	ids, err := a.SearchPackages(context.Background(), strings.Join(args, " "))
 	if err != nil {
 		return err
 	}
@@ -327,7 +369,11 @@ func restorePointCmd(args []string) error {
 	fs := flag.NewFlagSet("restore-point", flag.ExitOnError)
 	desc := fs.String("description", "WinForge restore point", "restore point description")
 	_ = fs.Parse(args)
-	info, err := restorepoint.Create(*desc)
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	info, err := a.CreateRestorePoint(*desc)
 	if err != nil {
 		return err
 	}
@@ -362,6 +408,9 @@ func runMaintenanceCmd() error {
 	if sum.AppError != "" {
 		fmt.Println("app update error:", sum.AppError)
 	}
+	if sum.AuditError != "" {
+		fmt.Println("audit error:", sum.AuditError)
+	}
 	fmt.Printf("maintenance complete: %d tweaks applied", len(sum.TweaksApplied))
 	switch {
 	case sum.AppsUpgraded:
@@ -370,7 +419,7 @@ func runMaintenanceCmd() error {
 		fmt.Print(", app updates skipped (winget missing)")
 	}
 	fmt.Println()
-	if len(sum.TweakErrors) > 0 || sum.AppError != "" {
+	if len(sum.TweakErrors) > 0 || sum.AppError != "" || sum.AuditError != "" {
 		return fmt.Errorf("maintenance completed with errors")
 	}
 	return nil
@@ -472,6 +521,7 @@ func updatesCmd(args []string) error {
 
 func installUpdatesCmd(args []string) error {
 	_ = args
+	ensureRestorePoint("WinForge: install Windows updates")
 	fmt.Println("Downloading and installing updates (this can take a while)…")
 	res, err := updater.InstallAll()
 	if err != nil {
@@ -506,6 +556,9 @@ func logToStdout(line string) { fmt.Println(line) }
 
 func maintenanceCmd(name string, args []string) error {
 	_ = args // maintenance commands take no flags today
+	if name != "flush-dns" {
+		ensureRestorePoint("WinForge: " + name)
+	}
 	fmt.Printf("Running %s…\n", name)
 	var err error
 	switch name {
@@ -536,6 +589,16 @@ func setDnsCmd(args []string) error {
 	if *primary == "" {
 		return fmt.Errorf("--primary is required")
 	}
+	var validationErr error
+	if *adapter != "" {
+		validationErr = maintenance.ValidateDnsSettings(*adapter, *primary, *secondary)
+	} else {
+		validationErr = maintenance.ValidateDnsServers(*primary, *secondary)
+	}
+	if validationErr != nil {
+		return validationErr
+	}
+	ensureRestorePoint("WinForge: change DNS settings")
 
 	var err error
 	if *adapter != "" {
@@ -565,6 +628,10 @@ func featureCmd(args []string, enable bool) error {
 	if *name == "" {
 		return fmt.Errorf("--name is required")
 	}
+	if err := maintenance.ValidateFeatureName(*name); err != nil {
+		return err
+	}
+	ensureRestorePoint("WinForge: " + verb + " Windows feature " + *name)
 	if enable {
 		return maintenance.EnableFeature(*name, logToStdout)
 	}

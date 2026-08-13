@@ -122,15 +122,26 @@ OS while the mutation layer targets Windows.
 
 ### Safety model
 
-- Every mutation is **logged** (JSONL under `%LOCALAPPDATA%\WinForge\logs\`).
+- At standard privilege, tweak operations, restore points, package installs,
+  and maintenance passes are **logged** (JSONL under
+  `%LOCALAPPDATA%\WinForge\logs\`). Elevated processes perform no audit I/O in
+  that user-writable directory; junctions, hard links, and directory races make
+  it unsuitable as an administrator write boundary.
 - Registry operations record their **previous value**, enabling **per-row undo**
-  from the History view.
-- Reversible tweaks carry an explicit **revert list**.
+  from the History view while WinForge runs at standard privilege. Per-row undo
+  is disabled in elevated processes because audit files in the user profile are
+  not a trustworthy source of administrator-level mutation targets or values.
+- Reversible tweaks carry an explicit **revert list**; this validated catalog
+  action remains available for elevated undo.
 - A **system restore point** is created (best-effort, throttled to once/hour)
   before the first mutation — the safety-first policy. Disable with the
   `WINFORGE_NO_RESTORE_POINT` env var.
-- A **protected-services** list blocks start-mode changes to critical services
-  (e.g. `WinDefend`).
+- A **protected-services** list blocks start-mode, start, and stop mutations for
+  critical services (e.g. `WinDefend`).
+- Elevated command tweaks may invoke only WinForge's allowlisted Windows inbox
+  tools, resolved beneath the trusted system directory. Standard-user plugins
+  retain their ability to invoke additional commands without an administrator
+  token.
 - **Dry-run** (`--dry-run`, or the API's `dryRun` flag) reports what *would*
   change without mutating anything.
 - The dashboard binds to `127.0.0.1` only.
@@ -146,10 +157,16 @@ clamped to `[0, 100]`.
 ### Scheduled maintenance
 
 `winforge schedule` registers a weekly Task Scheduler task that runs
-`winforge run-maintenance`. The maintenance pass re-applies any tweak that is
-not in its target state and upgrades outdated winget apps (`winget upgrade
---all`), streaming progress to the dashboard. Each pass is recorded in the
-audit log, and a restore point is taken (throttled) before any mutation.
+`winforge run-maintenance`. The task deliberately runs at the user's standard
+privilege: WinForge is portable and may live in a user-writable directory, so
+silently elevating that path would create an unsafe persistence boundary.
+User-level tweaks and outdated winget apps (`winget upgrade --all`) are handled
+by the scheduled pass; system-wide tweaks that require elevation can be
+re-applied by running maintenance interactively as administrator. Elevated
+WinForge deliberately disables WinGet because its executable is discovered
+through user-controlled registration/PATH state; restart normally for package
+search, install, and upgrades. Standard-user passes are recorded in the audit
+log, and a restore point is taken (throttled) before any mutation.
 
 ### Bloatware detection
 
@@ -165,6 +182,11 @@ mounted) installation source. It optionally slims the image by exporting only
 the chosen editions (`dism /Export-Image`) and rebuilds a BIOS/UEFI-bootable
 ISO with `oscdimg.exe` from the Windows ADK Deployment Tools. The user's source
 directory is never modified — edition slimming happens in a scratch copy.
+Because ADK's `oscdimg.exe` is discovered through `PATH`, ISO creation is
+available only at standard privilege; elevated WinForge refuses it rather than
+launching a user-selected executable with an administrator token. Edition
+listing also stays disabled while elevated, avoiding administrator-level parsing
+of a user-selected image even though it uses the trusted System32 `dism.exe`.
 
 ### Windows Update
 
@@ -182,10 +204,16 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 
 | File | Purpose |
 |------|---------|
-| `tweaks.json` | Declarative tweaks: ordered operations + optional revert list. |
-| `applications.json` | winget app catalog (50 apps across categories). |
-| `dns.json` | DNS presets (Cloudflare, Google, Quad9, OpenDNS). |
+| `tweaks.json` | Declarative tweaks: ordered operations + required explicit revert lists for reversible tweaks. |
+| `applications.json` | winget app catalog (52 apps across categories); IDs are validated at startup. |
+| `dns.json` | DNS presets (Cloudflare, Google, Quad9, OpenDNS); profiles and addresses are validated at startup. |
 | `protectedServices.json` | Services that must not be modified. |
+
+Configuration decoding rejects unknown fields, trailing JSON values, symbolic
+links, special files, and files larger than 8 MiB, so malformed or hostile
+inputs cannot silently become zero values or exhaust the process. Because these
+overrides are user-writable, an elevated WinForge process ignores them and uses
+the embedded catalogs.
 
 ### Plugins
 
@@ -199,14 +227,18 @@ directory contains:
 | `tweaks.json` | Extra tweaks, same schema as the built-in `tweaks.json`. |
 
 Plugins are scanned at startup and their tweaks are merged into the
-configuration. On id collisions, built-in (and user-override) tweaks win.
-Malformed plugins are skipped (best-effort).
+configuration. On id collisions, the base (embedded or user-override) catalog
+wins. Malformed plugins are skipped (best-effort), and plugin files and
+directory enumeration are bounded. Elevated WinForge processes ignore plugins:
+a standard user can write this extension directory, so consuming it as
+Administrator would cross the UAC security boundary.
 
 ### Operation types
 
-`registry_set_dword`, `registry_set_string`, `registry_delete`,
-`service_start_mode`, `service_start`, `service_stop`, `task_disable`,
-`task_enable`, `task_delete`, `appx_remove`, `command`.
+`registry_set_dword`, `registry_set_qword`, `registry_set_string`,
+`registry_delete`, `service_start_mode`, `service_start`, `service_stop`,
+`task_disable`, `task_enable`, `task_delete`, `appx_remove`, `power_scheme`,
+and `command`.
 
 ---
 

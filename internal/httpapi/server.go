@@ -7,50 +7,79 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"winforge"
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
+	"winforge/internal/audit"
 	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
+	"winforge/internal/tweak"
 	"winforge/internal/updater"
 )
 
-// maxJobs is the maximum number of completed/errored jobs retained in memory.
-// Older entries are pruned when the limit is exceeded to prevent unbounded
-// memory growth during long-lived server sessions.
-const maxJobs = 100
+// Completed and live jobs have separate bounds. Live queued/running jobs are
+// never discarded; new work is rejected once admission is full. Older finished
+// entries are pruned when the completed-job retention limit is exceeded.
+const (
+	maxJobs             = 100
+	maxActiveJobs       = 16
+	maxJobLines         = 1000
+	maxJobLineBytes     = 4096
+	maxJobLogBytes      = 256 << 10
+	maxJobErrorBytes    = 16 << 10
+	maxRequestBodyBytes = 1 << 20
+)
+
+var errJobQueueFull = errors.New("job queue is full")
 
 // job tracks an in-flight async operation (winget install, maintenance fix,
 // DISM feature change) for progress polling.
 type job struct {
-	ID     string   `json:"id"`
-	Kind   string   `json:"kind"`
-	Status string   `json:"status"` // "running" | "done" | "error"
-	Lines  []string `json:"lines,omitempty"`
-	Done   bool     `json:"done"`
-	Error  string   `json:"error,omitempty"`
+	ID           string   `json:"id"`
+	Kind         string   `json:"kind"`
+	Status       string   `json:"status"` // "queued" | "running" | "done" | "error"
+	Lines        []string `json:"lines,omitempty"`
+	LinesDropped int      `json:"linesDropped,omitempty"`
+	Done         bool     `json:"done"`
+	Error        string   `json:"error,omitempty"`
+	linesBytes   int
+	finished     chan struct{}
 }
 
 // Server implements http.Handler for the dashboard and API.
 type Server struct {
-	App  *app.App
-	mux  *http.ServeMux
-	mu   sync.Mutex
-	jobs map[string]*job
-	seq  int
+	App        *app.App
+	mux        *http.ServeMux
+	elevated   bool
+	mu         sync.Mutex
+	mutationMu sync.Mutex
+	jobs       map[string]*job
+	seq        int
 }
 
 // New creates the HTTP server.
 func New(a *app.App) *Server {
-	s := &Server{App: a, jobs: map[string]*job{}}
+	elevated := a != nil && a.Elevated()
+	return newServer(a, elevated)
+}
+
+func newServer(a *app.App, elevated bool) *Server {
+	s := &Server{App: a, elevated: elevated, jobs: map[string]*job{}}
 	s.mux = s.routes()
 	return s
 }
@@ -107,9 +136,122 @@ func (s *Server) routes() *http.ServeMux {
 	return mux
 }
 
-// ServeHTTP satisfies http.Handler.
+// ServeHTTP satisfies http.Handler. The dashboard is a privileged local
+// control surface, so reject DNS-rebinding hosts and cross-origin mutations
+// even if a caller accidentally binds the server beyond loopback.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
+
+	if !isLoopbackAuthority(r.Host) {
+		writeErr(w, http.StatusForbidden, fmt.Errorf("request Host must be loopback"))
+		return
+	}
+	if isMutation(r.Method) {
+		if !isSameOrigin(r) {
+			writeErr(w, http.StatusForbidden, fmt.Errorf("cross-origin mutation rejected"))
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+	}
 	s.mux.ServeHTTP(w, r)
+}
+
+func isMutation(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func isLoopbackAuthority(authority string) bool {
+	host, _, err := splitAuthority(authority)
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	addr, err := netip.ParseAddr(host)
+	return err == nil && addr.IsLoopback()
+}
+
+func splitAuthority(authority string) (host, port string, err error) {
+	if authority == "" {
+		return "", "", fmt.Errorf("empty authority")
+	}
+	if strings.HasPrefix(authority, "[") && strings.HasSuffix(authority, "]") {
+		return strings.TrimSuffix(strings.TrimPrefix(authority, "["), "]"), "", nil
+	}
+	if h, p, splitErr := net.SplitHostPort(authority); splitErr == nil {
+		return h, p, nil
+	}
+	if strings.Contains(authority, ":") {
+		return "", "", fmt.Errorf("invalid authority %q", authority)
+	}
+	return authority, "", nil
+}
+
+func decodeJSON(body io.Reader, dst any, optional bool) error {
+	dec := json.NewDecoder(body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		if optional && errors.Is(err, io.EOF) {
+			return nil
+		}
+		return fmt.Errorf("invalid request: %w", err)
+	}
+	var extra any
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("invalid request: body contains multiple JSON values")
+		}
+		return fmt.Errorf("invalid request after first JSON value: %w", err)
+	}
+	return nil
+}
+
+func isSameOrigin(r *http.Request) bool {
+	if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+		return false
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Non-browser clients generally omit Origin; Host enforcement still
+		// prevents DNS rebinding and browser requests carry Origin/Sec-Fetch-Site.
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" ||
+		(u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	requestHost, requestPort, err := splitAuthority(r.Host)
+	if err != nil {
+		return false
+	}
+	originHost, originPort, err := splitAuthority(u.Host)
+	if err != nil || !strings.EqualFold(requestHost, originHost) {
+		return false
+	}
+	requestScheme := "http"
+	if r.TLS != nil {
+		requestScheme = "https"
+	}
+	if u.Scheme != requestScheme {
+		return false
+	}
+	if requestPort == "" {
+		requestPort = map[string]string{"http": "80", "https": "443"}[requestScheme]
+	}
+	if originPort == "" {
+		originPort = map[string]string{"http": "80", "https": "443"}[u.Scheme]
+	}
+	return requestPort == originPort
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -122,41 +264,108 @@ func writeErr(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 
-// startJob launches fn in a goroutine, streaming its log lines into the job.
-func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *job {
+func (s *Server) withMutation(fn func()) {
+	s.mutationMu.Lock()
+	defer s.mutationMu.Unlock()
+	fn()
+}
+
+func truncateUTF8(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	text = text[:limit-len("…")]
+	for !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text + "…"
+}
+
+// startJob admits fn to the bounded mutation queue and streams a bounded log
+// into its job record. A full queue is rejected before an ID or goroutine is
+// allocated; already-admitted queued/running jobs are never discarded.
+func (s *Server) startJob(kind, name string, fn func(log func(string)) error) (*job, error) {
 	s.mu.Lock()
+	active := 0
+	for _, existing := range s.jobs {
+		if !existing.Done {
+			active++
+		}
+	}
+	if active >= maxActiveJobs {
+		s.mu.Unlock()
+		return nil, fmt.Errorf("%w (%d active jobs)", errJobQueueFull, maxActiveJobs)
+	}
 	s.seq++
-	j := &job{ID: fmt.Sprintf("job-%d", s.seq), Kind: kind, Status: "running"}
+	j := &job{ID: fmt.Sprintf("job-%d", s.seq), Kind: kind, Status: "queued", finished: make(chan struct{})}
 	s.jobs[j.ID] = j
 	s.pruneJobs()
+	initial := cloneJob(j)
 	s.mu.Unlock()
 
 	go func() {
-		err := fn(func(line string) {
-			s.mu.Lock()
-			j.Lines = append(j.Lines, line)
-			s.mu.Unlock()
-		})
+		s.mutationMu.Lock()
+		s.mu.Lock()
+		j.Status = "running"
+		s.mu.Unlock()
+		err := func() (jobErr error) {
+			defer s.mutationMu.Unlock()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					jobErr = fmt.Errorf("job panicked: %v", recovered)
+				}
+			}()
+			return fn(func(line string) {
+				s.mu.Lock()
+				line = truncateUTF8(line, maxJobLineBytes)
+				for len(j.Lines) > 0 && (len(j.Lines) >= maxJobLines || j.linesBytes+len(line) > maxJobLogBytes) {
+					j.linesBytes -= len(j.Lines[0])
+					copy(j.Lines, j.Lines[1:])
+					j.Lines = j.Lines[:len(j.Lines)-1]
+					j.LinesDropped++
+				}
+				j.Lines = append(j.Lines, line)
+				j.linesBytes += len(line)
+				s.mu.Unlock()
+			})
+		}()
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		j.Done = true
 		if err != nil {
 			j.Status = "error"
-			j.Error = err.Error()
+			j.Error = truncateUTF8(err.Error(), maxJobErrorBytes)
 		} else {
 			j.Status = "done"
 		}
+		close(j.finished)
+		s.pruneJobs()
 	}()
 
-	return j
+	return initial, nil
+}
+
+func writeJobAdmission(w http.ResponseWriter, j *job, err error) bool {
+	if err != nil {
+		w.Header().Set("Retry-After", "1")
+		writeErr(w, http.StatusTooManyRequests, err)
+		return false
+	}
+	writeJSON(w, http.StatusAccepted, j)
+	return true
+}
+
+// cloneJob returns a snapshot that does not share its Lines backing array with
+// the live job. Caller must hold s.mu when the job can still be running.
+func cloneJob(j *job) *job {
+	out := *j
+	out.Lines = append([]string(nil), j.Lines...)
+	return &out
 }
 
 // pruneJobs removes the oldest completed/errored jobs when the count exceeds
 // maxJobs. Caller must hold s.mu.
 func (s *Server) pruneJobs() {
-	if len(s.jobs) <= maxJobs {
-		return
-	}
 	// Collect IDs of finished jobs sorted by sequence (embedded in the ID
 	// string "job-N") so we can drop the oldest.
 	type entry struct {
@@ -177,8 +386,10 @@ func (s *Server) pruneJobs() {
 			finished[j], finished[j-1] = finished[j-1], finished[j]
 		}
 	}
-	// Remove oldest until we're at or below the limit.
-	excess := len(s.jobs) - maxJobs
+	// Remove the oldest entries only when the number of finished jobs exceeds
+	// the retention limit. Never evict a just-finished result merely because
+	// many other jobs are still running.
+	excess := len(finished) - maxJobs
 	for i := 0; i < len(finished) && excess > 0; i++ {
 		delete(s.jobs, finished[i].id)
 		excess--
@@ -190,7 +401,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"version":        app.Version,
 		"os":             info,
-		"elevated":       platform.IsElevated(),
+		"elevated":       s.elevated,
 		"dataDir":        s.App.DataDir,
 		"tweakCount":     len(s.App.Tweaks),
 		"pluginCount":    len(s.App.Plugins),
@@ -218,6 +429,7 @@ type tweakDTO struct {
 	Description string `json:"description"`
 	Risk        string `json:"risk"`
 	Reversible  bool   `json:"reversible"`
+	Verifiable  bool   `json:"verifiable"`
 	Applied     bool   `json:"applied"`
 }
 
@@ -228,7 +440,7 @@ func (s *Server) handleListTweaks(w http.ResponseWriter, _ *http.Request) {
 		out = append(out, tweakDTO{
 			ID: t.ID, Name: t.Name, Category: t.Category,
 			Description: t.Description, Risk: string(t.Risk),
-			Reversible: t.Reversible, Applied: applied[t.ID],
+			Reversible: t.Reversible, Verifiable: tweak.CanVerify(t), Applied: applied[t.ID],
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -239,13 +451,26 @@ func (s *Server) handleApplyTweak(w http.ResponseWriter, r *http.Request) {
 		ID     string `json:"id"`
 		DryRun bool   `json:"dryRun"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	res, err := s.App.Apply(req.ID, req.DryRun)
+	req.ID = strings.TrimSpace(req.ID)
+	if req.ID == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("tweak id is required"))
+		return
+	}
+	var res tweak.Result
+	var err error
+	s.withMutation(func() {
+		res, err = s.App.Apply(req.ID, req.DryRun)
+	})
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if failure := res.Failure(); failure != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": failure.Error(), "result": res})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -255,13 +480,26 @@ func (s *Server) handleUndoTweak(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	res, err := s.App.Undo(req.ID)
+	req.ID = strings.TrimSpace(req.ID)
+	if req.ID == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("tweak id is required"))
+		return
+	}
+	var res tweak.Result
+	var err error
+	s.withMutation(func() {
+		res, err = s.App.Undo(req.ID)
+	})
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if failure := res.Failure(); failure != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": failure.Error(), "result": res})
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -302,15 +540,24 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	req.ID = strings.TrimSpace(req.ID)
+	if req.ID == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("package id is required"))
+		return
+	}
+	if err := appmanager.ValidatePackageID(req.ID); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
 
-	j := s.startJob("install", req.ID, func(log func(string)) error {
+	j, err := s.startJob("install", req.ID, func(log func(string)) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
-		res, err := s.App.Packages.Install(ctx, req.ID, func(p appmanager.Progress) {
+		res, err := s.App.InstallPackage(ctx, req.ID, func(p appmanager.Progress) {
 			if p.Line != "" {
 				log(p.Line)
 			}
@@ -323,7 +570,7 @@ func (s *Server) handleInstall(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleJobStatus(w http.ResponseWriter, r *http.Request) {
@@ -331,7 +578,7 @@ func (s *Server) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	j, ok := s.jobs[id]
 	if ok {
-		out := *j
+		out := cloneJob(j)
 		s.mu.Unlock()
 		writeJSON(w, http.StatusOK, out)
 		return
@@ -341,9 +588,23 @@ func (s *Server) handleJobStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, _ *http.Request) {
+	if s.elevated {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"entries": []audit.Entry{},
+			"warning": "History is unavailable while WinForge is elevated because user-profile audit files are not trusted for administrator operations.",
+		})
+		return
+	}
 	entries, err := s.App.History()
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
+		if len(entries) == 0 {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusPartialContent, map[string]any{
+			"entries": entries,
+			"warning": err.Error(),
+		})
 		return
 	}
 	writeJSON(w, http.StatusOK, entries)
@@ -353,11 +614,20 @@ func (s *Server) handleUndoEntry(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := s.App.UndoEntry(req.ID); err != nil {
+	req.ID = strings.TrimSpace(req.ID)
+	if req.ID == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("operation id is required"))
+		return
+	}
+	var err error
+	s.withMutation(func() {
+		err = s.App.UndoEntry(req.ID)
+	})
+	if err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -380,11 +650,18 @@ func (s *Server) handleRestorePoint(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Description string `json:"description"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := decodeJSON(r.Body, &req, true); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
 	if req.Description == "" {
 		req.Description = "WinForge restore point"
 	}
-	info, err := s.App.CreateRestorePoint(req.Description)
+	var info restorepoint.Info
+	var err error
+	s.withMutation(func() {
+		info, err = s.App.CreateRestorePoint(req.Description)
+	})
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -393,35 +670,38 @@ func (s *Server) handleRestorePoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleResetWindowsUpdate(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("reset-windows-update", "Windows Update", func(log func(string)) error {
+	j, err := s.startJob("reset-windows-update", "Windows Update", func(log func(string)) error {
+		s.App.EnsureRestorePoint("WinForge: reset Windows Update")
 		return maintenance.ResetWindowsUpdate(log)
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleRepairImage(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("repair-image", "DISM", func(log func(string)) error {
+	j, err := s.startJob("repair-image", "DISM", func(log func(string)) error {
+		s.App.EnsureRestorePoint("WinForge: repair system image")
 		return maintenance.RepairImage(log)
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleFlushDNS(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("flush-dns", "DNS", func(log func(string)) error {
+	j, err := s.startJob("flush-dns", "DNS", func(log func(string)) error {
 		return maintenance.FlushDNS()
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleNetworkReset(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("network-reset", "Network", func(log func(string)) error {
+	j, err := s.startJob("network-reset", "Network", func(log func(string)) error {
+		s.App.EnsureRestorePoint("WinForge: reset network")
 		return maintenance.NetworkReset(log)
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleRunMaintenance(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("run-maintenance", "Maintenance", func(log func(string)) error {
+	j, err := s.startJob("run-maintenance", "Maintenance", func(log func(string)) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 		sum := s.App.RunMaintenance(ctx, log)
@@ -431,13 +711,20 @@ func (s *Server) handleRunMaintenance(w http.ResponseWriter, _ *http.Request) {
 		if sum.AppError != "" {
 			return fmt.Errorf("maintenance: app update error: %s", sum.AppError)
 		}
+		if sum.AuditError != "" {
+			return fmt.Errorf("maintenance completed, but recording its result failed: %s", sum.AuditError)
+		}
 		return nil
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleScheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
-	if err := s.App.ScheduleMaintenance(); err != nil {
+	var err error
+	s.withMutation(func() {
+		err = s.App.ScheduleMaintenance()
+	})
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -445,7 +732,11 @@ func (s *Server) handleScheduleMaintenance(w http.ResponseWriter, _ *http.Reques
 }
 
 func (s *Server) handleUnscheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
-	if err := s.App.UnscheduleMaintenance(); err != nil {
+	var err error
+	s.withMutation(func() {
+		err = s.App.UnscheduleMaintenance()
+	})
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -453,10 +744,14 @@ func (s *Server) handleUnscheduleMaintenance(w http.ResponseWriter, _ *http.Requ
 }
 
 func (s *Server) handleISOEditions(w http.ResponseWriter, r *http.Request) {
+	if s.elevated {
+		writeErr(w, http.StatusForbidden, errors.New("ISO inspection is disabled while WinForge is elevated"))
+		return
+	}
 	var req struct {
 		Source string `json:"source"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -476,13 +771,17 @@ func (s *Server) handleISOEditions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
+	if s.elevated {
+		writeErr(w, http.StatusForbidden, errors.New("ISO building is disabled while WinForge is elevated"))
+		return
+	}
 	var req struct {
 		Source   string   `json:"source"`
 		Output   string   `json:"output"`
 		Label    string   `json:"label"`
 		Editions []string `json:"editions"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -496,7 +795,7 @@ func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "Windows ISO"
 	}
-	j := s.startJob("build-iso", name, func(log func(string)) error {
+	j, err := s.startJob("build-iso", name, func(log func(string)) error {
 		opts.Log = log
 		res, err := isobuilder.Build(opts)
 		if err != nil {
@@ -505,14 +804,17 @@ func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
 		log("ISO built: " + res.ISO)
 		return nil
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleUpdatesSearch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Installed bool `json:"installed"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := decodeJSON(r.Body, &req, true); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
 	updates, err := updater.Search(req.Installed)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -525,7 +827,8 @@ func (s *Server) handleUpdatesSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdatesInstall(w http.ResponseWriter, _ *http.Request) {
-	j := s.startJob("updates-install", "Windows Update", func(log func(string)) error {
+	j, err := s.startJob("updates-install", "Windows Update", func(log func(string)) error {
+		s.App.EnsureRestorePoint("WinForge: install Windows updates")
 		res, err := updater.InstallAll()
 		if err != nil {
 			return err
@@ -539,7 +842,7 @@ func (s *Server) handleUpdatesInstall(w http.ResponseWriter, _ *http.Request) {
 		}
 		return nil
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }
 
 func (s *Server) handleDnsPresets(w http.ResponseWriter, _ *http.Request) {
@@ -553,7 +856,7 @@ func (s *Server) handleDnsApply(w http.ResponseWriter, r *http.Request) {
 		Secondary string `json:"secondary"`
 		Adapter   string `json:"adapter"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -571,13 +874,26 @@ func (s *Server) handleDnsApply(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("no DNS server specified"))
 		return
 	}
+	var validationErr error
+	if req.Adapter != "" {
+		validationErr = maintenance.ValidateDnsSettings(req.Adapter, primary, secondary)
+	} else {
+		validationErr = maintenance.ValidateDnsServers(primary, secondary)
+	}
+	if validationErr != nil {
+		writeErr(w, http.StatusBadRequest, validationErr)
+		return
+	}
 
 	var err error
-	if req.Adapter != "" {
-		err = maintenance.SetDns(req.Adapter, primary, secondary)
-	} else {
-		err = maintenance.SetDnsOnAll(primary, secondary)
-	}
+	s.withMutation(func() {
+		s.App.EnsureRestorePoint("WinForge: change DNS settings")
+		if req.Adapter != "" {
+			err = maintenance.SetDns(req.Adapter, primary, secondary)
+		} else {
+			err = maintenance.SetDnsOnAll(primary, secondary)
+		}
+	})
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -597,7 +913,7 @@ func (s *Server) featureHandler(w http.ResponseWriter, r *http.Request, enable b
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r.Body, &req, false); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
@@ -605,15 +921,20 @@ func (s *Server) featureHandler(w http.ResponseWriter, r *http.Request, enable b
 		writeErr(w, http.StatusBadRequest, fmt.Errorf("feature name is required"))
 		return
 	}
+	if err := maintenance.ValidateFeatureName(req.Name); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
 	verb := "disable"
 	if enable {
 		verb = "enable"
 	}
-	j := s.startJob("feature-"+verb, req.Name, func(log func(string)) error {
+	j, err := s.startJob("feature-"+verb, req.Name, func(log func(string)) error {
+		s.App.EnsureRestorePoint("WinForge: " + verb + " Windows feature " + req.Name)
 		if enable {
 			return maintenance.EnableFeature(req.Name, log)
 		}
 		return maintenance.DisableFeature(req.Name, log)
 	})
-	writeJSON(w, http.StatusAccepted, j)
+	writeJobAdmission(w, j, err)
 }

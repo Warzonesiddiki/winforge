@@ -11,6 +11,12 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode"
+
+	"winforge/internal/appmanager"
+	"winforge/internal/maintenance"
+	"winforge/internal/power"
+	"winforge/internal/service"
 )
 
 // Risk classifies how dangerous a tweak is. It feeds the dashboard health score.
@@ -23,7 +29,7 @@ const (
 )
 
 // Tweak is a single reversible (or one-way) system modification, expressed as
-// an ordered list of operations plus an optional explicit revert list.
+// an ordered list of operations plus an explicit revert list when reversible.
 type Tweak struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
@@ -91,14 +97,11 @@ func (o Operation) StringValue() (string, error) {
 
 // QwordValue returns the operation's value as a uint64.
 func (o Operation) QwordValue() (uint64, error) {
-	var n int64
+	var n uint64
 	if err := json.Unmarshal(o.Value, &n); err != nil {
-		return 0, fmt.Errorf("operation %q expects an integer value: %w", o.Type, err)
+		return 0, fmt.Errorf("operation %q expects a non-negative integer value: %w", o.Type, err)
 	}
-	if n < 0 {
-		return 0, fmt.Errorf("operation %q expects a non-negative integer", o.Type)
-	}
-	return uint64(n), nil
+	return n, nil
 }
 
 // App is one installable application surfaced in the package manager.
@@ -127,14 +130,81 @@ type AppsConfig struct {
 	Applications []App `json:"applications"`
 }
 
+// Validate rejects malformed or duplicate catalog entries before they reach a
+// UI or package-manager command.
+func (c *AppsConfig) Validate() error {
+	seen := make(map[string]struct{}, len(c.Applications))
+	for i := range c.Applications {
+		entry := &c.Applications[i]
+		if err := appmanager.ValidatePackageID(entry.ID); err != nil {
+			return fmt.Errorf("application %d: %w", i+1, err)
+		}
+		key := strings.ToLower(entry.ID)
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate application id %q", entry.ID)
+		}
+		seen[key] = struct{}{}
+		if strings.TrimSpace(entry.Name) == "" {
+			return fmt.Errorf("application %q has no name", entry.ID)
+		}
+	}
+	return nil
+}
+
 // DnsConfig is the root shape of dns.json.
 type DnsConfig struct {
 	Presets []DnsEntry `json:"presets"`
 }
 
+// Validate rejects unusable or ambiguously duplicated DNS presets before they
+// are shown in the dashboard.
+func (c *DnsConfig) Validate() error {
+	seen := make(map[string]struct{}, len(c.Presets))
+	for i := range c.Presets {
+		preset := &c.Presets[i]
+		profile := strings.TrimSpace(preset.Profile)
+		if profile == "" {
+			return fmt.Errorf("DNS preset %d has no profile", i+1)
+		}
+		if profile != preset.Profile {
+			return fmt.Errorf("DNS profile %q has leading or trailing whitespace", preset.Profile)
+		}
+		key := strings.ToLower(profile)
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate DNS profile %q", preset.Profile)
+		}
+		seen[key] = struct{}{}
+		if err := maintenance.ValidateDnsServers(preset.Primary, preset.Secondary); err != nil {
+			return fmt.Errorf("DNS profile %q: %w", preset.Profile, err)
+		}
+	}
+	return nil
+}
+
 // ProtectedServices is the root shape of protectedServices.json.
 type ProtectedServices struct {
 	Services []string `json:"services"`
+}
+
+// Validate rejects empty, padded, or duplicate service names so a malformed
+// protection entry cannot silently fail to match the executor's service name.
+func (c *ProtectedServices) Validate() error {
+	seen := make(map[string]struct{}, len(c.Services))
+	for i, name := range c.Services {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			return fmt.Errorf("protected service %d has no name", i+1)
+		}
+		if trimmed != name {
+			return fmt.Errorf("protected service %q has leading or trailing whitespace", name)
+		}
+		key := strings.ToLower(name)
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("duplicate protected service %q", name)
+		}
+		seen[key] = struct{}{}
+	}
+	return nil
 }
 
 // Validation errors.
@@ -145,7 +215,9 @@ var (
 // Validate returns an error if the config is internally inconsistent.
 func (c *TweakConfig) Validate() error {
 	seen := make(map[string]struct{}, len(c.Tweaks))
-	for _, t := range c.Tweaks {
+	for i := range c.Tweaks {
+		t := &c.Tweaks[i]
+		t.ID = strings.TrimSpace(t.ID)
 		if t.ID == "" {
 			return errors.New("tweak with empty id")
 		}
@@ -153,14 +225,143 @@ func (c *TweakConfig) Validate() error {
 			return fmt.Errorf("%w: %s", ErrDuplicateID, t.ID)
 		}
 		seen[t.ID] = struct{}{}
+		if strings.TrimSpace(t.Name) == "" {
+			t.Name = displayName(t.ID)
+		}
 		if len(t.Operations) == 0 {
 			return fmt.Errorf("tweak %q has no operations", t.ID)
+		}
+		if t.Reversible && len(t.Revert) == 0 {
+			return fmt.Errorf("reversible tweak %q has no explicit revert operations", t.ID)
 		}
 		if err := t.ValidateRisk(); err != nil {
 			return err
 		}
+		for j := range t.Operations {
+			if err := validateOperation(t.Operations[j]); err != nil {
+				return fmt.Errorf("tweak %q operation %d: %w", t.ID, j+1, err)
+			}
+		}
+		for j := range t.Revert {
+			if err := validateOperation(t.Revert[j]); err != nil {
+				return fmt.Errorf("tweak %q revert operation %d: %w", t.ID, j+1, err)
+			}
+		}
 	}
 	return nil
+}
+
+func validateOperation(o Operation) error {
+	requireRegistryTarget := func() error {
+		switch o.Hive {
+		case "HKLM", "HKCU", "HKCR", "HKU":
+		default:
+			return fmt.Errorf("invalid registry hive %q", o.Hive)
+		}
+		if strings.TrimSpace(o.Path) == "" {
+			return errors.New("registry path is required")
+		}
+		return nil
+	}
+
+	switch o.Type {
+	case OpRegistrySetDword:
+		if err := requireRegistryTarget(); err != nil {
+			return err
+		}
+		_, err := o.DwordValue()
+		return err
+	case OpRegistrySetQword:
+		if err := requireRegistryTarget(); err != nil {
+			return err
+		}
+		_, err := o.QwordValue()
+		return err
+	case OpRegistrySetString:
+		if err := requireRegistryTarget(); err != nil {
+			return err
+		}
+		_, err := o.StringValue()
+		return err
+	case OpRegistryDelete:
+		return requireRegistryTarget()
+	case OpServiceStartMode:
+		if strings.TrimSpace(o.Name) == "" {
+			return errors.New("service name is required")
+		}
+		mode, err := o.StringValue()
+		if err != nil {
+			return err
+		}
+		_, err = service.ParseStartMode(mode)
+		return err
+	case OpServiceStart, OpServiceStop:
+		if strings.TrimSpace(o.Name) == "" {
+			return errors.New("service name is required")
+		}
+		return nil
+	case OpTaskDisable, OpTaskEnable, OpTaskDelete:
+		if strings.TrimSpace(o.Path) == "" {
+			return errors.New("scheduled task path is required")
+		}
+		return nil
+	case OpAppxRemove:
+		if strings.TrimSpace(o.Name) == "" {
+			return errors.New("Appx package name is required")
+		}
+		return nil
+	case OpPowerScheme:
+		value, err := o.StringValue()
+		if err != nil {
+			return err
+		}
+		if _, err := power.Resolve(value); err != nil {
+			return err
+		}
+		return nil
+	case OpCommand:
+		command, err := o.StringValue()
+		if err != nil {
+			return err
+		}
+		if command == "" {
+			return errors.New("command executable is required")
+		}
+		if strings.ContainsAny(command, "\x00<>|&") {
+			return errors.New("command must name an executable, not use shell syntax")
+		}
+		if strings.ContainsAny(command, " \t\r\n") && !strings.ContainsAny(command, `/\`) {
+			return errors.New("command arguments must be supplied in the args array")
+		}
+		for _, arg := range o.Args {
+			if strings.ContainsAny(arg, "\x00\"") {
+				return errors.New("command args must not contain NULs or shell-style quotes")
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown operation type %q", o.Type)
+	}
+}
+
+func displayName(id string) string {
+	name := id
+	for _, prefix := range []string{"atlas-", "winutil-wpf", "debloat-", "winforge-"} {
+		name = strings.TrimPrefix(name, prefix)
+	}
+	words := strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' })
+	for i, word := range words {
+		runes := []rune(word)
+		if len(runes) == 0 {
+			continue
+		}
+		runes[0] = unicode.ToUpper(runes[0])
+		words[i] = string(runes)
+	}
+	if len(words) == 0 {
+		return id
+	}
+	return strings.Join(words, " ")
 }
 
 // ValidateRisk normalizes/validates the risk level.

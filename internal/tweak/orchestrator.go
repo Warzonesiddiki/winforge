@@ -1,41 +1,71 @@
 package tweak
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"sync"
 
 	"winforge/internal/audit"
 	"winforge/internal/config"
 	"winforge/internal/power"
+	"winforge/internal/service"
 )
 
 // Effect records the outcome of a single operation within a tweak.
 type Effect struct {
-	OperationType string
-	Target        string
-	PreviousValue string
-	NewValue      string
+	OperationType         string `json:"operationType"`
+	Target                string `json:"target"`
+	PreviousValue         string `json:"previousValue,omitempty"`
+	PreviousValueCaptured bool   `json:"previousValueCaptured,omitempty"`
+	PreviousValueExists   bool   `json:"previousValueExists,omitempty"`
+	PreviousValueType     string `json:"previousValueType,omitempty"`
+	NewValue              string `json:"newValue,omitempty"`
 	// Changed is true when applying would alter (or has altered) system state.
-	Changed bool
-	Applied bool
-	Err     error
+	Changed bool   `json:"changed"`
+	Applied bool   `json:"applied"`
+	Error   string `json:"error,omitempty"`
+	Err     error  `json:"-"`
+
+	attempted bool
 }
 
 // Result is the aggregate outcome of applying (or dry-running) one tweak.
 type Result struct {
-	TweakID   string
-	DryRun    bool
-	Effects   []Effect
-	Succeeded int
-	Failed    int
-	Changed   int
+	TweakID   string   `json:"tweakId"`
+	DryRun    bool     `json:"dryRun"`
+	Effects   []Effect `json:"effects"`
+	Succeeded int      `json:"succeeded"`
+	Failed    int      `json:"failed"`
+	Changed   int      `json:"changed"`
+	Warnings  []string `json:"warnings,omitempty"`
 }
 
-// Orchestrator applies tweaks through an Executor and records every mutation
-// in the audit log so it can be surfaced in History and undone later.
+// Failure returns an aggregate error when one or more effects failed.
+func (r Result) Failure() error {
+	if r.Failed == 0 {
+		return nil
+	}
+	errs := make([]error, 0, r.Failed)
+	for _, effect := range r.Effects {
+		if effect.Err != nil {
+			errs = append(errs, fmt.Errorf("%s %s: %w", effect.OperationType, effect.Target, effect.Err))
+		}
+	}
+	if len(errs) == 0 {
+		return fmt.Errorf("%d operation(s) failed", r.Failed)
+	}
+	return errors.Join(errs...)
+}
+
+// Orchestrator applies tweaks through an Executor and records every attempted
+// mutation in the audit log so failures are visible and successful operations
+// can be undone later.
 type Orchestrator struct {
-	exec Executor
-	log  *audit.Logger
+	exec       Executor
+	log        *audit.Logger
+	mutationMu sync.Mutex
 }
 
 // NewOrchestrator creates an orchestrator. log may be nil to disable auditing.
@@ -46,10 +76,14 @@ func NewOrchestrator(exec Executor, log *audit.Logger) *Orchestrator {
 // Apply executes every operation in a tweak. When dryRun is true, it reads
 // current state and reports what would change without mutating anything.
 func (o *Orchestrator) Apply(t config.Tweak, dryRun bool) Result {
+	if !dryRun {
+		o.mutationMu.Lock()
+		defer o.mutationMu.Unlock()
+	}
 	res := Result{TweakID: t.ID, DryRun: dryRun}
 	for i := range t.Operations {
 		op := t.Operations[i]
-		eff := o.applyOp(t, op, dryRun)
+		eff := o.applyOp(op, dryRun)
 		res.Effects = append(res.Effects, eff)
 		if eff.Err != nil {
 			res.Failed++
@@ -59,160 +93,160 @@ func (o *Orchestrator) Apply(t config.Tweak, dryRun bool) Result {
 				res.Changed++
 			}
 		}
+		if !dryRun && eff.attempted {
+			canUndo := eff.Err == nil && t.Reversible && eff.PreviousValueCaptured
+			if err := o.record(t, op, eff, eff.Err, canUndo); err != nil {
+				res.Warnings = append(res.Warnings, "audit log: "+err.Error())
+			}
+		}
 	}
 	return res
 }
 
 // applyOp executes (or simulates) a single operation.
-func (o *Orchestrator) applyOp(t config.Tweak, op config.Operation, dryRun bool) Effect {
+func (o *Orchestrator) applyOp(op config.Operation, dryRun bool) Effect {
 	eff := Effect{OperationType: op.Type, Target: opTarget(op)}
 	switch op.Type {
 	case config.OpRegistrySetDword:
 		val, err := op.DwordValue()
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		cur, exists, err := o.exec.RegistryGetDword(op.Hive, op.Path, op.Name)
+		previous, previousType, exists, err := o.registrySnapshot(op.Hive, op.Path, op.Name)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		eff.PreviousValue = fmt.Sprintf("%d", cur)
-		eff.NewValue = fmt.Sprintf("%d", val)
-		if !exists || cur != val {
-			eff.Changed = true
-		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = exists
+		eff.PreviousValueType = previousType
+		eff.PreviousValue = previous
+		eff.NewValue = strconv.FormatUint(uint64(val), 10)
+		eff.Changed = !exists || previousType != "dword" || previous != eff.NewValue
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.RegistrySetDword(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
 	case config.OpRegistrySetQword:
 		val, err := op.QwordValue()
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		cur, exists, err := o.exec.RegistryGetQword(op.Hive, op.Path, op.Name)
+		previous, previousType, exists, err := o.registrySnapshot(op.Hive, op.Path, op.Name)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		eff.PreviousValue = fmt.Sprintf("%d", cur)
-		eff.NewValue = fmt.Sprintf("%d", val)
-		if !exists || cur != val {
-			eff.Changed = true
-		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = exists
+		eff.PreviousValueType = previousType
+		eff.PreviousValue = previous
+		eff.NewValue = strconv.FormatUint(val, 10)
+		eff.Changed = !exists || previousType != "qword" || previous != eff.NewValue
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.RegistrySetQword(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
 	case config.OpRegistrySetString:
 		val, err := op.StringValue()
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		cur, exists, err := o.exec.RegistryGetString(op.Hive, op.Path, op.Name)
+		previous, previousType, exists, err := o.registrySnapshot(op.Hive, op.Path, op.Name)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
-		eff.PreviousValue = cur
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = exists
+		eff.PreviousValueType = previousType
+		eff.PreviousValue = previous
 		eff.NewValue = val
-		if !exists || cur != val {
-			eff.Changed = true
-		}
+		eff.Changed = !exists || previousType != "string" || previous != val
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.RegistrySetString(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
 	case config.OpRegistryDelete:
-		if o.valueExists(op.Hive, op.Path, op.Name) {
-			eff.Changed = true
+		value, valueType, exists, err := o.registrySnapshot(op.Hive, op.Path, op.Name)
+		if err != nil {
+			return effectError(eff, err)
 		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = exists
+		eff.PreviousValueType = valueType
+		eff.PreviousValue = value
+		eff.Changed = exists
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.RegistryDeleteValue(op.Hive, op.Path, op.Name); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
 	case config.OpServiceStartMode:
-		mode, err := op.StringValue()
+		mode, err := normalizedServiceStartMode(op)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
 		cur, err := o.exec.ServiceGetStartMode(op.Name)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = true
+		eff.PreviousValueType = "service_start_mode"
 		eff.PreviousValue = cur
 		eff.NewValue = mode
-		if !strings.EqualFold(cur, mode) {
-			eff.Changed = true
-		}
+		eff.Changed = !strings.EqualFold(cur, mode)
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.ServiceSetStartMode(op.Name, mode); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
 	case config.OpPowerScheme:
 		val, err := op.StringValue()
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
 		guid, err := power.Resolve(val)
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
 		cur, err := o.exec.PowerGetActive()
 		if err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = true
+		eff.PreviousValueType = "power_scheme"
 		eff.PreviousValue = cur
 		eff.NewValue = guid
-		if !strings.EqualFold(cur, guid) {
-			eff.Changed = true
-		}
+		eff.Changed = !strings.EqualFold(cur, guid)
 		if !dryRun && eff.Changed {
+			eff.attempted = true
 			if err := o.exec.PowerSetActive(guid); err != nil {
-				eff.Err = err
-				return eff
+				return effectError(eff, err)
 			}
 			eff.Applied = true
-			o.record(t, op, eff, nil)
 		}
 		return eff
 
@@ -224,18 +258,24 @@ func (o *Orchestrator) applyOp(t config.Tweak, op config.Operation, dryRun bool)
 		if dryRun {
 			return eff
 		}
+		eff.attempted = true
 		if err := o.execUnary(op); err != nil {
-			eff.Err = err
-			return eff
+			return effectError(eff, err)
 		}
 		eff.Applied = true
-		o.record(t, op, eff, nil)
 		return eff
 
 	default:
-		eff.Err = fmt.Errorf("unknown operation type %q", op.Type)
-		return eff
+		return effectError(eff, fmt.Errorf("unknown operation type %q", op.Type))
 	}
+}
+
+func effectError(eff Effect, err error) Effect {
+	eff.Err = err
+	if err != nil {
+		eff.Error = err.Error()
+	}
+	return eff
 }
 
 func (o *Orchestrator) execUnary(op config.Operation) error {
@@ -263,18 +303,21 @@ func (o *Orchestrator) execUnary(op config.Operation) error {
 	}
 }
 
-func (o *Orchestrator) record(t config.Tweak, op config.Operation, eff Effect, execErr error) {
+func (o *Orchestrator) record(t config.Tweak, op config.Operation, eff Effect, execErr error, canUndo bool) error {
 	if o.log == nil {
-		return
+		return nil
 	}
 	e := audit.Entry{
-		OperationType: op.Type,
-		Target:        eff.Target,
-		PreviousValue: eff.PreviousValue,
-		NewValue:      eff.NewValue,
-		Success:       execErr == nil,
-		CanUndo:       t.Reversible,
-		TweakID:       t.ID,
+		OperationType:         op.Type,
+		Target:                eff.Target,
+		PreviousValue:         eff.PreviousValue,
+		PreviousValueCaptured: eff.PreviousValueCaptured,
+		PreviousValueExists:   eff.PreviousValueExists,
+		PreviousValueType:     eff.PreviousValueType,
+		NewValue:              eff.NewValue,
+		Success:               execErr == nil,
+		CanUndo:               canUndo,
+		TweakID:               t.ID,
 	}
 	if isRegistryOp(op.Type) {
 		e.RegistryHive = op.Hive
@@ -284,7 +327,7 @@ func (o *Orchestrator) record(t config.Tweak, op config.Operation, eff Effect, e
 	if execErr != nil {
 		e.ErrorMessage = execErr.Error()
 	}
-	_ = o.log.Append(e)
+	return o.log.Append(e)
 }
 
 func isRegistryOp(opType string) bool {
@@ -294,116 +337,274 @@ func isRegistryOp(opType string) bool {
 		opType == config.OpRegistryDelete
 }
 
-// UndoEntry reverses a single recorded registry operation, restoring the value
-// captured at application time. Non-registry entries return an error.
+// UndoEntry reverses a single recorded operation, restoring the state captured
+// at application time. Legacy entries are supported where doing so is safe.
 func (o *Orchestrator) UndoEntry(e audit.Entry) error {
-	if e.RegistryHive == "" || e.RegistryPath == "" || e.RegistryName == "" {
-		return fmt.Errorf("operation %s cannot be undone (no registry location)", e.ID)
+	o.mutationMu.Lock()
+	defer o.mutationMu.Unlock()
+
+	if !e.Success || !e.CanUndo {
+		return fmt.Errorf("operation %s cannot be undone", e.ID)
+	}
+	if o.log != nil {
+		entries, err := o.log.ReadAll()
+		if err != nil {
+			return err
+		}
+		for _, candidate := range entries {
+			if candidate.Success && candidate.UndoOf == e.ID {
+				return fmt.Errorf("operation %s has already been undone", e.ID)
+			}
+		}
+	}
+
+	err := o.restoreEntry(e)
+	if o.log != nil {
+		undo := audit.Entry{
+			OperationType: "undo",
+			Target:        e.Target,
+			Success:       err == nil,
+			CanUndo:       false,
+			TweakID:       e.TweakID,
+			UndoOf:        e.ID,
+		}
+		if err != nil {
+			undo.ErrorMessage = err.Error()
+		}
+		if logErr := o.log.Append(undo); logErr != nil && err == nil {
+			return fmt.Errorf("operation restored, but recording the undo failed: %w", logErr)
+		}
+	}
+	return err
+}
+
+func validateRegistryEntryTarget(e audit.Entry) error {
+	if !isRegistryOp(e.OperationType) {
+		return fmt.Errorf("operation type %q is inconsistent with a registry snapshot", e.OperationType)
+	}
+	switch e.RegistryHive {
+	case "HKLM", "HKCU", "HKCR", "HKU":
+	default:
+		return fmt.Errorf("invalid registry hive %q", e.RegistryHive)
+	}
+	if strings.TrimSpace(e.RegistryPath) == "" {
+		return errors.New("registry snapshot has no path")
+	}
+	expectedTarget := fmt.Sprintf("%s\\%s\\%s", e.RegistryHive, e.RegistryPath, e.RegistryName)
+	if e.Target != expectedTarget {
+		return fmt.Errorf("registry snapshot target %q does not match structured target %q", e.Target, expectedTarget)
+	}
+	return nil
+}
+
+func validateCapturedEntry(e audit.Entry) error {
+	if !e.PreviousValueExists {
+		if err := validateRegistryEntryTarget(e); err != nil {
+			return err
+		}
+		if e.PreviousValue != "" || e.PreviousValueType != "" {
+			return errors.New("missing registry snapshot unexpectedly contains a value or type")
+		}
+		return nil
+	}
+
+	switch e.PreviousValueType {
+	case "dword", "qword", "string", "expand_string":
+		return validateRegistryEntryTarget(e)
+	case "service_start_mode":
+		if e.OperationType != config.OpServiceStartMode || !strings.HasPrefix(e.Target, "service:") || strings.TrimSpace(strings.TrimPrefix(e.Target, "service:")) == "" {
+			return errors.New("service start-mode snapshot has an inconsistent target")
+		}
+		if e.RegistryHive != "" || e.RegistryPath != "" || e.RegistryName != "" {
+			return errors.New("service start-mode snapshot unexpectedly contains a registry target")
+		}
+		_, err := service.ParseStartMode(e.PreviousValue)
+		return err
+	case "power_scheme":
+		if e.OperationType != config.OpPowerScheme || !strings.HasPrefix(e.Target, "power:") {
+			return errors.New("power-scheme snapshot has an inconsistent target")
+		}
+		if e.RegistryHive != "" || e.RegistryPath != "" || e.RegistryName != "" {
+			return errors.New("power-scheme snapshot unexpectedly contains a registry target")
+		}
+		if _, err := power.Resolve(strings.TrimPrefix(e.Target, "power:")); err != nil {
+			return fmt.Errorf("power-scheme snapshot has invalid requested scheme: %w", err)
+		}
+		_, err := power.Resolve(e.PreviousValue)
+		return err
+	default:
+		return fmt.Errorf("operation %s has unknown previous value type %q", e.ID, e.PreviousValueType)
+	}
+}
+
+func (o *Orchestrator) restoreEntry(e audit.Entry) error {
+	if e.PreviousValueCaptured {
+		if err := validateCapturedEntry(e); err != nil {
+			return fmt.Errorf("operation %s has inconsistent snapshot metadata: %w", e.ID, err)
+		}
+		if !e.PreviousValueExists {
+			if e.RegistryHive == "" {
+				return fmt.Errorf("operation %s has no restorable target", e.ID)
+			}
+			_, _, exists, err := o.registrySnapshot(e.RegistryHive, e.RegistryPath, e.RegistryName)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return nil
+			}
+			return o.exec.RegistryDeleteValue(e.RegistryHive, e.RegistryPath, e.RegistryName)
+		}
+		switch e.PreviousValueType {
+		case "dword":
+			v, err := strconv.ParseUint(e.PreviousValue, 10, 32)
+			if err != nil {
+				return fmt.Errorf("cannot parse previous DWORD %q: %w", e.PreviousValue, err)
+			}
+			return o.exec.RegistrySetDword(e.RegistryHive, e.RegistryPath, e.RegistryName, uint32(v))
+		case "qword":
+			v, err := strconv.ParseUint(e.PreviousValue, 10, 64)
+			if err != nil {
+				return fmt.Errorf("cannot parse previous QWORD %q: %w", e.PreviousValue, err)
+			}
+			return o.exec.RegistrySetQword(e.RegistryHive, e.RegistryPath, e.RegistryName, v)
+		case "string":
+			return o.exec.RegistrySetString(e.RegistryHive, e.RegistryPath, e.RegistryName, e.PreviousValue)
+		case "expand_string":
+			return o.exec.RegistrySetExpandString(e.RegistryHive, e.RegistryPath, e.RegistryName, e.PreviousValue)
+		case "service_start_mode":
+			return o.exec.ServiceSetStartMode(strings.TrimPrefix(e.Target, "service:"), e.PreviousValue)
+		case "power_scheme":
+			return o.exec.PowerSetActive(e.PreviousValue)
+		default:
+			return fmt.Errorf("operation %s has unknown previous value type %q", e.ID, e.PreviousValueType)
+		}
+	}
+
+	// Compatibility with audit entries created before explicit existence/type
+	// metadata was added. Empty strings and registry deletions were ambiguous in
+	// that format and are deliberately not guessed.
+	if err := validateRegistryEntryTarget(e); err != nil {
+		return fmt.Errorf("operation %s has inconsistent legacy snapshot metadata: %w", e.ID, err)
 	}
 	switch e.OperationType {
 	case config.OpRegistrySetDword:
-		if e.PreviousValue == "" {
-			return o.exec.RegistryDeleteValue(e.RegistryHive, e.RegistryPath, e.RegistryName)
+		v, err := strconv.ParseUint(e.PreviousValue, 10, 32)
+		if err != nil {
+			return fmt.Errorf("cannot parse previous DWORD %q: %w", e.PreviousValue, err)
 		}
-		var v uint32
-		if _, err := fmt.Sscanf(e.PreviousValue, "%d", &v); err != nil {
-			return fmt.Errorf("cannot parse previous dword %q: %w", e.PreviousValue, err)
+		return o.exec.RegistrySetDword(e.RegistryHive, e.RegistryPath, e.RegistryName, uint32(v))
+	case config.OpRegistrySetQword:
+		v, err := strconv.ParseUint(e.PreviousValue, 10, 64)
+		if err != nil {
+			return fmt.Errorf("cannot parse previous QWORD %q: %w", e.PreviousValue, err)
 		}
-		return o.exec.RegistrySetDword(e.RegistryHive, e.RegistryPath, e.RegistryName, v)
+		return o.exec.RegistrySetQword(e.RegistryHive, e.RegistryPath, e.RegistryName, v)
 	case config.OpRegistrySetString:
 		if e.PreviousValue == "" {
-			return o.exec.RegistryDeleteValue(e.RegistryHive, e.RegistryPath, e.RegistryName)
+			return errors.New("legacy audit entry cannot distinguish an empty string from a missing value")
 		}
 		return o.exec.RegistrySetString(e.RegistryHive, e.RegistryPath, e.RegistryName, e.PreviousValue)
-	case config.OpRegistryDelete:
-		return fmt.Errorf("deleted value for %s was not captured; cannot undo", e.Target)
 	default:
-		return fmt.Errorf("operation %s cannot be undone", e.OperationType)
+		return fmt.Errorf("operation %s cannot be safely undone from its legacy audit entry", e.OperationType)
 	}
 }
 
 // Undo reverses a previously applied tweak using its explicit revert list.
-// When no revert list is present, registry set operations are best-effort
-// reversed by deleting the value.
+// Refusing to guess protects registry values that existed before WinForge ran.
 func (o *Orchestrator) Undo(t config.Tweak) Result {
+	o.mutationMu.Lock()
+	defer o.mutationMu.Unlock()
+
 	res := Result{TweakID: t.ID}
+	if !t.Reversible {
+		eff := effectError(Effect{Target: t.ID}, errors.New("tweak is not reversible"))
+		res.Effects = []Effect{eff}
+		res.Failed = 1
+		return res
+	}
+
 	revert := t.Revert
 	if len(revert) == 0 {
-		revert = deriveRevert(t.Operations)
+		eff := effectError(Effect{Target: t.ID}, errors.New("tweak has no explicit revert operations"))
+		res.Effects = []Effect{eff}
+		res.Failed = 1
+		return res
 	}
 	for i := range revert {
 		op := revert[i]
-		eff := Effect{OperationType: op.Type, Target: opTarget(op)}
+		eff := Effect{OperationType: op.Type, Target: opTarget(op), Changed: true, attempted: true}
+		var err error
 		switch op.Type {
 		case config.OpRegistrySetDword:
-			val, err := op.DwordValue()
-			if err != nil {
-				eff.Err = err
-			} else if err := o.exec.RegistrySetDword(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-			} else {
-				eff.Applied = true
+			var value uint32
+			value, err = op.DwordValue()
+			if err == nil {
+				err = o.exec.RegistrySetDword(op.Hive, op.Path, op.Name, value)
 			}
 		case config.OpRegistrySetString:
-			val, err := op.StringValue()
-			if err != nil {
-				eff.Err = err
-			} else if err := o.exec.RegistrySetString(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-			} else {
-				eff.Applied = true
+			var value string
+			value, err = op.StringValue()
+			if err == nil {
+				err = o.exec.RegistrySetString(op.Hive, op.Path, op.Name, value)
 			}
 		case config.OpRegistrySetQword:
-			val, err := op.QwordValue()
-			if err != nil {
-				eff.Err = err
-			} else if err := o.exec.RegistrySetQword(op.Hive, op.Path, op.Name, val); err != nil {
-				eff.Err = err
-			} else {
-				eff.Applied = true
+			var value uint64
+			value, err = op.QwordValue()
+			if err == nil {
+				err = o.exec.RegistrySetQword(op.Hive, op.Path, op.Name, value)
 			}
 		case config.OpRegistryDelete:
-			if err := o.exec.RegistryDeleteValue(op.Hive, op.Path, op.Name); err != nil {
-				eff.Err = err
-			} else {
-				eff.Applied = true
+			err = o.exec.RegistryDeleteValue(op.Hive, op.Path, op.Name)
+		case config.OpServiceStartMode:
+			var mode string
+			mode, err = normalizedServiceStartMode(op)
+			if err == nil {
+				err = o.exec.ServiceSetStartMode(op.Name, mode)
+			}
+		case config.OpPowerScheme:
+			var value, guid string
+			value, err = op.StringValue()
+			if err == nil {
+				guid, err = power.Resolve(value)
+			}
+			if err == nil {
+				err = o.exec.PowerSetActive(guid)
 			}
 		default:
-			if err := o.execUnary(op); err != nil {
-				eff.Err = err
-			} else {
-				eff.Applied = true
-			}
+			err = o.execUnary(op)
+		}
+		if err != nil {
+			eff = effectError(eff, err)
+		} else {
+			eff.Applied = true
 		}
 		res.Effects = append(res.Effects, eff)
 		if eff.Err != nil {
 			res.Failed++
 		} else {
 			res.Succeeded++
-			if eff.Applied {
-				res.Changed++
-			}
+			res.Changed++
 		}
-		if eff.Applied && o.log != nil {
-			o.record(t, op, eff, eff.Err)
+		if logErr := o.record(t, op, eff, eff.Err, false); logErr != nil {
+			res.Warnings = append(res.Warnings, "audit log: "+logErr.Error())
 		}
 	}
 	return res
 }
 
-// EnsureApplied re-applies every tweak that is not currently in its target
-// state, returning the ids it applied and one error per failing tweak.
-// Tweaks that are already applied are skipped. Used by the scheduled
-// maintenance pass.
+// EnsureApplied re-applies every verifiable tweak that is not currently in its
+// target state. Tweaks containing commands or other intrinsically unreadable
+// operations are skipped so scheduled maintenance never repeats one-way work.
 func (o *Orchestrator) EnsureApplied(tweaks []config.Tweak) (applied []string, errs []error) {
 	for i := range tweaks {
 		t := tweaks[i]
-		if o.IsApplied(t) {
+		if !CanVerify(t) || o.IsApplied(t) {
 			continue
 		}
 		res := o.Apply(t, false)
-		if res.Failed > 0 {
-			errs = append(errs, fmt.Errorf("tweak %s: %d operation(s) failed", t.ID, res.Failed))
+		if err := res.Failure(); err != nil {
+			errs = append(errs, fmt.Errorf("tweak %s: %w", t.ID, err))
 		} else if res.Changed > 0 {
 			applied = append(applied, t.ID)
 		}
@@ -411,9 +612,27 @@ func (o *Orchestrator) EnsureApplied(tweaks []config.Tweak) (applied []string, e
 	return applied, errs
 }
 
-// IsApplied reports whether every stateful operation in a tweak already
-// matches its target state.
+// CanVerify reports whether every operation in t exposes readable target state.
+func CanVerify(t config.Tweak) bool {
+	for _, op := range t.Operations {
+		switch op.Type {
+		case config.OpRegistrySetDword, config.OpRegistrySetString,
+			config.OpRegistrySetQword, config.OpRegistryDelete,
+			config.OpServiceStartMode, config.OpPowerScheme:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// IsApplied reports whether every operation in a verifiable tweak currently
+// matches its target state. It returns false rather than guessing for commands,
+// task mutations, Appx removal, or runtime service state.
 func (o *Orchestrator) IsApplied(t config.Tweak) bool {
+	if !CanVerify(t) {
+		return false
+	}
 	for i := range t.Operations {
 		op := t.Operations[i]
 		switch op.Type {
@@ -445,11 +664,12 @@ func (o *Orchestrator) IsApplied(t config.Tweak) bool {
 				return false
 			}
 		case config.OpRegistryDelete:
-			if o.valueExists(op.Hive, op.Path, op.Name) {
+			exists, err := o.valueExists(op.Hive, op.Path, op.Name)
+			if err != nil || exists {
 				return false
 			}
 		case config.OpServiceStartMode:
-			mode, err := op.StringValue()
+			mode, err := normalizedServiceStartMode(op)
 			if err != nil {
 				return false
 			}
@@ -470,36 +690,62 @@ func (o *Orchestrator) IsApplied(t config.Tweak) bool {
 			if err != nil || !strings.EqualFold(cur, guid) {
 				return false
 			}
-		default:
-			// Stateful/non-readable operations are never considered "applied".
-			return false
 		}
 	}
 	return true
 }
 
-// valueExists reports whether a registry value exists with either a string or
-// DWORD type.
-func (o *Orchestrator) valueExists(hive, path, name string) bool {
-	if _, ok, err := o.exec.RegistryGetString(hive, path, name); err == nil && ok {
-		return true
+func (o *Orchestrator) registrySnapshot(hive, path, name string) (value, valueType string, exists bool, err error) {
+	var readErrors []error
+	if v, ok, readErr := o.exec.RegistryGetString(hive, path, name); readErr == nil {
+		if ok {
+			return v, "string", true, nil
+		}
+	} else {
+		readErrors = append(readErrors, readErr)
 	}
-	if _, ok, err := o.exec.RegistryGetDword(hive, path, name); err == nil && ok {
-		return true
+	if v, ok, readErr := o.exec.RegistryGetExpandString(hive, path, name); readErr == nil {
+		if ok {
+			return v, "expand_string", true, nil
+		}
+	} else {
+		readErrors = append(readErrors, readErr)
 	}
-	return false
+	if v, ok, readErr := o.exec.RegistryGetDword(hive, path, name); readErr == nil {
+		if ok {
+			return strconv.FormatUint(uint64(v), 10), "dword", true, nil
+		}
+	} else {
+		readErrors = append(readErrors, readErr)
+	}
+	if v, ok, readErr := o.exec.RegistryGetQword(hive, path, name); readErr == nil {
+		if ok {
+			return strconv.FormatUint(v, 10), "qword", true, nil
+		}
+	} else {
+		readErrors = append(readErrors, readErr)
+	}
+	if len(readErrors) > 0 {
+		return "", "", false, fmt.Errorf("read registry value: %w", errors.Join(readErrors...))
+	}
+	return "", "", false, nil
 }
 
-// deriveRevert builds a best-effort revert for registry set operations.
-func deriveRevert(ops []config.Operation) []config.Operation {
-	var out []config.Operation
-	for _, op := range ops {
-		switch op.Type {
-		case config.OpRegistrySetDword, config.OpRegistrySetString, config.OpRegistrySetQword:
-			out = append(out, config.Operation{Type: config.OpRegistryDelete, Hive: op.Hive, Path: op.Path, Name: op.Name})
-		}
+func (o *Orchestrator) valueExists(hive, path, name string) (bool, error) {
+	_, _, exists, err := o.registrySnapshot(hive, path, name)
+	return exists, err
+}
+
+func normalizedServiceStartMode(op config.Operation) (string, error) {
+	value, err := op.StringValue()
+	if err != nil {
+		return "", err
 	}
-	return out
+	mode, err := service.ParseStartMode(value)
+	if err != nil {
+		return "", err
+	}
+	return mode.String(), nil
 }
 
 // opTarget builds a human-readable target string for logs and UI.

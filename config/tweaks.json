@@ -408,7 +408,9 @@
           "type": "command",
           "value": "DISM.exe",
           "args": [
-            "/Online /Set-ReservedStorageState /State:Disabled"
+            "/Online",
+            "/Set-ReservedStorageState",
+            "/State:Disabled"
           ]
         }
       ]
@@ -449,7 +451,7 @@
           "type": "registry_delete",
           "hive": "HKLM",
           "path": "System\\CurrentControlSet\\Control\\Ubpm",
-          "name": "CriticalMaintenance_UsageDataReporting' # Remove from automatic maintenance"
+          "name": "CriticalMaintenance_UsageDataReporting"
         }
       ],
       "revert": [
@@ -531,82 +533,6 @@
       ]
     },
     {
-      "id": "atlas-add-newUser-script",
-      "name": "",
-      "category": "Miscellaneous",
-      "description": "",
-      "risk": "low",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "registry_set_string",
-          "hive": "HKU",
-          "path": "AME_UserHive_Default\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
-          "name": "RunScript",
-          "value": "|"
-        }
-      ],
-      "revert": [
-        {
-          "type": "registry_delete",
-          "hive": "HKU",
-          "path": "AME_UserHive_Default\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
-          "name": "RunScript"
-        }
-      ]
-    },
-    {
-      "id": "atlas-config-oem-information",
-      "name": "",
-      "category": "Miscellaneous",
-      "description": "",
-      "risk": "low",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "Manufacturer",
-          "value": "Atlas Team"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "SupportURL",
-          "value": "https://discord.atlasos.net"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "SupportPhone",
-          "value": "https://github.com/Atlas-OS/Atlas"
-        }
-      ],
-      "revert": [
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "Manufacturer"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "SupportURL"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\OEMInformation",
-          "name": "SupportPhone"
-        }
-      ]
-    },
-    {
       "id": "atlas-config-time",
       "name": "",
       "category": "Miscellaneous",
@@ -622,14 +548,17 @@
           "type": "command",
           "value": "w32tm",
           "args": [
-            "/config /syncfromflags:manual /manualpeerlist:\"0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org\""
+            "/config",
+            "/syncfromflags:manual",
+            "/manualpeerlist:0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org"
           ]
         },
         {
           "type": "command",
           "value": "w32tm",
           "args": [
-            "/config /update"
+            "/config",
+            "/update"
           ]
         },
         {
@@ -1018,21 +947,27 @@
           "type": "command",
           "value": "wevtutil.exe",
           "args": [
-            "set-log \"Microsoft-Windows-SleepStudy/Diagnostic\" /e:false"
+            "set-log",
+            "Microsoft-Windows-SleepStudy/Diagnostic",
+            "/e:false"
           ]
         },
         {
           "type": "command",
           "value": "wevtutil.exe",
           "args": [
-            "set-log \"Microsoft-Windows-Kernel-Processor-Power/Diagnostic\" /e:false"
+            "set-log",
+            "Microsoft-Windows-Kernel-Processor-Power/Diagnostic",
+            "/e:false"
           ]
         },
         {
           "type": "command",
           "value": "wevtutil.exe",
           "args": [
-            "set-log \"Microsoft-Windows-UserModePowerService/Diagnostic\" /e:false"
+            "set-log",
+            "Microsoft-Windows-UserModePowerService/Diagnostic",
+            "/e:false"
           ]
         },
         {
@@ -1116,14 +1051,19 @@
           "type": "command",
           "value": "fsutil",
           "args": [
-            "behavior set disablelastaccess 1"
+            "behavior",
+            "set",
+            "disablelastaccess",
+            "1"
           ]
         },
         {
           "type": "command",
           "value": "fsutil",
           "args": [
-            "8dot3name set 1"
+            "8dot3name",
+            "set",
+            "1"
           ]
         }
       ]
@@ -2472,7 +2412,11 @@
       "operations": [
         {
           "type": "command",
-          "value": "setx DOTNET_CLI_TELEMETRY_OPTOUT 1"
+          "value": "setx",
+          "args": [
+            "DOTNET_CLI_TELEMETRY_OPTOUT",
+            "1"
+          ]
         }
       ]
     },
@@ -2679,10 +2623,6 @@
           "path": "SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\Diagtrack-Listener",
           "name": "Start",
           "value": 0
-        },
-        {
-          "type": "command",
-          "value": "del \"%ProgramData%\\Microsoft\\Diagnosis\\ETLLogs\\AutoLogger\\DiagTrack*\" \"%ProgramData%\\Microsoft\\Diagnosis\\ETLLogs\\ShutdownLogger\\DiagTrack*\" \u003e nul 2\u003e\u00261"
         }
       ],
       "revert": [
@@ -2748,7 +2688,7 @@
     },
     {
       "id": "atlas-atlas-theme",
-      "name": "",
+      "name": "Disable rotating lock-screen content",
       "category": "Quality of Life",
       "description": "",
       "risk": "low",
@@ -2767,13 +2707,6 @@
           "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
           "name": "RotatingLockScreenEnabled",
           "value": 0
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKU",
-          "path": "AME_UserHive_Default\\Software\\Policies\\Microsoft\\Windows\\Personalization",
-          "name": "ThemeFile",
-          "value": "%windir%\\Resources\\Themes\\atlas-v0.5.x-dark.theme"
         }
       ],
       "revert": [
@@ -2788,12 +2721,6 @@
           "hive": "HKCU",
           "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
           "name": "RotatingLockScreenEnabled"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKU",
-          "path": "AME_UserHive_Default\\Software\\Policies\\Microsoft\\Windows\\Personalization",
-          "name": "ThemeFile"
         }
       ]
     },
@@ -2872,14 +2799,17 @@
           "type": "command",
           "value": "bcdedit",
           "args": [
-            "/timeout 10"
+            "/timeout",
+            "10"
           ]
         },
         {
           "type": "command",
           "value": "bcdedit",
           "args": [
-            "/set bootmenupolicy legacy"
+            "/set",
+            "bootmenupolicy",
+            "legacy"
           ]
         }
       ]
@@ -2919,7 +2849,11 @@
       "operations": [
         {
           "type": "command",
-          "value": "setx POWERSHELL_TELEMETRY_OPTOUT 1"
+          "value": "setx",
+          "args": [
+            "POWERSHELL_TELEMETRY_OPTOUT",
+            "1"
+          ]
         },
         {
           "type": "registry_set_string",
@@ -3942,20 +3876,6 @@
       ]
     },
     {
-      "id": "atlas-debloat-send-to",
-      "name": "",
-      "category": "Quality of Life",
-      "description": "",
-      "risk": "low",
-      "reversible": false,
-      "operations": [
-        {
-          "type": "command",
-          "value": "\u003e-"
-        }
-      ]
-    },
-    {
       "id": "atlas-disable-check-boxes",
       "name": "",
       "category": "Quality of Life",
@@ -4726,23 +4646,10 @@
           "hive": "HKLM",
           "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
           "name": "SettingsPageVisibility",
-          "value": "hide:recovery;maps;maps-downloadmaps;privacy;privacy-speechtyping;privacy-speech;privacy-feedback;privacy-activityhistory;search-permissions;privacy-general;sync;mobile-devices;mobile-devices-addphone;workplace;backup"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-          "name": "SettingsPageVisibility",
           "value": "hide:recovery;maps;maps-downloadmaps;privacy;privacy-feedback;privacy-activityhistory;search-permissions;privacy-general;sync;mobile-devices;mobile-devices-addphone;workplace;family-group;deviceusage;home"
         }
       ],
       "revert": [
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-          "name": "SettingsPageVisibility"
-        },
         {
           "type": "registry_delete",
           "hive": "HKLM",
@@ -4994,34 +4901,17 @@
       "category": "Quality of Life",
       "description": "",
       "risk": "low",
-      "reversible": false,
+      "reversible": true,
       "operations": [
         {
           "type": "registry_set_string",
           "hive": "HKCU",
           "path": "Control Panel\\Quick Actions\\Control Center\\QuickActionsStateCapture",
           "name": "Toggles",
-          "value": "Toggles,Microsoft.QuickAction.BlueLightReduction:false,Microsoft.QuickAction.AllSettings:false,Microsoft.QuickAction.Project:false"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKCU",
-          "path": "Control Panel\\Quick Actions\\Control Center\\QuickActionsStateCapture",
-          "name": "Toggles",
           "value": "Toggles,Microsoft.QuickAction.BlueLightReduction:false,Microsoft.QuickAction.Accessibility:false,Microsoft.QuickAction.ProjectL2:false"
-        },
-        {
-          "type": "command",
-          "value": "explorer.exe"
         }
       ],
       "revert": [
-        {
-          "type": "registry_delete",
-          "hive": "HKCU",
-          "path": "Control Panel\\Quick Actions\\Control Center\\QuickActionsStateCapture",
-          "name": "Toggles"
-        },
         {
           "type": "registry_delete",
           "hive": "HKCU",
@@ -5359,41 +5249,6 @@
           "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Taskband\\AuxilliaryPins",
           "name": "CopilotPWAPin",
           "value": 0
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser",
-          "value": "Brave"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser",
-          "value": "Firefox"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser",
-          "value": "Google Chrome"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser",
-          "value": "LibreWolf"
-        },
-        {
-          "type": "registry_set_string",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser",
-          "value": ""
         }
       ],
       "revert": [
@@ -5414,36 +5269,6 @@
           "hive": "HKCU",
           "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Taskband\\AuxilliaryPins",
           "name": "CopilotPWAPin"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser"
-        },
-        {
-          "type": "registry_delete",
-          "hive": "HKLM",
-          "path": "SOFTWARE\\AtlasOS\\SetupOptions",
-          "name": "browser"
         }
       ]
     },
@@ -5528,7 +5353,7 @@
       "category": "Quality of Life",
       "description": "",
       "risk": "low",
-      "reversible": false,
+      "reversible": true,
       "operations": [
         {
           "type": "registry_set_dword",
@@ -5543,10 +5368,6 @@
           "path": "SOFTWARE\\Policies\\Microsoft\\Dsh",
           "name": "AllowNewsAndInterests",
           "value": 0
-        },
-        {
-          "type": "command",
-          "value": "explorer.exe"
         }
       ],
       "revert": [
@@ -6160,48 +5981,6 @@
       ]
     },
     {
-      "id": "atlas-script-file-associations",
-      "name": "",
-      "category": "Scripts",
-      "description": "",
-      "risk": "high",
-      "reversible": false,
-      "operations": [
-        {
-          "type": "command",
-          "value": "FILEASSOC.cmd"
-        },
-        {
-          "type": "command",
-          "value": "FILEASSOC.cmd",
-          "args": [
-            "Brave"
-          ]
-        },
-        {
-          "type": "command",
-          "value": "FILEASSOC.cmd",
-          "args": [
-            "LibreWolf"
-          ]
-        },
-        {
-          "type": "command",
-          "value": "FILEASSOC.cmd",
-          "args": [
-            "Firefox"
-          ]
-        },
-        {
-          "type": "command",
-          "value": "FILEASSOC.cmd",
-          "args": [
-            "Google Chrome"
-          ]
-        }
-      ]
-    },
-    {
       "id": "atlas-script-power",
       "name": "",
       "category": "Scripts",
@@ -6285,7 +6064,13 @@
           "type": "command",
           "value": "netsh",
           "args": [
-            "advfirewall firewall set rule group=\"Remote Assistance\" new enable=no"
+            "advfirewall",
+            "firewall",
+            "set",
+            "rule",
+            "group=Remote Assistance",
+            "new",
+            "enable=no"
           ]
         }
       ],
@@ -6976,6 +6761,26 @@
           "hive": "HKCU",
           "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
           "name": "NoStartMenuMorePrograms"
+        }
+      ]
+    },
+    {
+      "id": "winforge-power-ultimate",
+      "name": "Ultimate Performance power plan",
+      "category": "Performance",
+      "description": "Activates the Ultimate Performance power scheme. Best suited to desktop systems where power consumption is not a concern.",
+      "risk": "high",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "power_scheme",
+          "value": "ultimate"
+        }
+      ],
+      "revert": [
+        {
+          "type": "power_scheme",
+          "value": "balanced"
         }
       ]
     }
