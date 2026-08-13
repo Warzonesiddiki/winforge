@@ -18,14 +18,14 @@ const (
 )
 
 var (
-	advapi32                  = syscall.NewLazyDLL("advapi32.dll")
-	procOpenSCManagerW        = advapi32.NewProc("OpenSCManagerW")
-	procOpenServiceW          = advapi32.NewProc("OpenServiceW")
-	procChangeServiceConfigW  = advapi32.NewProc("ChangeServiceConfigW")
-	procQueryServiceConfigW   = advapi32.NewProc("QueryServiceConfigW")
-	procStartServiceW         = advapi32.NewProc("StartServiceW")
-	procControlService        = advapi32.NewProc("ControlService")
-	procCloseServiceHandle    = advapi32.NewProc("CloseServiceHandle")
+	advapi32                 = syscall.NewLazyDLL("advapi32.dll")
+	procOpenSCManagerW       = advapi32.NewProc("OpenSCManagerW")
+	procOpenServiceW         = advapi32.NewProc("OpenServiceW")
+	procChangeServiceConfigW = advapi32.NewProc("ChangeServiceConfigW")
+	procQueryServiceConfigW  = advapi32.NewProc("QueryServiceConfigW")
+	procStartServiceW        = advapi32.NewProc("StartServiceW")
+	procControlService       = advapi32.NewProc("ControlService")
+	procCloseServiceHandle   = advapi32.NewProc("CloseServiceHandle")
 )
 
 func openSCManager() (syscall.Handle, error) {

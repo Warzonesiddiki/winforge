@@ -16,8 +16,11 @@ import (
 	"winforge"
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
+	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
+	"winforge/internal/restorepoint"
+	"winforge/internal/updater"
 )
 
 // job tracks an in-flight async operation (winget install, maintenance fix,
@@ -56,6 +59,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/tweaks/apply", s.handleApplyTweak)
 	mux.HandleFunc("POST /api/tweaks/undo", s.handleUndoTweak)
 
+	mux.HandleFunc("GET /api/plugins", s.handleListPlugins)
 	mux.HandleFunc("GET /api/apps", s.handleListApps)
 	mux.HandleFunc("POST /api/apps/install", s.handleInstall)
 	mux.HandleFunc("GET /api/jobs/{id}", s.handleJobStatus)
@@ -63,12 +67,24 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/history", s.handleHistory)
 	mux.HandleFunc("POST /api/history/undo", s.handleUndoEntry)
 
+	mux.HandleFunc("GET /api/restore-points", s.handleListRestorePoints)
 	mux.HandleFunc("POST /api/restore-point", s.handleRestorePoint)
 
 	mux.HandleFunc("POST /api/maintenance/reset-windows-update", s.handleResetWindowsUpdate)
 	mux.HandleFunc("POST /api/maintenance/repair-image", s.handleRepairImage)
 	mux.HandleFunc("POST /api/maintenance/flush-dns", s.handleFlushDNS)
 	mux.HandleFunc("POST /api/maintenance/network-reset", s.handleNetworkReset)
+	mux.HandleFunc("POST /api/maintenance/run", s.handleRunMaintenance)
+	mux.HandleFunc("POST /api/maintenance/schedule", s.handleScheduleMaintenance)
+	mux.HandleFunc("DELETE /api/maintenance/schedule", s.handleUnscheduleMaintenance)
+
+	mux.HandleFunc("GET /api/bloatware", s.handleBloatware)
+
+	mux.HandleFunc("POST /api/iso/editions", s.handleISOEditions)
+	mux.HandleFunc("POST /api/iso/build", s.handleISOBuild)
+
+	mux.HandleFunc("POST /api/updates/search", s.handleUpdatesSearch)
+	mux.HandleFunc("POST /api/updates/install", s.handleUpdatesInstall)
 
 	mux.HandleFunc("GET /api/dns/presets", s.handleDnsPresets)
 	mux.HandleFunc("POST /api/dns/apply", s.handleDnsApply)
@@ -132,16 +148,26 @@ func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *j
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	info := platform.GetOSInfo()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":    app.Version,
-		"os":         info,
-		"elevated":   platform.IsElevated(),
-		"dataDir":    s.App.DataDir,
-		"tweakCount": len(s.App.Tweaks),
+		"version":        app.Version,
+		"os":             info,
+		"elevated":       platform.IsElevated(),
+		"dataDir":        s.App.DataDir,
+		"tweakCount":     len(s.App.Tweaks),
+		"pluginCount":    len(s.App.Plugins),
+		"bloatwareCount": s.App.BloatwareCount(),
 	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.App.Health(0))
+	writeJSON(w, http.StatusOK, s.App.Health(s.App.BloatwareCount()))
+}
+
+func (s *Server) handleBloatware(w http.ResponseWriter, _ *http.Request) {
+	list := s.App.Bloatware()
+	if list == nil {
+		list = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"count": len(list), "apps": list})
 }
 
 // tweakDTO is the API shape for a tweak with its applied state.
@@ -199,6 +225,33 @@ func (s *Server) handleUndoTweak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// pluginDTO is the API shape for an installed plugin.
+type pluginDTO struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+	Author      string `json:"author,omitempty"`
+	Dir         string `json:"dir"`
+	TweakCount  int    `json:"tweakCount"`
+}
+
+func (s *Server) handleListPlugins(w http.ResponseWriter, _ *http.Request) {
+	out := make([]pluginDTO, 0, len(s.App.Plugins))
+	for _, p := range s.App.Plugins {
+		out = append(out, pluginDTO{
+			ID:          p.ID,
+			Name:        p.Name,
+			Version:     p.Version,
+			Description: p.Description,
+			Author:      p.Author,
+			Dir:         p.Dir,
+			TweakCount:  len(p.Tweaks),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleListApps(w http.ResponseWriter, _ *http.Request) {
@@ -272,6 +325,18 @@ func (s *Server) handleUndoEntry(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleListRestorePoints(w http.ResponseWriter, _ *http.Request) {
+	points, err := s.App.ListRestorePoints()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if points == nil {
+		points = []restorepoint.Info{}
+	}
+	writeJSON(w, http.StatusOK, points)
+}
+
 func (s *Server) handleRestorePoint(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Description string `json:"description"`
@@ -312,6 +377,128 @@ func (s *Server) handleFlushDNS(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) handleNetworkReset(w http.ResponseWriter, _ *http.Request) {
 	j := s.startJob("network-reset", "Network", func(log func(string)) error {
 		return maintenance.NetworkReset(log)
+	})
+	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleRunMaintenance(w http.ResponseWriter, _ *http.Request) {
+	j := s.startJob("run-maintenance", "Maintenance", func(log func(string)) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		sum := s.App.RunMaintenance(ctx, log)
+		if len(sum.TweakErrors) > 0 {
+			return fmt.Errorf("maintenance: %d tweak(s) failed", len(sum.TweakErrors))
+		}
+		if sum.AppError != "" {
+			return fmt.Errorf("maintenance: app update error: %s", sum.AppError)
+		}
+		return nil
+	})
+	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleScheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
+	if err := s.App.ScheduleMaintenance(); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"task": app.MaintenanceTaskName})
+}
+
+func (s *Server) handleUnscheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
+	if err := s.App.UnscheduleMaintenance(); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleISOEditions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Source == "" {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("source is required"))
+		return
+	}
+	editions, err := isobuilder.ListEditions(req.Source)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if editions == nil {
+		editions = []isobuilder.Edition{}
+	}
+	writeJSON(w, http.StatusOK, editions)
+}
+
+func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Source   string   `json:"source"`
+		Output   string   `json:"output"`
+		Label    string   `json:"label"`
+		Editions []string `json:"editions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	opts := isobuilder.Options{
+		SourceDir: req.Source,
+		OutputISO: req.Output,
+		Label:     req.Label,
+		Editions:  req.Editions,
+	}
+	name := req.Output
+	if name == "" {
+		name = "Windows ISO"
+	}
+	j := s.startJob("build-iso", name, func(log func(string)) error {
+		opts.Log = log
+		res, err := isobuilder.Build(opts)
+		if err != nil {
+			return err
+		}
+		log("ISO built: " + res.ISO)
+		return nil
+	})
+	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleUpdatesSearch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Installed bool `json:"installed"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	updates, err := updater.Search(req.Installed)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if updates == nil {
+		updates = []updater.Update{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"updates": updates})
+}
+
+func (s *Server) handleUpdatesInstall(w http.ResponseWriter, _ *http.Request) {
+	j := s.startJob("updates-install", "Windows Update", func(log func(string)) error {
+		res, err := updater.InstallAll()
+		if err != nil {
+			return err
+		}
+		log("result: " + res.ResultCode.String())
+		if res.RebootRequired {
+			log("reboot required")
+		}
+		if res.ResultCode != updater.ResultSucceeded && res.ResultCode != updater.ResultSucceededWithErrors {
+			return fmt.Errorf("install result: %s", res.ResultCode)
+		}
+		return nil
 	})
 	writeJSON(w, http.StatusAccepted, j)
 }

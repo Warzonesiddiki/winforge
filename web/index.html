@@ -32,6 +32,10 @@
     <main class="content">
       <section id="view-dashboard" class="view active">
         <h1>Dashboard</h1>
+        <div id="bloat-banner" class="banner hidden">
+          <strong>Bloatware detected</strong>
+          <span><span id="bloat-count">0</span> preinstalled app(s) found. Review them in the Apps view.</span>
+        </div>
         <div class="cards">
           <div class="card health-card">
             <div class="label">Health Score</div>
@@ -49,6 +53,12 @@
         </div>
         <h2>Breakdown</h2>
         <div class="card breakdown" id="health-breakdown"></div>
+
+        <div class="card hidden" id="bloat-card">
+          <div class="label">Detected Bloatware</div>
+          <p class="muted">Preinstalled apps WinForge can help you review and remove.</p>
+          <ul id="bloat-list" class="bloat-list"></ul>
+        </div>
       </section>
 
       <section id="view-tweaks" class="view">
@@ -94,6 +104,16 @@
           </div>
         </div>
 
+        <h2>Scheduled Maintenance</h2>
+        <div class="card">
+          <p class="muted">Re-apply any missing tweaks and upgrade outdated apps now, or register a weekly Task Scheduler job.</p>
+          <div class="toolbar">
+            <button id="btn-run-maintenance" class="primary">Run Maintenance</button>
+            <button id="btn-schedule">Schedule Weekly</button>
+            <button id="btn-unschedule">Remove Schedule</button>
+          </div>
+        </div>
+
         <h2>DNS Presets</h2>
         <div class="card">
           <div class="toolbar">
@@ -108,6 +128,27 @@
             <input id="feature-name" placeholder="Feature name (e.g. Microsoft-Hyper-V-All)" />
             <button id="btn-enable-feature" class="primary">Enable</button>
             <button id="btn-disable-feature">Disable</button>
+          </div>
+        </div>
+
+        <h2>Windows Update</h2>
+        <div class="card">
+          <p class="muted">Search for and install updates via the Windows Update Agent (Microsoft.Update.Session).</p>
+          <div class="toolbar">
+            <button id="btn-updates-search" class="primary">Search for Updates</button>
+            <button id="btn-updates-install">Install All</button>
+          </div>
+          <ul id="updates-list" class="bloat-list"></ul>
+        </div>
+
+        <h2>ISO Builder</h2>
+        <div class="card">
+          <p class="muted">Build a bootable Windows ISO from an extracted installation source. Requires the Windows ADK's <code>oscdimg.exe</code>.</p>
+          <div class="toolbar">
+            <input id="iso-source" placeholder="Source dir (contains sources\install.wim)" />
+            <input id="iso-output" placeholder="Output .iso path" />
+            <input id="iso-editions" placeholder="Editions to keep (comma-separated, optional)" />
+            <button id="btn-build-iso" class="primary">Build ISO</button>
           </div>
         </div>
 

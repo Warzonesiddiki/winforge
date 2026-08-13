@@ -9,10 +9,10 @@ import (
 
 // mockExecutor is an in-memory Executor used to verify orchestration logic.
 type mockExecutor struct {
-	dwords  map[string]uint32
-	strings map[string]string
+	dwords     map[string]uint32
+	strings    map[string]string
 	startModes map[string]string
-	commands []string
+	commands   []string
 }
 
 func newMock() *mockExecutor {
@@ -56,12 +56,12 @@ func (m *mockExecutor) ServiceGetStartMode(name string) (string, error) {
 	}
 	return "manual", nil
 }
-func (m *mockExecutor) ServiceStart(string) error   { return nil }
-func (m *mockExecutor) ServiceStop(string) error    { return nil }
-func (m *mockExecutor) TaskDisable(string) error    { return nil }
-func (m *mockExecutor) TaskEnable(string) error     { return nil }
-func (m *mockExecutor) TaskDelete(string) error     { return nil }
-func (m *mockExecutor) AppxRemove(string) error     { return nil }
+func (m *mockExecutor) ServiceStart(string) error { return nil }
+func (m *mockExecutor) ServiceStop(string) error  { return nil }
+func (m *mockExecutor) TaskDisable(string) error  { return nil }
+func (m *mockExecutor) TaskEnable(string) error   { return nil }
+func (m *mockExecutor) TaskDelete(string) error   { return nil }
+func (m *mockExecutor) AppxRemove(string) error   { return nil }
 func (m *mockExecutor) RunCommand(c string, _ []string) error {
 	m.commands = append(m.commands, c)
 	return nil
@@ -69,8 +69,8 @@ func (m *mockExecutor) RunCommand(c string, _ []string) error {
 
 func dwordOp(hive, path, name string, val int) config.Operation {
 	return config.Operation{
-		Type:  config.OpRegistrySetDword,
-		Hive:  hive, Path: path, Name: name,
+		Type: config.OpRegistrySetDword,
+		Hive: hive, Path: path, Name: name,
 		Value: json.RawMessage([]byte{byte('0' + val)}),
 	}
 }
@@ -147,6 +147,35 @@ func TestUndoWithRevertList(t *testing.T) {
 	o.Undo(tw)
 	if v, _ := exec.RegistryGetDword("HKLM", "A", "B"); v != 1 {
 		t.Fatalf("after undo, want 1, got %d", v)
+	}
+}
+
+func TestEnsureApplied(t *testing.T) {
+	exec := newMock()
+	o := NewOrchestrator(exec, nil)
+
+	// a is already at its target value; b is not.
+	exec.dwords[key("HKLM", "A", "X")] = 1
+	tweaks := []config.Tweak{
+		{ID: "a", Risk: config.RiskLow, Operations: []config.Operation{dwordOp("HKLM", "A", "X", 1)}},
+		{ID: "b", Risk: config.RiskLow, Operations: []config.Operation{dwordOp("HKLM", "A", "Y", 2)}},
+	}
+
+	applied, errs := o.EnsureApplied(tweaks)
+	if len(errs) != 0 {
+		t.Fatalf("EnsureApplied errors: %v", errs)
+	}
+	if len(applied) != 1 || applied[0] != "b" {
+		t.Fatalf("want [b] applied, got %v", applied)
+	}
+	if v, _ := exec.RegistryGetDword("HKLM", "A", "Y"); v != 2 {
+		t.Errorf("tweak b not applied: value=%d", v)
+	}
+
+	// A second run must be a no-op.
+	applied, errs = o.EnsureApplied(tweaks)
+	if len(errs) != 0 || len(applied) != 0 {
+		t.Fatalf("second EnsureApplied should be a no-op, got applied=%v errs=%v", applied, errs)
 	}
 }
 

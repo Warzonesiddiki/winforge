@@ -15,7 +15,16 @@ winforge history
 winforge install --id <winget-id>
 winforge search  <query>
 winforge restore-point [--description "…"]
-winforge reset-windows-update | repair-image | flush-dns | network-reset
+winforge restore-points    # list existing restore points (WMI)
+winforge plugins           # list installed plugins
+winforge run-maintenance   # verify tweak states + upgrade apps
+winforge schedule          # register the weekly maintenance task
+winforge unschedule        # remove the weekly maintenance task
+  winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
+  winforge build-iso --source <dir> --list-editions
+  winforge updates [--installed]       # search Windows Update
+  winforge install-updates             # download + install available updates
+  winforge reset-windows-update | repair-image | flush-dns | network-reset
 winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
 winforge enable-feature  --name <feature>
 winforge disable-feature --name <feature>
@@ -42,10 +51,10 @@ design optimizes for the stated constraints:
 - **No native WPF/Mica chrome** — the dashboard is served on `127.0.0.1` and
   opened in the browser. This is also a *security* choice: a system-control
   surface must not be network-reachable.
-- **COM-heavy features are phased** — WMI restore points, Appx `PackageManager`,
-  Task Scheduler, DISM, and Windows Update COM interop are large, hand-rolled
-  P/Invoke efforts. They are stubbed now (they return a clear
-  `not implemented` error) and land in later phases.
+- **COM-heavy features are phased** — restore-point *listing* is implemented via
+  raw WMI COM interop (the `SystemRestore` class), while Appx `PackageManager`,
+  Task Scheduler, and Windows Update COM interop remain large, hand-rolled
+  P/Invoke efforts that land in later phases.
 
 ---
 
@@ -85,6 +94,7 @@ config/                    default tweaks, applications, DNS, protected services
 internal/
   app/                     composition root (wires everything, shared by CLI+HTTP)
   config/                  config models + loader (embedded → user override)
+  plugin/                  plugin discovery + merge (manifest.json + tweaks.json)
   registry/                stdlib-only advapi32 registry client (windows + stub)
   service/                 Service Control Manager: start type, start/stop
   platform/                elevation check + OS identity (build-tagged)
@@ -94,6 +104,9 @@ internal/
   appmanager/              winget.exe wrapper (streamed progress)
   restorepoint/            System Restore points via SRSetRestorePointW P/Invoke
   scheduler/               Task Scheduler control via schtasks.exe
+  bloatware/               bloatware detection (registry uninstall keys + rules)
+  isobuilder/              ISO builder (dism edition export + oscdimg)
+  updater/                 Windows Update search/install (COM Microsoft.Update.Session)
   maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
   httpapi/                 dashboard server + JSON API + async jobs
   cli/                     command-line interface
@@ -129,6 +142,36 @@ OS while the mutation layer targets Windows.
 
 clamped to `[0, 100]`.
 
+### Scheduled maintenance
+
+`winforge schedule` registers a weekly Task Scheduler task that runs
+`winforge run-maintenance`. The maintenance pass re-applies any tweak that is
+not in its target state and upgrades outdated winget apps (`winget upgrade
+--all`), streaming progress to the dashboard. Each pass is recorded in the
+audit log, and a restore point is taken (throttled) before any mutation.
+
+### Bloatware detection
+
+The dashboard scans the registry uninstall keys (HKLM 32/64-bit and HKCU) and
+matches display names against a curated bloatware list (exact names plus
+family signatures). When more than 5 bloatware apps are found, the dashboard
+shows a recommendation banner and the count is folded into the health score.
+
+### ISO builder
+
+`winforge build-iso` builds a bootable Windows ISO from an extracted (or
+mounted) installation source. It optionally slims the image by exporting only
+the chosen editions (`dism /Export-Image`) and rebuilds a BIOS/UEFI-bootable
+ISO with `oscdimg.exe` from the Windows ADK Deployment Tools. The user's source
+directory is never modified — edition slimming happens in a scratch copy.
+
+### Windows Update
+
+`winforge updates` searches for available (or installed) updates and
+`winforge install-updates` downloads and installs them. Both use the Windows
+Update Agent COM API (`Microsoft.Update.Session`) via raw ole32/oleaut32
+P/Invoke — no PowerShell, no `wuauclt` shell-outs.
+
 ---
 
 ## Configuration
@@ -142,6 +185,21 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 | `applications.json` | winget app catalog (50 apps across categories). |
 | `dns.json` | DNS presets (Cloudflare, Google, Quad9, OpenDNS). |
 | `protectedServices.json` | Services that must not be modified. |
+
+### Plugins
+
+Drop a plugin into `%LOCALAPPDATA%\WinForge\plugins\<name>\` (or
+`<dataDir>\plugins\<name>\`) to extend WinForge without recompiling. A plugin
+directory contains:
+
+| File | Purpose |
+|------|---------|
+| `manifest.json` | `{"name","version","description","author"}` metadata. |
+| `tweaks.json` | Extra tweaks, same schema as the built-in `tweaks.json`. |
+
+Plugins are scanned at startup and their tweaks are merged into the
+configuration. On id collisions, built-in (and user-override) tweaks win.
+Malformed plugins are skipped (best-effort).
 
 ### Operation types
 
@@ -159,13 +217,13 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 - [x] One-click fixes (reset Windows Update, repair image, network reset, flush DNS)
 - [x] DNS per-adapter configuration (`netsh`, `net.Interfaces` discovery)
 - [x] Provisioned Appx removal via `dism.exe`
-- [ ] List existing restore points (WMI `SystemRestore` class)
+- [x] List existing restore points (WMI `SystemRestore` class)
 - [ ] Per-user Appx removal (`PackageManager` WinRT interop)
-- [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
-- [ ] ISO builder (MicroWin-style)
-- [ ] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
-- [ ] Scheduled maintenance task registration
-- [ ] Smart bloatware detection + recommendations
+- [x] ISO builder (MicroWin-style: edition slim via dism + bootable ISO via oscdimg)
+- [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
+- [x] Scheduled maintenance task registration + `run-maintenance`
+- [x] Smart bloatware detection + recommendations
+- [x] Windows Update search/install (COM `Microsoft.Update.Session`)
 
 ## Security note
 

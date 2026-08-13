@@ -10,16 +10,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
 	"winforge/internal/httpapi"
+	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
 	"winforge/internal/tweak"
+	"winforge/internal/updater"
 )
 
 // Run executes the CLI with the given arguments (excluding the program name).
@@ -41,12 +44,28 @@ func Run(args []string) error {
 		return scanCmd()
 	case "history":
 		return historyCmd()
+	case "plugins":
+		return pluginsCmd()
 	case "install":
 		return installCmd(args[1:])
 	case "search":
 		return searchCmd(args[1:])
 	case "restore-point":
 		return restorePointCmd(args[1:])
+	case "restore-points":
+		return listRestorePointsCmd()
+	case "run-maintenance":
+		return runMaintenanceCmd()
+	case "schedule":
+		return scheduleCmd(true)
+	case "unschedule":
+		return scheduleCmd(false)
+	case "build-iso":
+		return buildIsoCmd(args[1:])
+	case "updates":
+		return updatesCmd(args[1:])
+	case "install-updates":
+		return installUpdatesCmd(args[1:])
 	case "reset-windows-update":
 		return maintenanceCmd("reset-windows-update", args[1:])
 	case "repair-image":
@@ -84,9 +103,18 @@ Usage:
   winforge apply  --id <id> [--dry-run]
   winforge undo   --id <id>
   winforge history         show the operation history
+  winforge plugins         list installed plugins
   winforge install --id <winget-id>
   winforge search  <query>
   winforge restore-point [--description "…"]
+  winforge restore-points    list existing restore points
+  winforge run-maintenance   verify tweak states + upgrade apps
+  winforge schedule          register the weekly maintenance task
+  winforge unschedule        remove the weekly maintenance task
+  winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
+  winforge build-iso --source <dir> --list-editions
+  winforge updates [--installed]       search Windows Update
+  winforge install-updates             download + install available updates
   winforge reset-windows-update | repair-image | flush-dns | network-reset
   winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
   winforge enable-feature  --name <feature>
@@ -206,11 +234,30 @@ func scanCmd() error {
 	if err != nil {
 		return err
 	}
-	h := a.Health(0)
+	h := a.Health(a.BloatwareCount())
 	fmt.Printf("Health score: %d/100\n", h.Score)
 	fmt.Printf("  tweaks: %d/%d applied\n", h.AppliedTweaks, h.TotalTweaks)
 	fmt.Printf("  unapplied low/medium/high: %d/%d/%d\n", h.UnappliedLow, h.UnappliedMedium, h.UnappliedHigh)
 	fmt.Printf("  bloatware: %d\n", h.BloatwareCount)
+	for _, b := range a.Bloatware() {
+		fmt.Printf("    - %s\n", b)
+	}
+	return nil
+}
+
+func pluginsCmd() error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	if len(a.Plugins) == 0 {
+		fmt.Printf("no plugins installed (add a manifest.json to a folder under %s)\n",
+			filepath.Join(a.DataDir, "plugins"))
+		return nil
+	}
+	for _, p := range a.Plugins {
+		fmt.Printf("%-24s v%-10s %3d tweaks  %s\n", p.ID, p.Version, len(p.Tweaks), p.Name)
+	}
 	return nil
 }
 
@@ -287,6 +334,172 @@ func restorePointCmd(args []string) error {
 	}
 	fmt.Printf("restore point created: sequence=%d\n", info.SequenceNumber)
 	return nil
+}
+
+func listRestorePointsCmd() error {
+	points, err := restorepoint.List()
+	if err != nil {
+		return err
+	}
+	if len(points) == 0 {
+		fmt.Println("no restore points found")
+		return nil
+	}
+	for _, p := range points {
+		fmt.Printf("%-6d %s  %s\n", p.SequenceNumber, p.CreatedAt.Format("2006-01-02 15:04:05"), p.Description)
+	}
+	return nil
+}
+
+func runMaintenanceCmd() error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	sum := a.RunMaintenance(context.Background(), logToStdout)
+	for _, e := range sum.TweakErrors {
+		fmt.Println("tweak error:", e)
+	}
+	if sum.AppError != "" {
+		fmt.Println("app update error:", sum.AppError)
+	}
+	fmt.Printf("maintenance complete: %d tweaks applied", len(sum.TweaksApplied))
+	switch {
+	case sum.AppsUpgraded:
+		fmt.Print(", apps updated")
+	case sum.AppsSkipped:
+		fmt.Print(", app updates skipped (winget missing)")
+	}
+	fmt.Println()
+	if len(sum.TweakErrors) > 0 || sum.AppError != "" {
+		return fmt.Errorf("maintenance completed with errors")
+	}
+	return nil
+}
+
+func scheduleCmd(register bool) error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	if register {
+		if err := a.ScheduleMaintenance(); err != nil {
+			return err
+		}
+		fmt.Printf("scheduled weekly maintenance task %q\n", app.MaintenanceTaskName)
+		return nil
+	}
+	if err := a.UnscheduleMaintenance(); err != nil {
+		return err
+	}
+	fmt.Printf("removed scheduled maintenance task %q\n", app.MaintenanceTaskName)
+	return nil
+}
+
+// stringListFlag collects repeated flag values (e.g. --edition a --edition b).
+type stringListFlag []string
+
+func (s *stringListFlag) String() string { return strings.Join(*s, ",") }
+
+func (s *stringListFlag) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}
+
+func buildIsoCmd(args []string) error {
+	fs := flag.NewFlagSet("build-iso", flag.ExitOnError)
+	source := fs.String("source", "", "extracted Windows installation source directory")
+	output := fs.String("output", "", "output .iso path")
+	label := fs.String("label", "", "ISO volume label")
+	listOnly := fs.Bool("list-editions", false, "list editions in the source image and exit")
+	var editions stringListFlag
+	fs.Var(&editions, "edition", "edition name to keep (repeatable; default keeps all)")
+	_ = fs.Parse(args)
+
+	if *listOnly {
+		if *source == "" {
+			return fmt.Errorf("--source is required with --list-editions")
+		}
+		eds, err := isobuilder.ListEditions(*source)
+		if err != nil {
+			return err
+		}
+		if len(eds) == 0 {
+			fmt.Println("no editions found")
+			return nil
+		}
+		for _, e := range eds {
+			fmt.Printf("%d: %s\n", e.Index, e.Name)
+		}
+		return nil
+	}
+
+	if *source == "" || *output == "" {
+		return fmt.Errorf("--source and --output are required")
+	}
+	opts := isobuilder.Options{
+		SourceDir: *source,
+		OutputISO: *output,
+		Label:     *label,
+		Editions:  editions,
+		Log:       logToStdout,
+	}
+	res, err := isobuilder.Build(opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("ISO built: %s\n", res.ISO)
+	return nil
+}
+
+func updatesCmd(args []string) error {
+	fs := flag.NewFlagSet("updates", flag.ExitOnError)
+	installed := fs.Bool("installed", false, "list installed updates instead of available")
+	_ = fs.Parse(args)
+
+	updates, err := updater.Search(*installed)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		fmt.Println("no updates found")
+		return nil
+	}
+	for _, u := range updates {
+		fmt.Printf("[%s] %s\n", updateState(u), u.Title)
+	}
+	return nil
+}
+
+func installUpdatesCmd(args []string) error {
+	_ = args
+	fmt.Println("Downloading and installing updates (this can take a while)…")
+	res, err := updater.InstallAll()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("result: %s", res.ResultCode)
+	if res.RebootRequired {
+		fmt.Print(" (reboot required)")
+	}
+	fmt.Println()
+	if res.ResultCode != updater.ResultSucceeded && res.ResultCode != updater.ResultSucceededWithErrors {
+		return fmt.Errorf("install result: %s", res.ResultCode)
+	}
+	return nil
+}
+
+func updateState(u updater.Update) string {
+	switch {
+	case u.IsInstalled:
+		return "installed"
+	case u.IsHidden:
+		return "hidden"
+	case u.IsDownloaded:
+		return "downloaded"
+	default:
+		return "available"
+	}
 }
 
 // logToStdout prints maintenance progress lines to stdout.

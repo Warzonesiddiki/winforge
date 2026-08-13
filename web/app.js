@@ -61,6 +61,26 @@ async function loadDashboard() {
   $("#health-breakdown").innerHTML = rows
     .map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`)
     .join("");
+
+  // Bloatware recommendation banner (>5 detected) + full list.
+  const banner = $("#bloat-banner");
+  const card = $("#bloat-card");
+  try {
+    const b = await api("/api/bloatware");
+    if (b.count > 5) {
+      $("#bloat-count").textContent = b.count;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+    $("#bloat-list").innerHTML = (b.apps || [])
+      .map((n) => `<li>${esc(n)}</li>`)
+      .join("");
+    card.classList.toggle("hidden", b.count === 0);
+  } catch (_) {
+    banner.classList.add("hidden");
+    card.classList.add("hidden");
+  }
 }
 
 // ---- Tweaks ----
@@ -243,6 +263,65 @@ function setupMaintenance() {
     runMaintenanceJob("/api/maintenance/flush-dns", "Flushing DNS"));
   $("#btn-netreset").addEventListener("click", () =>
     runMaintenanceJob("/api/maintenance/network-reset", "Resetting network"));
+
+  $("#btn-run-maintenance").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/run", "Running maintenance"));
+
+  $("#btn-schedule").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    log.textContent = "Scheduling weekly maintenance…\n";
+    try {
+      await api("/api/maintenance/schedule", { method: "POST" });
+      log.textContent += "Weekly maintenance task registered.\n";
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
+  $("#btn-unschedule").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    log.textContent = "Removing maintenance schedule…\n";
+    try {
+      await api("/api/maintenance/schedule", { method: "DELETE" });
+      log.textContent += "Maintenance task removed.\n";
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
+  $("#btn-updates-search").addEventListener("click", async () => {
+    const list = $("#updates-list");
+    list.innerHTML = "<li>Searching…</li>";
+    try {
+      const res = await api("/api/updates/search", { method: "POST", body: JSON.stringify({}) });
+      const ups = res.updates || [];
+      list.innerHTML = ups.length
+        ? ups.map((u) => `<li>${esc(u.title)}</li>`).join("")
+        : "<li>No available updates.</li>";
+    } catch (err) {
+      list.innerHTML = `<li>Error: ${esc(err.message)}</li>`;
+    }
+  });
+
+  $("#btn-updates-install").addEventListener("click", () =>
+    runMaintenanceJob("/api/updates/install", "Installing updates"));
+
+  $("#btn-build-iso").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    const source = $("#iso-source").value.trim();
+    const output = $("#iso-output").value.trim();
+    const editions = $("#iso-editions").value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!source || !output) { alert("Source and output are required"); return; }
+    log.textContent = "Building ISO…\n";
+    try {
+      const job = await api("/api/iso/build", {
+        method: "POST", body: JSON.stringify({ source, output, editions }),
+      });
+      pollJob(job.id, log, "Building ISO…\n");
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
 
   $("#btn-dns").addEventListener("click", async () => {
     const log = maintenanceLog();

@@ -14,3 +14,5 @@ func setDword(_ Hive, _, _ string, _ uint32) error { return ErrUnsupported }
 func setString(_ Hive, _, _ string, _ string) error { return ErrUnsupported }
 
 func deleteValue(_ Hive, _, _ string) error { return ErrUnsupported }
+
+func enumSubkeys(_ Hive, _ string) ([]string, error) { return nil, ErrUnsupported }
