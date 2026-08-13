@@ -56,6 +56,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/tweaks/apply", s.handleApplyTweak)
 	mux.HandleFunc("POST /api/tweaks/undo", s.handleUndoTweak)
 
+	mux.HandleFunc("GET /api/plugins", s.handleListPlugins)
 	mux.HandleFunc("GET /api/apps", s.handleListApps)
 	mux.HandleFunc("POST /api/apps/install", s.handleInstall)
 	mux.HandleFunc("GET /api/jobs/{id}", s.handleJobStatus)
@@ -132,11 +133,12 @@ func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *j
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	info := platform.GetOSInfo()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":    app.Version,
-		"os":         info,
-		"elevated":   platform.IsElevated(),
-		"dataDir":    s.App.DataDir,
-		"tweakCount": len(s.App.Tweaks),
+		"version":     app.Version,
+		"os":          info,
+		"elevated":    platform.IsElevated(),
+		"dataDir":     s.App.DataDir,
+		"tweakCount":  len(s.App.Tweaks),
+		"pluginCount": len(s.App.Plugins),
 	})
 }
 
@@ -199,6 +201,33 @@ func (s *Server) handleUndoTweak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+// pluginDTO is the API shape for an installed plugin.
+type pluginDTO struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+	Author      string `json:"author,omitempty"`
+	Dir         string `json:"dir"`
+	TweakCount  int    `json:"tweakCount"`
+}
+
+func (s *Server) handleListPlugins(w http.ResponseWriter, _ *http.Request) {
+	out := make([]pluginDTO, 0, len(s.App.Plugins))
+	for _, p := range s.App.Plugins {
+		out = append(out, pluginDTO{
+			ID:          p.ID,
+			Name:        p.Name,
+			Version:     p.Version,
+			Description: p.Description,
+			Author:      p.Author,
+			Dir:         p.Dir,
+			TweakCount:  len(p.Tweaks),
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleListApps(w http.ResponseWriter, _ *http.Request) {

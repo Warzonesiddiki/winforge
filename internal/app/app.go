@@ -14,6 +14,7 @@ import (
 	"winforge/internal/audit"
 	"winforge/internal/config"
 	"winforge/internal/engine"
+	"winforge/internal/plugin"
 	"winforge/internal/restorepoint"
 	"winforge/internal/tweak"
 )
@@ -29,6 +30,7 @@ type App struct {
 	Logger            *audit.Logger
 	Tweaks            []config.Tweak
 	Apps              []config.App
+	Plugins           []plugin.Plugin
 	ProtectedServices []string
 	DnsPresets        []config.DnsEntry
 	DataDir           string
@@ -74,13 +76,25 @@ func New(dataDir string) (*App, error) {
 	exec := engine.NewExecutor(protected)
 	orch := tweak.NewOrchestrator(exec, logger)
 
+	// Load plugins from <dataDir>/plugins and merge their tweaks after the
+	// built-in (and user-override) tweaks. Built-ins win on id collisions.
+	plugins, err := plugin.Discover(filepath.Join(dataDir, "plugins"))
+	if err != nil {
+		return nil, err
+	}
+	tweaks := tweaksCfg.Tweaks
+	for _, p := range plugins {
+		tweaks = plugin.MergeTweaks(tweaks, p.Tweaks)
+	}
+
 	return &App{
 		Loader:            loader,
 		Orchestrator:      orch,
 		Packages:          appmanager.New(),
 		Logger:            logger,
-		Tweaks:            tweaksCfg.Tweaks,
+		Tweaks:            tweaks,
 		Apps:              appsCfg.Applications,
+		Plugins:           plugins,
 		ProtectedServices: protected,
 		DnsPresets:        dnsCfg.Presets,
 		DataDir:           dataDir,

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,6 +42,8 @@ func Run(args []string) error {
 		return scanCmd()
 	case "history":
 		return historyCmd()
+	case "plugins":
+		return pluginsCmd()
 	case "install":
 		return installCmd(args[1:])
 	case "search":
@@ -84,6 +87,7 @@ Usage:
   winforge apply  --id <id> [--dry-run]
   winforge undo   --id <id>
   winforge history         show the operation history
+  winforge plugins         list installed plugins
   winforge install --id <winget-id>
   winforge search  <query>
   winforge restore-point [--description "…"]
@@ -211,6 +215,22 @@ func scanCmd() error {
 	fmt.Printf("  tweaks: %d/%d applied\n", h.AppliedTweaks, h.TotalTweaks)
 	fmt.Printf("  unapplied low/medium/high: %d/%d/%d\n", h.UnappliedLow, h.UnappliedMedium, h.UnappliedHigh)
 	fmt.Printf("  bloatware: %d\n", h.BloatwareCount)
+	return nil
+}
+
+func pluginsCmd() error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	if len(a.Plugins) == 0 {
+		fmt.Printf("no plugins installed (add a manifest.json to a folder under %s)\n",
+			filepath.Join(a.DataDir, "plugins"))
+		return nil
+	}
+	for _, p := range a.Plugins {
+		fmt.Printf("%-24s v%-10s %3d tweaks  %s\n", p.ID, p.Version, len(p.Tweaks), p.Name)
+	}
 	return nil
 }
 
