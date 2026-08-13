@@ -275,6 +275,9 @@ func (a *App) UndoEntry(id string) error {
 // summary rather than aborting the pass, and the pass is recorded in the audit
 // log.
 func (a *App) RunMaintenance(ctx context.Context, log func(string)) MaintenanceSummary {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	sum := MaintenanceSummary{RanAt: time.Now()}
 	say := func(s string) {
 		if log != nil {

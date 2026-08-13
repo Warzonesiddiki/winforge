@@ -62,8 +62,9 @@ async function loadDashboard() {
     .map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`)
     .join("");
 
-  // Bloatware recommendation banner (>5 detected).
+  // Bloatware recommendation banner (>5 detected) + full list.
   const banner = $("#bloat-banner");
+  const card = $("#bloat-card");
   try {
     const b = await api("/api/bloatware");
     if (b.count > 5) {
@@ -72,8 +73,13 @@ async function loadDashboard() {
     } else {
       banner.classList.add("hidden");
     }
+    $("#bloat-list").innerHTML = (b.apps || [])
+      .map((n) => `<li>${esc(n)}</li>`)
+      .join("");
+    card.classList.toggle("hidden", b.count === 0);
   } catch (_) {
     banner.classList.add("hidden");
+    card.classList.add("hidden");
   }
 }
 
