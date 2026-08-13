@@ -56,6 +56,7 @@ async function loadDashboard() {
     ["Unapplied (low)", h.unappliedLow],
     ["Unapplied (medium)", h.unappliedMedium],
     ["Unapplied (high)", h.unappliedHigh],
+    ["Not state-verifiable", h.unverifiableTweaks || 0],
     ["Bloatware detected", h.bloatwareCount],
   ];
   $("#health-breakdown").innerHTML = rows
@@ -90,7 +91,7 @@ async function loadTweaks() {
   const tweaks = await api("/api/tweaks");
   tweaksById = Object.fromEntries(tweaks.map((t) => [t.id, t]));
 
-  const byCat = {};
+  const byCat = Object.create(null);
   for (const t of tweaks) (byCat[t.category] ||= []).push(t);
 
   $("#tweaks-list").innerHTML = Object.entries(byCat)
@@ -105,7 +106,7 @@ async function loadTweaks() {
           </div>
           <span class="risk ${t.risk}">${t.risk}</span>
           <label class="switch">
-            <input type="checkbox" ${t.applied ? "checked" : ""} data-id="${t.id}" />
+            <input type="checkbox" ${t.applied ? "checked" : ""} data-id="${esc(t.id)}" />
             <span class="slider"></span>
           </label>
         </div>`
@@ -355,8 +356,12 @@ function setupMaintenance() {
 
 // ---- History ----
 async function loadHistory() {
-  const entries = await api("/api/history");
-  $("#history-body").innerHTML = entries
+  const result = await api("/api/history");
+  const entries = Array.isArray(result) ? result : result.entries;
+  const warning = Array.isArray(result) ? "" : result.warning;
+  $("#history-body").innerHTML = (warning
+    ? `<tr><td colspan="5"><span class="tag fail">Audit warning</span> ${esc(warning)}</td></tr>`
+    : "") + entries
     .map(
       (e) => `
       <tr>
@@ -364,7 +369,7 @@ async function loadHistory() {
         <td>${esc(e.operationType)}</td>
         <td>${esc(e.target)}</td>
         <td><span class="tag ${e.success ? "ok" : "fail"}">${e.success ? "ok" : "failed"}</span></td>
-        <td>${e.canUndo ? `<button class="small" data-undo="${e.id}">Undo</button>` : ""}</td>
+        <td>${e.canUndo ? `<button class="small" data-undo="${esc(e.id)}">Undo</button>` : ""}</td>
       </tr>`
     )
     .join("");

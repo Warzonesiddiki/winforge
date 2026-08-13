@@ -4,6 +4,11 @@ package bloatware
 
 import "winforge/internal/registry"
 
+const (
+	maxInstalledCandidates = 10000
+	maxDisplayNameBytes    = 4096
+)
+
 // uninstallRoots are the registry locations that list installed applications,
 // covering both 32- and 64-bit installs for the machine and the current user.
 var uninstallRoots = []struct {
@@ -20,14 +25,19 @@ var uninstallRoots = []struct {
 // an unreadable hive/root is skipped.
 func Installed() []string {
 	var names []string
+	candidates := 0
 	for _, root := range uninstallRoots {
 		subs, err := registry.EnumSubkeys(root.hive, root.path)
 		if err != nil {
 			continue
 		}
 		for _, sub := range subs {
+			if candidates >= maxInstalledCandidates {
+				return names
+			}
+			candidates++
 			name, err := registry.String(root.hive, root.path+`\`+sub, "DisplayName")
-			if err != nil || name == "" {
+			if err != nil || name == "" || len(name) > maxDisplayNameBytes {
 				continue
 			}
 			names = append(names, name)

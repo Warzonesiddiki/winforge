@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"winforge/internal/procout"
+	"winforge/internal/winapi"
 )
 
 // guidRe matches the GUIDs powercfg prints in /getactivescheme and /list
@@ -15,9 +18,9 @@ import (
 var guidRe = regexp.MustCompile(`(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
 
 func run(args ...string) (string, error) {
-	out, err := exec.Command("powercfg.exe", args...).CombinedOutput()
+	out, err := procout.CombinedOutput(exec.Command(winapi.SystemPath("powercfg.exe"), args...), 1<<20)
 	if err != nil {
-		return "", fmt.Errorf("powercfg %s: %w", strings.Join(args, " "), err)
+		return "", fmt.Errorf("powercfg %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -75,9 +78,12 @@ func setActive(guid string) error {
 		return err
 	}
 	if !exists {
+		if !strings.EqualFold(guid, UltimateClone) {
+			return fmt.Errorf("power scheme %q is not installed", guid)
+		}
 		// Create a stable copy of the hidden "Ultimate Performance" scheme
 		// under our own GUID (idempotent across runs).
-		if _, err := run("/duplicatescheme", Ultimate, guid); err != nil {
+		if _, err := run("/duplicatescheme", Ultimate, UltimateClone); err != nil {
 			return err
 		}
 	}

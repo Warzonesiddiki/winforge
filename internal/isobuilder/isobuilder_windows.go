@@ -4,12 +4,17 @@ package isobuilder
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"winforge/internal/platform"
+	"winforge/internal/procout"
+	"winforge/internal/winapi"
 )
 
 func runStream(log LogFunc, name string, args ...string) error {
@@ -30,11 +35,17 @@ func runStream(log LogFunc, name string, args ...string) error {
 			log(sc.Text())
 		}
 	}
-	return cmd.Wait()
+	scanErr := sc.Err()
+	var drainErr error
+	if scanErr != nil {
+		_, drainErr = io.Copy(io.Discard, stdout)
+	}
+	waitErr := cmd.Wait()
+	return errors.Join(scanErr, drainErr, waitErr)
 }
 
 func runOutput(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).CombinedOutput()
+	out, err := procout.CombinedOutput(exec.Command(name, args...), 4<<20)
 	if err != nil {
 		return string(out), fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
@@ -42,19 +53,29 @@ func runOutput(name string, args ...string) (string, error) {
 }
 
 func listEditions(sourceDir string) ([]Edition, error) {
+	if platform.IsElevated() {
+		return nil, errors.New("ISO inspection is disabled while WinForge is elevated; restart normally to inspect user-selected installation media")
+	}
 	img, err := imageFile(sourceDir)
 	if err != nil {
 		return nil, err
 	}
-	out, err := runOutput("dism.exe", "/Get-WimInfo", "/WimFile:"+img)
+	out, err := runOutput(winapi.SystemPath("dism.exe"), "/English", "/Get-WimInfo", "/WimFile:"+img)
 	if err != nil {
 		return nil, err
 	}
-	return parseWimInfo(out), nil
+	editions := parseWimInfo(out)
+	if len(editions) == 0 {
+		return nil, errors.New("DISM returned no parseable editions")
+	}
+	return editions, nil
 }
 
-func build(opts Options) (Result, error) {
-	res := Result{SourceDir: opts.SourceDir}
+func build(opts Options) (res Result, retErr error) {
+	res.SourceDir = opts.SourceDir
+	if platform.IsElevated() {
+		return res, errors.New("ISO building is disabled while WinForge is elevated; restart normally so PATH-discovered oscdimg cannot inherit an administrator token")
+	}
 	if err := ValidateOptions(&opts); err != nil {
 		return res, err
 	}
@@ -62,8 +83,10 @@ func build(opts Options) (Result, error) {
 	sourceDir := opts.SourceDir
 	var cleanup []string
 	defer func() {
-		for _, d := range cleanup {
-			_ = os.RemoveAll(d)
+		for i := len(cleanup) - 1; i >= 0; i-- {
+			if err := os.RemoveAll(cleanup[i]); err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("remove temporary path %q: %w", cleanup[i], err))
+			}
 		}
 	}()
 
@@ -87,9 +110,13 @@ func build(opts Options) (Result, error) {
 			return res, err
 		}
 		tmpWimName := tmpWim.Name()
-		_ = tmpWim.Close()
-		_ = os.Remove(tmpWimName)
 		cleanup = append(cleanup, tmpWimName)
+		if err := tmpWim.Close(); err != nil {
+			return res, fmt.Errorf("close temporary WIM: %w", err)
+		}
+		if err := os.Remove(tmpWimName); err != nil {
+			return res, fmt.Errorf("prepare temporary WIM destination: %w", err)
+		}
 
 		img, err := imageFile(sourceDir)
 		if err != nil {
@@ -109,7 +136,7 @@ func build(opts Options) (Result, error) {
 			if i == 0 {
 				args = append(args, "/CheckIntegrity")
 			}
-			if err := runStream(opts.Log, "dism.exe", args...); err != nil {
+			if err := runStream(opts.Log, winapi.SystemPath("dism.exe"), args...); err != nil {
 				return res, err
 			}
 			res.Exported = append(res.Exported, Edition{Index: idx, Name: nameByIndex[idx]})
@@ -129,7 +156,10 @@ func build(opts Options) (Result, error) {
 			return res, err
 		}
 		for _, name := range []string{"install.wim", "install.esd"} {
-			_ = os.Remove(filepath.Join(workDir, "sources", name))
+			path := filepath.Join(workDir, "sources", name)
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return res, fmt.Errorf("remove original image %q: %w", path, err)
+			}
 		}
 		if err := os.Rename(tmpWimName, filepath.Join(workDir, "sources", "install.wim")); err != nil {
 			return res, err
@@ -147,59 +177,24 @@ func build(opts Options) (Result, error) {
 	return res, nil
 }
 
-// copyTree copies src into dst, skipping the original image file (it is
-// replaced with the slimmed one by the caller).
-func copyTree(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		switch rel {
-		case filepath.Join("sources", "install.wim"), filepath.Join("sources", "install.esd"):
-			return nil
-		}
-		target := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
-		}
-		in, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		out, err := os.Create(target)
-		if err != nil {
-			_ = in.Close()
-			return err
-		}
-		_, cerr := io.Copy(out, in)
-		_ = in.Close()
-		if err := out.Close(); cerr == nil {
-			cerr = err
-		}
-		return cerr
-	})
-}
-
 func buildISO(sourceDir, isoPath, label string, log LogFunc) error {
-	if _, err := exec.LookPath("oscdimg"); err != nil {
+	if platform.IsElevated() {
+		return errors.New("ISO building is disabled while WinForge is elevated")
+	}
+	oscdimg, err := exec.LookPath("oscdimg")
+	if err != nil {
 		return ErrOscdimgMissing
+	}
+	oscdimg, err = filepath.Abs(oscdimg)
+	if err != nil {
+		return fmt.Errorf("resolve oscdimg path: %w", err)
 	}
 	bootData, err := bootDataArg(sourceDir)
 	if err != nil {
 		return err
 	}
 	args := []string{"-m", "-o", "-u2", "-udfver102", "-bootdata:" + bootData, "-l" + label, sourceDir, isoPath}
-	return runStream(log, "oscdimg", args...)
+	return runStream(log, oscdimg, args...)
 }
 
 // bootDataArg builds the oscdimg -bootdata string from the boot images present

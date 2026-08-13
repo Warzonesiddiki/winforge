@@ -10,6 +10,7 @@ package isobuilder
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -65,11 +66,102 @@ func Build(opts Options) (Result, error) { return build(opts) }
 func imageFile(sourceDir string) (string, error) {
 	for _, name := range []string{"install.wim", "install.esd"} {
 		p := filepath.Join(sourceDir, "sources", name)
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+		if fi, err := os.Lstat(p); err == nil && fi.Mode().IsRegular() {
 			return p, nil
 		}
 	}
 	return "", fmt.Errorf("no sources\\install.wim or sources\\install.esd under %q", sourceDir)
+}
+
+// copyTree copies regular files from src into dst, skipping the original image
+// file because the caller replaces it with the slimmed WIM. Symlinks, reparse
+// points, devices, and other non-regular entries are rejected rather than
+// followed or silently transformed.
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		imageRel := strings.ToLower(rel)
+		switch imageRel {
+		case filepath.Join("sources", "install.wim"), filepath.Join("sources", "install.esd"):
+			return nil
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("source contains unsupported non-regular file %q", path)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		out, err := os.Create(target)
+		if err != nil {
+			return errors.Join(err, in.Close())
+		}
+		_, copyErr := io.Copy(out, in)
+		inCloseErr := in.Close()
+		outCloseErr := out.Close()
+		return errors.Join(copyErr, inCloseErr, outCloseErr)
+	})
+}
+
+func validateSourceTree(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("source contains unsupported symbolic link %q", path)
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("source contains unsupported non-regular file %q", path)
+		}
+		return nil
+	})
+}
+
+// resolvePath resolves symlinks/reparse points in the existing portion of path
+// and then reattaches any not-yet-created suffix. This makes containment checks
+// meaningful even when the output file or its immediate parent does not exist.
+func resolvePath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	candidate := abs
+	var suffix []string
+	for {
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err == nil {
+			for i := len(suffix) - 1; i >= 0; i-- {
+				resolved = filepath.Join(resolved, suffix[i])
+			}
+			return filepath.Clean(resolved), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return "", err
+		}
+		suffix = append(suffix, filepath.Base(candidate))
+		candidate = parent
+	}
 }
 
 // ValidateOptions checks o and normalizes OutputISO (appends ".iso") and Label
@@ -97,9 +189,35 @@ func ValidateOptions(o *Options) error {
 	if !strings.HasSuffix(strings.ToLower(o.OutputISO), ".iso") {
 		o.OutputISO += ".iso"
 	}
+	sourceResolved, err := resolvePath(o.SourceDir)
+	if err != nil {
+		return fmt.Errorf("resolve source directory: %w", err)
+	}
+	if err := validateSourceTree(sourceResolved); err != nil {
+		return fmt.Errorf("validate source tree: %w", err)
+	}
+	outputResolved, err := resolvePath(o.OutputISO)
+	if err != nil {
+		return fmt.Errorf("resolve output ISO path: %w", err)
+	}
+	relOutput, err := filepath.Rel(sourceResolved, outputResolved)
+	if err != nil {
+		return fmt.Errorf("compare source and output paths: %w", err)
+	}
+	if relOutput == "." || (relOutput != ".." && !strings.HasPrefix(relOutput, ".."+string(filepath.Separator)) && !filepath.IsAbs(relOutput)) {
+		return errors.New("output ISO must be outside the source directory")
+	}
+	// Pass canonical absolute paths to DISM and oscdimg. Besides making the
+	// validated paths the paths actually used, this prevents relative names
+	// beginning with '-' or '/' from being interpreted as command options.
+	o.SourceDir = sourceResolved
+	o.OutputISO = outputResolved
 	o.Label = SanitizeLabel(o.Label)
 	for i := range o.Editions {
 		o.Editions[i] = strings.TrimSpace(o.Editions[i])
+		if o.Editions[i] == "" {
+			return fmt.Errorf("edition %d must not be empty", i+1)
+		}
 	}
 	return nil
 }
@@ -131,10 +249,13 @@ func SanitizeLabel(s string) string {
 	return out
 }
 
-// reIndexLine matches any line that ends in ": <digits>" (e.g. "Index : 1" in
-// English, "索引: 1" in Chinese). This makes DISM output parsing
-// language-agnostic: the edition name is read from the next ":"-bearing line.
-var reIndexLine = regexp.MustCompile(`^\s*.*:\s*(\d+)\s*$`)
+// reIndexLine matches the English field emitted by DISM /English. Matching the
+// field name is important: image metadata also contains numeric colon-delimited
+// fields (for example "ServicePack Build : 1") that are not edition indexes.
+var (
+	reIndexLine = regexp.MustCompile(`(?i)^\s*Index\s*:\s*(\d+)\s*$`)
+	reNameLine  = regexp.MustCompile(`(?i)^\s*Name\s*:\s*(.*?)\s*$`)
+)
 
 // parseWimInfo parses "dism /Get-WimInfo" output into a list of editions.
 func parseWimInfo(out string) []Edition {
@@ -147,18 +268,22 @@ func parseWimInfo(out string) []Edition {
 			continue
 		}
 		idx, err := strconv.Atoi(m[1])
-		if err != nil {
+		if err != nil || idx <= 0 {
 			continue
 		}
 		name := ""
-		for j := i + 1; j < len(lines) && j <= i+3; j++ {
-			nl := strings.TrimSpace(lines[j])
-			if k := strings.Index(nl, ":"); k >= 0 {
-				name = strings.TrimSpace(nl[k+1:])
+		for j := i + 1; j < len(lines); j++ {
+			if reIndexLine.MatchString(lines[j]) {
+				break
+			}
+			if nameMatch := reNameLine.FindStringSubmatch(lines[j]); nameMatch != nil {
+				name = strings.TrimSpace(nameMatch[1])
 				break
 			}
 		}
-		editions = append(editions, Edition{Index: idx, Name: name})
+		if name != "" {
+			editions = append(editions, Edition{Index: idx, Name: name})
+		}
 	}
 	return editions
 }

@@ -77,16 +77,20 @@ func parseWmiTime(s string) (time.Time, error) {
 		for i < len(rest) && rest[i] >= '0' && rest[i] <= '9' {
 			i++
 		}
-		if i > 0 {
-			frac := rest[:i]
-			for len(frac) < 6 {
-				frac += "0"
-			}
-			if micros, err = digits(frac[:6]); err != nil {
-				return time.Time{}, fmt.Errorf("invalid WMI datetime %q: %w", s, err)
-			}
-			rest = rest[i:]
+		if i == 0 {
+			return time.Time{}, fmt.Errorf("invalid WMI datetime %q: empty fractional seconds", s)
 		}
+		if i > 6 {
+			return time.Time{}, fmt.Errorf("invalid WMI datetime %q: fractional seconds exceed six digits", s)
+		}
+		frac := rest[:i]
+		for len(frac) < 6 {
+			frac += "0"
+		}
+		if micros, err = digits(frac); err != nil {
+			return time.Time{}, fmt.Errorf("invalid WMI datetime %q: %w", s, err)
+		}
+		rest = rest[i:]
 	}
 
 	// Optional signed UTC offset in minutes (e.g. "+480" or "-000").
@@ -109,8 +113,17 @@ func parseWmiTime(s string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("invalid WMI datetime %q: trailing %q", s, rest)
 	}
 
+	// time.Date normalizes invalid fields, so reject malformed WMI values before
+	// constructing the timestamp rather than silently changing their date.
+	if month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || sec > 59 {
+		return time.Time{}, fmt.Errorf("invalid WMI datetime %q: component out of range", s)
+	}
+
 	// CIM datetimes are wall-clock time with a UTC offset; convert to UTC.
 	t := time.Date(year, time.Month(month), day, hour, minute, sec, micros*1000, time.UTC)
+	if t.Year() != year || int(t.Month()) != month || t.Day() != day {
+		return time.Time{}, fmt.Errorf("invalid WMI datetime %q: nonexistent calendar date", s)
+	}
 	return t.Add(-time.Duration(offsetMin) * time.Minute), nil
 }
 

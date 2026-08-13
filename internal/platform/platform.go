@@ -15,6 +15,8 @@ type OSInfo struct {
 func Arch() string { return runtime.GOARCH }
 
 // IsElevated reports whether the process is running with administrator rights.
+// On Windows, an indeterminate token status is treated as elevated so callers
+// do not cross a privilege boundary by trusting user-writable inputs.
 func IsElevated() bool { return isElevated() }
 
 // GetOSInfo returns OS identity information.

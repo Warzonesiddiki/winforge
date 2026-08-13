@@ -16,5 +16,7 @@ func Disable(path string) error { return disable(path) }
 // Delete removes a scheduled task.
 func Delete(path string) error { return deleteTask(path) }
 
-// Register creates a weekly maintenance task that runs "<exePath> run-maintenance".
+// Register creates a weekly, standard-privilege maintenance task that runs
+// "<exePath> run-maintenance". It deliberately does not elevate a portable,
+// potentially user-writable executable.
 func Register(name, exePath string) error { return register(name, exePath) }

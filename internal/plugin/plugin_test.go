@@ -1,8 +1,10 @@
 package plugin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"winforge/internal/config"
@@ -28,6 +30,91 @@ func TestDiscoverMissingRoot(t *testing.T) {
 	}
 }
 
+func TestPluginFileReadIsBounded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "manifest.json")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(path, maxPluginFileBytes+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPluginFile(path); err == nil {
+		t.Fatal("readPluginFile accepted an oversized plugin file")
+	}
+}
+
+func TestPluginFileRejectsSymbolicLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.json")
+	link := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(target, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	if _, err := readPluginFile(link); err == nil {
+		t.Fatal("readPluginFile accepted a symbolic link")
+	}
+}
+
+func TestDiscoverRejectsExcessiveRootEntries(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i <= maxPluginRootEntries; i++ {
+		path := filepath.Join(root, fmt.Sprintf("entry-%05d", i))
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("create root entry %d: %v", i, err)
+		}
+	}
+	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "entry scan limit") {
+		t.Fatalf("Discover error = %v, want entry scan limit", err)
+	}
+}
+
+func TestDiscoverRejectsExcessiveCandidateDirectories(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i <= maxPluginDirectories; i++ {
+		path := filepath.Join(root, fmt.Sprintf("candidate-%04d", i))
+		if err := os.Mkdir(path, 0o700); err != nil {
+			t.Fatalf("create candidate directory %d: %v", i, err)
+		}
+	}
+	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "directory limit") {
+		t.Fatalf("Discover error = %v, want directory limit", err)
+	}
+}
+
+func TestDiscoverRejectsExcessiveValidPlugins(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i <= maxDiscoveredPlugins; i++ {
+		writeFile(t, filepath.Join(root, fmt.Sprintf("plugin-%03d", i), "manifest.json"), `{}`)
+	}
+	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "valid-plugin limit") {
+		t.Fatalf("Discover error = %v, want valid-plugin limit", err)
+	}
+}
+
+func TestDiscoverRejectsExcessiveAggregateTweaks(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "too-many-tweaks")
+	writeFile(t, filepath.Join(dir, "manifest.json"), `{}`)
+
+	var contents strings.Builder
+	contents.WriteString(`{"tweaks":[`)
+	for i := 0; i <= maxDiscoveredPluginTweaks; i++ {
+		if i > 0 {
+			contents.WriteByte(',')
+		}
+		fmt.Fprintf(&contents, `{"id":"t-%d","risk":"low","operations":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}`, i)
+	}
+	contents.WriteString(`]}`)
+	writeFile(t, filepath.Join(dir, "tweaks.json"), contents.String())
+
+	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "tweak aggregate limit") {
+		t.Fatalf("Discover error = %v, want aggregate tweak limit", err)
+	}
+}
+
 func TestDiscoverValidPlugin(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "my-plugin")
@@ -35,7 +122,8 @@ func TestDiscoverValidPlugin(t *testing.T) {
 		`{"name":"My Tweaks","version":"1.2.0","description":"nice","author":"jane"}`)
 	writeFile(t, filepath.Join(dir, "tweaks.json"), `{"tweaks":[
 		{"id":"p1","name":"One","category":"x","description":"d","risk":"low","reversible":true,
-		 "operations":[{"type":"registry_set_dword","hive":"HKCU","path":"A","name":"B","value":1}]}
+		 "operations":[{"type":"registry_set_dword","hive":"HKCU","path":"A","name":"B","value":1}],
+		 "revert":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}
 	]}`)
 
 	plugins, err := Discover(root)
@@ -73,6 +161,12 @@ func TestDiscoverSkipsNonPluginsAndBroken(t *testing.T) {
 	writeFile(t, filepath.Join(root, "bad-tweaks", "manifest.json"), `{"name":"bad"}`)
 	writeFile(t, filepath.Join(root, "bad-tweaks", "tweaks.json"), `{"tweaks":[
 		{"id":"x","name":"X","operations":[{"type":"command","value":"echo"}],"risk":"yolo"}
+	]}`)
+
+	// A misspelled operation field must not silently decode to an empty name.
+	writeFile(t, filepath.Join(root, "unknown-field", "manifest.json"), `{"name":"bad fields"}`)
+	writeFile(t, filepath.Join(root, "unknown-field", "tweaks.json"), `{"tweaks":[
+		{"id":"x","name":"X","operations":[{"type":"service_stop","nmae":"Svc"}]}
 	]}`)
 
 	plugins, err := Discover(root)

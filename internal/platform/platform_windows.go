@@ -26,13 +26,16 @@ type tokenElevationInfo struct {
 	TokenIsElevated uint32
 }
 
-// isElevated checks the process token for the Administrators group via raw
-// P/Invoke, keeping the binary free of third-party modules.
+// isElevated checks whether the process token is elevated via raw P/Invoke,
+// keeping the binary free of third-party modules. Detection failures return
+// true deliberately: consumers use this result to decide whether user-writable
+// configuration and audit snapshots are safe to trust, so failure must be
+// conservative rather than silently weakening the privilege boundary.
 func isElevated() bool {
 	var token syscall.Handle
 	proc, err := syscall.GetCurrentProcess()
 	if err != nil {
-		return false
+		return true
 	}
 	r, _, _ := procOpenProcessToken.Call(
 		uintptr(proc),
@@ -40,7 +43,7 @@ func isElevated() bool {
 		uintptr(unsafe.Pointer(&token)),
 	)
 	if r == 0 {
-		return false
+		return true
 	}
 	defer procCloseHandle.Call(uintptr(token))
 
@@ -54,7 +57,7 @@ func isElevated() bool {
 		uintptr(unsafe.Pointer(&size)),
 	)
 	if r == 0 {
-		return false
+		return true
 	}
 	return elev.TokenIsElevated != 0
 }
