@@ -20,6 +20,7 @@ import (
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
+	"winforge/internal/updater"
 )
 
 // job tracks an in-flight async operation (winget install, maintenance fix,
@@ -81,6 +82,9 @@ func (s *Server) routes() *http.ServeMux {
 
 	mux.HandleFunc("POST /api/iso/editions", s.handleISOEditions)
 	mux.HandleFunc("POST /api/iso/build", s.handleISOBuild)
+
+	mux.HandleFunc("POST /api/updates/search", s.handleUpdatesSearch)
+	mux.HandleFunc("POST /api/updates/install", s.handleUpdatesInstall)
 
 	mux.HandleFunc("GET /api/dns/presets", s.handleDnsPresets)
 	mux.HandleFunc("POST /api/dns/apply", s.handleDnsApply)
@@ -460,6 +464,40 @@ func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		log("ISO built: " + res.ISO)
+		return nil
+	})
+	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleUpdatesSearch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Installed bool `json:"installed"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	updates, err := updater.Search(req.Installed)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if updates == nil {
+		updates = []updater.Update{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"updates": updates})
+}
+
+func (s *Server) handleUpdatesInstall(w http.ResponseWriter, _ *http.Request) {
+	j := s.startJob("updates-install", "Windows Update", func(log func(string)) error {
+		res, err := updater.InstallAll()
+		if err != nil {
+			return err
+		}
+		log("result: " + res.ResultCode.String())
+		if res.RebootRequired {
+			log("reboot required")
+		}
+		if res.ResultCode != updater.ResultSucceeded && res.ResultCode != updater.ResultSucceededWithErrors {
+			return fmt.Errorf("install result: %s", res.ResultCode)
+		}
 		return nil
 	})
 	writeJSON(w, http.StatusAccepted, j)

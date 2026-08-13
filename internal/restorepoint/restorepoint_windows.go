@@ -5,6 +5,7 @@ package restorepoint
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"sort"
 	"syscall"
 	"time"
@@ -277,6 +278,10 @@ func readRestorePoint(obj uintptr) (Info, error) {
 
 // list enumerates existing system restore points via WMI, newest first.
 func list() ([]Info, error) {
+	// COM apartment init/uninit must happen on the same OS thread.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	r, _, _ := procCoInitializeEx.Call(0, uintptr(coinitMultithreaded))
 	switch {
 	case r == 0: // S_OK

@@ -22,6 +22,7 @@ import (
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
 	"winforge/internal/tweak"
+	"winforge/internal/updater"
 )
 
 // Run executes the CLI with the given arguments (excluding the program name).
@@ -61,6 +62,10 @@ func Run(args []string) error {
 		return scheduleCmd(false)
 	case "build-iso":
 		return buildIsoCmd(args[1:])
+	case "updates":
+		return updatesCmd(args[1:])
+	case "install-updates":
+		return installUpdatesCmd(args[1:])
 	case "reset-windows-update":
 		return maintenanceCmd("reset-windows-update", args[1:])
 	case "repair-image":
@@ -108,6 +113,8 @@ Usage:
   winforge unschedule        remove the weekly maintenance task
   winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
   winforge build-iso --source <dir> --list-editions
+  winforge updates [--installed]       search Windows Update
+  winforge install-updates             download + install available updates
   winforge reset-windows-update | repair-image | flush-dns | network-reset
   winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
   winforge enable-feature  --name <feature>
@@ -443,6 +450,56 @@ func buildIsoCmd(args []string) error {
 	}
 	fmt.Printf("ISO built: %s\n", res.ISO)
 	return nil
+}
+
+func updatesCmd(args []string) error {
+	fs := flag.NewFlagSet("updates", flag.ExitOnError)
+	installed := fs.Bool("installed", false, "list installed updates instead of available")
+	_ = fs.Parse(args)
+
+	updates, err := updater.Search(*installed)
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		fmt.Println("no updates found")
+		return nil
+	}
+	for _, u := range updates {
+		fmt.Printf("[%s] %s\n", updateState(u), u.Title)
+	}
+	return nil
+}
+
+func installUpdatesCmd(args []string) error {
+	_ = args
+	fmt.Println("Downloading and installing updates (this can take a while)…")
+	res, err := updater.InstallAll()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("result: %s", res.ResultCode)
+	if res.RebootRequired {
+		fmt.Print(" (reboot required)")
+	}
+	fmt.Println()
+	if res.ResultCode != updater.ResultSucceeded && res.ResultCode != updater.ResultSucceededWithErrors {
+		return fmt.Errorf("install result: %s", res.ResultCode)
+	}
+	return nil
+}
+
+func updateState(u updater.Update) string {
+	switch {
+	case u.IsInstalled:
+		return "installed"
+	case u.IsHidden:
+		return "hidden"
+	case u.IsDownloaded:
+		return "downloaded"
+	default:
+		return "available"
+	}
 }
 
 // logToStdout prints maintenance progress lines to stdout.

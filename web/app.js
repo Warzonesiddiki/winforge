@@ -289,6 +289,23 @@ function setupMaintenance() {
     }
   });
 
+  $("#btn-updates-search").addEventListener("click", async () => {
+    const list = $("#updates-list");
+    list.innerHTML = "<li>Searching…</li>";
+    try {
+      const res = await api("/api/updates/search", { method: "POST", body: JSON.stringify({}) });
+      const ups = res.updates || [];
+      list.innerHTML = ups.length
+        ? ups.map((u) => `<li>${esc(u.title)}</li>`).join("")
+        : "<li>No available updates.</li>";
+    } catch (err) {
+      list.innerHTML = `<li>Error: ${esc(err.message)}</li>`;
+    }
+  });
+
+  $("#btn-updates-install").addEventListener("click", () =>
+    runMaintenanceJob("/api/updates/install", "Installing updates"));
+
   $("#btn-build-iso").addEventListener("click", async () => {
     const log = maintenanceLog();
     const source = $("#iso-source").value.trim();

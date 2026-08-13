@@ -20,9 +20,11 @@ winforge plugins           # list installed plugins
 winforge run-maintenance   # verify tweak states + upgrade apps
 winforge schedule          # register the weekly maintenance task
 winforge unschedule        # remove the weekly maintenance task
-winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
-winforge build-iso --source <dir> --list-editions
-winforge reset-windows-update | repair-image | flush-dns | network-reset
+  winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
+  winforge build-iso --source <dir> --list-editions
+  winforge updates [--installed]       # search Windows Update
+  winforge install-updates             # download + install available updates
+  winforge reset-windows-update | repair-image | flush-dns | network-reset
 winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
 winforge enable-feature  --name <feature>
 winforge disable-feature --name <feature>
@@ -104,6 +106,7 @@ internal/
   scheduler/               Task Scheduler control via schtasks.exe
   bloatware/               bloatware detection (registry uninstall keys + rules)
   isobuilder/              ISO builder (dism edition export + oscdimg)
+  updater/                 Windows Update search/install (COM Microsoft.Update.Session)
   maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
   httpapi/                 dashboard server + JSON API + async jobs
   cli/                     command-line interface
@@ -162,6 +165,13 @@ the chosen editions (`dism /Export-Image`) and rebuilds a BIOS/UEFI-bootable
 ISO with `oscdimg.exe` from the Windows ADK Deployment Tools. The user's source
 directory is never modified — edition slimming happens in a scratch copy.
 
+### Windows Update
+
+`winforge updates` searches for available (or installed) updates and
+`winforge install-updates` downloads and installs them. Both use the Windows
+Update Agent COM API (`Microsoft.Update.Session`) via raw ole32/oleaut32
+P/Invoke — no PowerShell, no `wuauclt` shell-outs.
+
 ---
 
 ## Configuration
@@ -209,11 +219,11 @@ Malformed plugins are skipped (best-effort).
 - [x] Provisioned Appx removal via `dism.exe`
 - [x] List existing restore points (WMI `SystemRestore` class)
 - [ ] Per-user Appx removal (`PackageManager` WinRT interop)
-- [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
 - [x] ISO builder (MicroWin-style: edition slim via dism + bootable ISO via oscdimg)
 - [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
 - [x] Scheduled maintenance task registration + `run-maintenance`
 - [x] Smart bloatware detection + recommendations
+- [x] Windows Update search/install (COM `Microsoft.Update.Session`)
 
 ## Security note
 
