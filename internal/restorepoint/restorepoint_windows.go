@@ -131,12 +131,10 @@ func call(spec *restorePointInfo, status *stateMgrStatus) error {
 		return restorePointWin32Error(status.Status)
 	}
 	if r == 0 {
-		if errno, ok := callErr.(syscall.Errno); ok {
-			if errno != 0 {
-				return restorePointWin32Error(uint32(errno))
-			}
-		} else if callErr != nil {
-			return callErr
+		// syscall.SyscallN reports the thread's last error as a syscall.Errno
+		// value type; a zero Errno means the call left no error code behind.
+		if callErr != 0 {
+			return restorePointWin32Error(uint32(callErr))
 		}
 		return errors.New("SRSetRestorePointW failed")
 	}
@@ -331,7 +329,7 @@ func requireWin32Success(op string, proc *syscall.LazyProc, args ...nativeArg) e
 	if r1 != 0 {
 		return nil
 	}
-	if callErr != nil && callErr != syscall.Errno(0) {
+	if callErr != 0 {
 		return fmt.Errorf("%s: %w", op, callErr)
 	}
 	return fmt.Errorf("%s failed", op)
@@ -563,7 +561,7 @@ func bstrToString(p *uint16) (string, error) {
 	if byteLen == 0 {
 		return "", nil
 	}
-	if byteLen > 1<<20 || byteLen%2 != 0 {
+	if byteLen > maxBSTRBytes || byteLen%2 != 0 {
 		return "", fmt.Errorf("invalid BSTR byte length %d", byteLen)
 	}
 	units := unsafe.Slice(p, int(byteLen/2))
@@ -721,9 +719,15 @@ func list() ([]Info, error) {
 
 	var out []Info
 	var readErrs []error
+	descriptionBudget := maxDescriptionBudgetBytes
+	errBudget := maxRowErrorBudgetBytes
+	droppedErrs := 0
 	for n := 0; ; n++ {
-		if n >= 100000 {
-			return nil, errors.New("WMI restore-point enumeration exceeded safety limit")
+		if n >= maxRestorePoints {
+			return nil, fmt.Errorf(
+				"WMI restore-point enumeration exceeded the %d restore point safety limit",
+				maxRestorePoints,
+			)
 		}
 		var obj *comIface
 		var returned uint32
@@ -757,13 +761,34 @@ func list() ([]Info, error) {
 		info, err := readRestorePoint(obj)
 		release(obj)
 		if err != nil {
-			readErrs = append(readErrs, fmt.Errorf("restore point %d: %w", n, err))
-			continue // retain valid rows, but report that the result is incomplete
+			// Retain valid rows, but report that the result is incomplete.
+			// Malformed-row detail is itself bounded so a provider returning
+			// nothing but bad rows cannot grow an unbounded error.
+			rowErr := fmt.Errorf("restore point %d: %w", n, err)
+			if len(readErrs) >= maxRowErrors || len(rowErr.Error()) > errBudget {
+				droppedErrs++
+				continue
+			}
+			errBudget -= len(rowErr.Error())
+			readErrs = append(readErrs, rowErr)
+			continue
 		}
+		// Bound descriptions in aggregate, not only per row.
+		info.Description = truncateUTF8(info.Description, maxDescriptionBytes)
+		if len(info.Description) > descriptionBudget {
+			return nil, fmt.Errorf(
+				"WMI restore-point enumeration returned more than %d bytes of descriptions",
+				maxDescriptionBudgetBytes,
+			)
+		}
+		descriptionBudget -= len(info.Description)
 		out = append(out, info)
 	}
 
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	if droppedErrs > 0 {
+		readErrs = append(readErrs, fmt.Errorf("%d further malformed restore-point rows omitted", droppedErrs))
+	}
 	if len(readErrs) > 0 {
 		return out, fmt.Errorf("read WMI restore points: %w", errors.Join(readErrs...))
 	}

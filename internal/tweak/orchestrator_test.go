@@ -473,7 +473,7 @@ func TestUndoEntryRejectsInconsistentSnapshotMetadata(t *testing.T) {
 
 func TestUndoEntrySupportsConsistentLegacyRegistrySnapshot(t *testing.T) {
 	exec := newMock()
-	exec.dwords[regKey("HKLM", "A", "B")] = 9
+	exec.dwords[key("HKLM", "A", "B")] = 9
 	o := NewOrchestrator(exec, nil)
 	entry := audit.Entry{
 		ID:            "legacy",
@@ -489,14 +489,14 @@ func TestUndoEntrySupportsConsistentLegacyRegistrySnapshot(t *testing.T) {
 	if err := o.UndoEntry(entry); err != nil {
 		t.Fatalf("UndoEntry rejected a consistent legacy snapshot: %v", err)
 	}
-	if value := exec.dwords[regKey("HKLM", "A", "B")]; value != 5 {
+	if value := exec.dwords[key("HKLM", "A", "B")]; value != 5 {
 		t.Fatalf("legacy snapshot restored %d, want 5", value)
 	}
 }
 
 func TestUndoEntryRejectsMismatchedRegistryTarget(t *testing.T) {
 	exec := newMock()
-	exec.dwords[regKey("HKLM", "A", "B")] = 7
+	exec.dwords[key("HKLM", "A", "B")] = 7
 	o := NewOrchestrator(exec, nil)
 	entry := audit.Entry{
 		ID:                    "mismatch",
@@ -514,7 +514,7 @@ func TestUndoEntryRejectsMismatchedRegistryTarget(t *testing.T) {
 	if err := o.UndoEntry(entry); err == nil {
 		t.Fatal("UndoEntry accepted a target that disagreed with structured registry metadata")
 	}
-	if value := exec.dwords[regKey("HKLM", "A", "B")]; value != 7 {
+	if value := exec.dwords[key("HKLM", "A", "B")]; value != 7 {
 		t.Fatalf("invalid registry snapshot caused a mutation: %d", value)
 	}
 }
@@ -609,8 +609,8 @@ func TestResultFailureIncludesEffectErrors(t *testing.T) {
 }
 
 func TestUndoRejectsMissingExplicitRevert(t *testing.T) {
-	exec := newStubExecutor()
-	exec.dwords[regKey("HKLM", "A", "B")] = 42
+	exec := newMock()
+	exec.dwords[key("HKLM", "A", "B")] = 42
 	o := NewOrchestrator(exec, nil)
 
 	res := o.Undo(config.Tweak{
@@ -621,7 +621,7 @@ func TestUndoRejectsMissingExplicitRevert(t *testing.T) {
 	if res.Failed != 1 || res.Failure() == nil {
 		t.Fatalf("Undo result = %+v, want explicit-revert failure", res)
 	}
-	if got := exec.dwords[regKey("HKLM", "A", "B")]; got != 42 {
+	if got := exec.dwords[key("HKLM", "A", "B")]; got != 42 {
 		t.Fatalf("pre-existing registry value was changed to %d", got)
 	}
 }

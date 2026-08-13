@@ -132,15 +132,32 @@ func TestBloatwareReturnsCopyOfMemoizedList(t *testing.T) {
 	}
 }
 
+// TestNewCreatesDataDir pins the audit-directory side of the elevation trust
+// boundary: a standard-user process prepares <dataDir>/logs for the file-backed
+// audit logger, while an elevated process must never create or touch that
+// user-profile directory.
 func TestNewCreatesDataDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "WinForge")
-	a, err := New(dir)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(a.DataDir, "logs")); err != nil {
-		t.Errorf("logs dir not created: %v", err)
-	}
+	t.Run("standard user creates logs dir", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "nested", "WinForge")
+		a, err := newApp(dir, false)
+		if err != nil {
+			t.Fatalf("newApp: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(a.DataDir, "logs")); err != nil {
+			t.Errorf("logs dir not created: %v", err)
+		}
+	})
+
+	t.Run("elevated does not create logs dir", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "nested", "WinForge")
+		a, err := newApp(dir, true)
+		if err != nil {
+			t.Fatalf("newApp: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(a.DataDir, "logs")); !os.IsNotExist(err) {
+			t.Errorf("elevated process touched the user-profile audit directory: err=%v", err)
+		}
+	})
 }
 
 // stubExecutor is an in-memory tweak.Executor used to exercise RunMaintenance

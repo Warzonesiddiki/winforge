@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // ErrUnsupported is returned on non-Windows platforms.
@@ -16,6 +17,29 @@ var ErrUnsupported = errors.New("system restore points are only supported on Win
 
 // ErrDisabled indicates System Restore is disabled on the target machine.
 var ErrDisabled = errors.New("system restore is disabled on this system")
+
+const (
+	// Aggregate WMI enumeration bounds. Per-row and per-BSTR checks alone
+	// still allow a corrupt SystemRestore provider to force WinForge to retain
+	// 100,000 rows, each with a 1 MiB description, plus one error string per
+	// malformed row. These budgets bound the total instead.
+	//
+	// maxRestorePoints is well above what System Restore itself retains (disk
+	// quota caps real systems at tens of points) while ending a runaway
+	// enumeration.
+	maxRestorePoints = 1024
+	// maxBSTRBytes bounds a single BSTR conversion. Restore-point descriptions
+	// and WMI datetimes are short strings.
+	maxBSTRBytes = 64 << 10
+	// maxDescriptionBytes bounds one retained restore-point description.
+	maxDescriptionBytes = 1024
+	// maxDescriptionBudgetBytes bounds all descriptions retained by one list.
+	maxDescriptionBudgetBytes = 1 << 20
+	// maxRowErrors and maxRowErrorBudgetBytes bound the malformed-row detail
+	// reported by a single enumeration.
+	maxRowErrors           = 64
+	maxRowErrorBudgetBytes = 64 << 10
+)
 
 // Info describes a created restore point.
 type Info struct {
@@ -137,4 +161,24 @@ func digits(s string) (int, error) {
 		n = n*10 + int(c-'0')
 	}
 	return n, nil
+}
+
+// truncateUTF8 bounds text to limit bytes without splitting a rune.
+// Restore-point descriptions come from WMI and are only displayed, so trimming
+// an oversized one is preferable to retaining it in full.
+func truncateUTF8(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	const ellipsis = "…"
+	if limit < len(ellipsis) {
+		// Too small to hold even the marker; return nothing rather than slicing
+		// with a negative index.
+		return ""
+	}
+	text = text[:limit-len(ellipsis)]
+	for len(text) > 0 && !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text + ellipsis
 }

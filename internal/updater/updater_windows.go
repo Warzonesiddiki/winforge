@@ -178,7 +178,7 @@ func bstrToString(p *uint16) (string, error) {
 	if byteLen == 0 {
 		return "", nil
 	}
-	if byteLen > 1<<20 || byteLen%2 != 0 {
+	if byteLen > maxBSTRBytes || byteLen%2 != 0 {
 		return "", fmt.Errorf("invalid BSTR byte length %d", byteLen)
 	}
 	units := unsafe.Slice(p, int(byteLen/2))
@@ -273,10 +273,13 @@ func search(installedOnly bool) ([]Update, error) {
 		return nil, hresultError("IUpdateCollection::get_Count", hr)
 	}
 
-	if count < 0 || count > 100000 {
+	if count < 0 || count > maxUpdateCount {
 		return nil, fmt.Errorf("IUpdateCollection::get_Count returned invalid count %d", count)
 	}
 	updates := make([]Update, 0, count)
+	// titleBudget bounds the total title bytes retained across the whole
+	// result set, not just each individual title.
+	titleBudget := maxTitleBudgetBytes
 	for i := int32(0); i < count; i++ {
 		var upd *comIface
 		if hr := comCallOut(collection, idxGetItem, unsafe.Pointer(&upd), uintptr(i)); hresultFailed(hr) {
@@ -290,6 +293,14 @@ func search(installedOnly bool) ([]Update, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read update %d: %w", i, err)
 		}
+		u.Title = truncateUTF8(u.Title, maxTitleBytes)
+		if len(u.Title) > titleBudget {
+			return nil, fmt.Errorf(
+				"Windows Update search returned more than %d bytes of update titles",
+				maxTitleBudgetBytes,
+			)
+		}
+		titleBudget -= len(u.Title)
 		updates = append(updates, u)
 	}
 	return updates, nil
@@ -357,7 +368,7 @@ func installAll() (InstallResult, error) {
 	if hr := comCallOut(collection, idxGetCount, unsafe.Pointer(&count)); hresultFailed(hr) {
 		return InstallResult{}, hresultError("IUpdateCollection::get_Count", hr)
 	}
-	if count < 0 || count > 100000 {
+	if count < 0 || count > maxUpdateCount {
 		return InstallResult{}, fmt.Errorf("IUpdateCollection::get_Count returned invalid count %d", count)
 	}
 	if count == 0 {
@@ -432,7 +443,7 @@ func installAll() (InstallResult, error) {
 		return InstallResult{}, hresultError("IInstallationResult::get_RebootRequired", hr)
 	}
 
-	result := InstallResult{ResultCode: code, RebootRequired: reboot != 0}
+	outcome := InstallResult{ResultCode: code, RebootRequired: reboot != 0}
 	installErr := collectUpdateResultErrors(
 		installResult,
 		idxInstallationGetUpdateResult,
@@ -448,7 +459,7 @@ func installAll() (InstallResult, error) {
 			installErr,
 		)
 	}
-	return result, installErr
+	return outcome, installErr
 }
 
 func getOperationResultCode(p *comIface, idx int, op string) (ResultCode, error) {
@@ -473,16 +484,32 @@ func collectUpdateResultErrors(
 	count int32,
 	operationName string,
 ) error {
+	// Per-update failures are bounded in both count and aggregate size. A batch
+	// where every update fails would otherwise build an error string
+	// proportional to the number of updates times the title length.
 	var errs []error
+	errBudget := maxResultErrorBudgetBytes
+	truncated := 0
+	addErr := func(err error) {
+		if err == nil {
+			return
+		}
+		if len(errs) >= maxResultErrors || len(err.Error()) > errBudget {
+			truncated++
+			return
+		}
+		errBudget -= len(err.Error())
+		errs = append(errs, err)
+	}
 	for i := int32(0); i < count; i++ {
 		var updateResult *comIface
 		hr := comCallOut(operation, getUpdateResultIdx, unsafe.Pointer(&updateResult), uintptr(i))
 		if hresultFailed(hr) {
-			errs = append(errs, fmt.Errorf("%s: GetUpdateResult(%d): %w", operationName, i, hresultError("GetUpdateResult", hr)))
+			addErr(fmt.Errorf("%s: GetUpdateResult(%d): %w", operationName, i, hresultError("GetUpdateResult", hr)))
 			continue
 		}
 		if updateResult == nil {
-			errs = append(errs, fmt.Errorf("%s: GetUpdateResult(%d) returned nil", operationName, i))
+			addErr(fmt.Errorf("%s: GetUpdateResult(%d) returned nil", operationName, i))
 			continue
 		}
 
@@ -490,11 +517,11 @@ func collectUpdateResultErrors(
 		resultHRESULT, hresultErr := getResultHRESULT(updateResult, hresultIdx)
 		release(updateResult)
 		if codeErr != nil || hresultErr != nil {
-			errs = append(errs, fmt.Errorf("%s for %s: %w", operationName, updateLabel(collection, i), errors.Join(codeErr, hresultErr)))
+			addErr(fmt.Errorf("%s for %s: %w", operationName, updateLabel(collection, i), errors.Join(codeErr, hresultErr)))
 			continue
 		}
 		if code != ResultSucceeded || hresultFailed(resultHRESULT) {
-			errs = append(errs, fmt.Errorf(
+			addErr(fmt.Errorf(
 				"%s for %s: result %s, HRESULT 0x%08X",
 				operationName,
 				updateLabel(collection, i),
@@ -502,6 +529,9 @@ func collectUpdateResultErrors(
 				resultHRESULT,
 			))
 		}
+	}
+	if truncated > 0 {
+		errs = append(errs, fmt.Errorf("%s: %d further update errors omitted", operationName, truncated))
 	}
 	return errors.Join(errs...)
 }
@@ -525,7 +555,7 @@ func updateLabel(collection *comIface, index int32) string {
 	if err != nil || title == "" {
 		return fallback
 	}
-	return fmt.Sprintf("update %d (%q)", index, title)
+	return fmt.Sprintf("update %d (%q)", index, truncateUTF8(title, maxTitleBytes))
 }
 
 // readUpdate reads the display fields of an IUpdate.
