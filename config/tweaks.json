@@ -1,0 +1,146 @@
+{
+  "tweaks": [
+    {
+      "id": "disable-telemetry",
+      "name": "Disable Telemetry",
+      "category": "Privacy",
+      "description": "Sets the AllowTelemetry policy to 0 (Security), minimizing data sent to Microsoft.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "name": "AllowTelemetry", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_delete", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "name": "AllowTelemetry" }
+      ]
+    },
+    {
+      "id": "disable-advertising-id",
+      "name": "Disable Advertising ID",
+      "category": "Privacy",
+      "description": "Turns off the per-user advertising ID used for targeted ads.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo", "name": "Enabled", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo", "name": "Enabled", "value": 1 }
+      ]
+    },
+    {
+      "id": "disable-cortana",
+      "name": "Disable Cortana",
+      "category": "Privacy",
+      "description": "Disables the Cortana assistant via the AllowCortana policy.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search", "name": "AllowCortana", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_delete", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search", "name": "AllowCortana" }
+      ]
+    },
+    {
+      "id": "disable-tailored-experiences",
+      "name": "Disable Tailored Experiences",
+      "category": "Privacy",
+      "description": "Stops Windows from personalizing tips, ads and recommendations.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Privacy", "name": "TailoredExperiencesWithDiagnosticDataEnabled", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Privacy", "name": "TailoredExperiencesWithDiagnosticDataEnabled", "value": 1 }
+      ]
+    },
+    {
+      "id": "disable-startup-delay",
+      "name": "Disable Startup App Delay",
+      "category": "Performance",
+      "description": "Removes the 10-second delay before startup apps launch.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "StartupDelayInMSec", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_delete", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize", "name": "StartupDelayInMSec" }
+      ]
+    },
+    {
+      "id": "disable-game-dvr",
+      "name": "Disable Game DVR",
+      "category": "Performance",
+      "description": "Disables background Game Bar recording, freeing GPU/CPU resources.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "System\\GameConfigStore", "name": "GameDVR_Enabled", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "System\\GameConfigStore", "name": "GameDVR_Enabled", "value": 1 }
+      ]
+    },
+    {
+      "id": "show-file-extensions",
+      "name": "Show File Extensions",
+      "category": "Explorer",
+      "description": "Always show file name extensions in File Explorer.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "HideFileExt", "value": 0 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "HideFileExt", "value": 1 }
+      ]
+    },
+    {
+      "id": "show-hidden-files",
+      "name": "Show Hidden Files",
+      "category": "Explorer",
+      "description": "Reveals hidden files and folders in File Explorer.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Hidden", "value": 1 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKCU", "path": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "name": "Hidden", "value": 2 }
+      ]
+    },
+    {
+      "id": "disable-windows-tips",
+      "name": "Disable Windows Tips",
+      "category": "Privacy",
+      "description": "Disables Windows welcome tips and suggestions.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableSoftLanding", "value": 1 },
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableWindowsConsumerFeatures", "value": 1 }
+      ],
+      "revert": [
+        { "type": "registry_delete", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableSoftLanding" },
+        { "type": "registry_delete", "hive": "HKLM", "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent", "name": "DisableWindowsConsumerFeatures" }
+      ]
+    },
+    {
+      "id": "disable-autoplay",
+      "name": "Disable AutoPlay",
+      "category": "Security",
+      "description": "Prevents removable media from auto-running, a common malware vector.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "name": "NoDriveTypeAutoRun", "value": 255 }
+      ],
+      "revert": [
+        { "type": "registry_set_dword", "hive": "HKLM", "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "name": "NoDriveTypeAutoRun", "value": 145 }
+      ]
+    }
+  ]
+}
