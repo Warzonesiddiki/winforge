@@ -17,6 +17,7 @@ import (
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
 	"winforge/internal/httpapi"
+	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
@@ -58,6 +59,8 @@ func Run(args []string) error {
 		return scheduleCmd(true)
 	case "unschedule":
 		return scheduleCmd(false)
+	case "build-iso":
+		return buildIsoCmd(args[1:])
 	case "reset-windows-update":
 		return maintenanceCmd("reset-windows-update", args[1:])
 	case "repair-image":
@@ -103,6 +106,8 @@ Usage:
   winforge run-maintenance   verify tweak states + upgrade apps
   winforge schedule          register the weekly maintenance task
   winforge unschedule        remove the weekly maintenance task
+  winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
+  winforge build-iso --source <dir> --list-editions
   winforge reset-windows-update | repair-image | flush-dns | network-reset
   winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
   winforge enable-feature  --name <feature>
@@ -381,6 +386,62 @@ func scheduleCmd(register bool) error {
 		return err
 	}
 	fmt.Printf("removed scheduled maintenance task %q\n", app.MaintenanceTaskName)
+	return nil
+}
+
+// stringListFlag collects repeated flag values (e.g. --edition a --edition b).
+type stringListFlag []string
+
+func (s *stringListFlag) String() string { return strings.Join(*s, ",") }
+
+func (s *stringListFlag) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}
+
+func buildIsoCmd(args []string) error {
+	fs := flag.NewFlagSet("build-iso", flag.ExitOnError)
+	source := fs.String("source", "", "extracted Windows installation source directory")
+	output := fs.String("output", "", "output .iso path")
+	label := fs.String("label", "", "ISO volume label")
+	listOnly := fs.Bool("list-editions", false, "list editions in the source image and exit")
+	var editions stringListFlag
+	fs.Var(&editions, "edition", "edition name to keep (repeatable; default keeps all)")
+	_ = fs.Parse(args)
+
+	if *listOnly {
+		if *source == "" {
+			return fmt.Errorf("--source is required with --list-editions")
+		}
+		eds, err := isobuilder.ListEditions(*source)
+		if err != nil {
+			return err
+		}
+		if len(eds) == 0 {
+			fmt.Println("no editions found")
+			return nil
+		}
+		for _, e := range eds {
+			fmt.Printf("%d: %s\n", e.Index, e.Name)
+		}
+		return nil
+	}
+
+	if *source == "" || *output == "" {
+		return fmt.Errorf("--source and --output are required")
+	}
+	opts := isobuilder.Options{
+		SourceDir: *source,
+		OutputISO: *output,
+		Label:     *label,
+		Editions:  editions,
+		Log:       logToStdout,
+	}
+	res, err := isobuilder.Build(opts)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("ISO built: %s\n", res.ISO)
 	return nil
 }
 

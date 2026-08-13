@@ -16,6 +16,7 @@ import (
 	"winforge"
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
+	"winforge/internal/isobuilder"
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
 	"winforge/internal/restorepoint"
@@ -77,6 +78,9 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/maintenance/schedule", s.handleUnscheduleMaintenance)
 
 	mux.HandleFunc("GET /api/bloatware", s.handleBloatware)
+
+	mux.HandleFunc("POST /api/iso/editions", s.handleISOEditions)
+	mux.HandleFunc("POST /api/iso/build", s.handleISOBuild)
 
 	mux.HandleFunc("GET /api/dns/presets", s.handleDnsPresets)
 	mux.HandleFunc("POST /api/dns/apply", s.handleDnsApply)
@@ -403,6 +407,62 @@ func (s *Server) handleUnscheduleMaintenance(w http.ResponseWriter, _ *http.Requ
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleISOEditions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Source == "" {
+		writeErr(w, http.StatusBadRequest, fmt.Errorf("source is required"))
+		return
+	}
+	editions, err := isobuilder.ListEditions(req.Source)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if editions == nil {
+		editions = []isobuilder.Edition{}
+	}
+	writeJSON(w, http.StatusOK, editions)
+}
+
+func (s *Server) handleISOBuild(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Source   string   `json:"source"`
+		Output   string   `json:"output"`
+		Label    string   `json:"label"`
+		Editions []string `json:"editions"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	opts := isobuilder.Options{
+		SourceDir: req.Source,
+		OutputISO: req.Output,
+		Label:     req.Label,
+		Editions:  req.Editions,
+	}
+	name := req.Output
+	if name == "" {
+		name = "Windows ISO"
+	}
+	j := s.startJob("build-iso", name, func(log func(string)) error {
+		opts.Log = log
+		res, err := isobuilder.Build(opts)
+		if err != nil {
+			return err
+		}
+		log("ISO built: " + res.ISO)
+		return nil
+	})
+	writeJSON(w, http.StatusAccepted, j)
 }
 
 func (s *Server) handleDnsPresets(w http.ResponseWriter, _ *http.Request) {

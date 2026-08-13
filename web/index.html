@@ -131,6 +131,17 @@
           </div>
         </div>
 
+        <h2>ISO Builder</h2>
+        <div class="card">
+          <p class="muted">Build a bootable Windows ISO from an extracted installation source. Requires the Windows ADK's <code>oscdimg.exe</code>.</p>
+          <div class="toolbar">
+            <input id="iso-source" placeholder="Source dir (contains sources\install.wim)" />
+            <input id="iso-output" placeholder="Output .iso path" />
+            <input id="iso-editions" placeholder="Editions to keep (comma-separated, optional)" />
+            <button id="btn-build-iso" class="primary">Build ISO</button>
+          </div>
+        </div>
+
         <div id="maintenance-log" class="log hidden"></div>
       </section>
 

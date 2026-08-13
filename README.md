@@ -20,6 +20,8 @@ winforge plugins           # list installed plugins
 winforge run-maintenance   # verify tweak states + upgrade apps
 winforge schedule          # register the weekly maintenance task
 winforge unschedule        # remove the weekly maintenance task
+winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
+winforge build-iso --source <dir> --list-editions
 winforge reset-windows-update | repair-image | flush-dns | network-reset
 winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
 winforge enable-feature  --name <feature>
@@ -101,6 +103,7 @@ internal/
   restorepoint/            System Restore points via SRSetRestorePointW P/Invoke
   scheduler/               Task Scheduler control via schtasks.exe
   bloatware/               bloatware detection (registry uninstall keys + rules)
+  isobuilder/              ISO builder (dism edition export + oscdimg)
   maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
   httpapi/                 dashboard server + JSON API + async jobs
   cli/                     command-line interface
@@ -151,6 +154,14 @@ matches display names against a curated bloatware list (exact names plus
 family signatures). When more than 5 bloatware apps are found, the dashboard
 shows a recommendation banner and the count is folded into the health score.
 
+### ISO builder
+
+`winforge build-iso` builds a bootable Windows ISO from an extracted (or
+mounted) installation source. It optionally slims the image by exporting only
+the chosen editions (`dism /Export-Image`) and rebuilds a BIOS/UEFI-bootable
+ISO with `oscdimg.exe` from the Windows ADK Deployment Tools. The user's source
+directory is never modified — edition slimming happens in a scratch copy.
+
 ---
 
 ## Configuration
@@ -199,7 +210,7 @@ Malformed plugins are skipped (best-effort).
 - [x] List existing restore points (WMI `SystemRestore` class)
 - [ ] Per-user Appx removal (`PackageManager` WinRT interop)
 - [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
-- [ ] ISO builder (MicroWin-style)
+- [x] ISO builder (MicroWin-style: edition slim via dism + bootable ISO via oscdimg)
 - [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
 - [x] Scheduled maintenance task registration + `run-maintenance`
 - [x] Smart bloatware detection + recommendations

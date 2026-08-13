@@ -289,6 +289,23 @@ function setupMaintenance() {
     }
   });
 
+  $("#btn-build-iso").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    const source = $("#iso-source").value.trim();
+    const output = $("#iso-output").value.trim();
+    const editions = $("#iso-editions").value.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!source || !output) { alert("Source and output are required"); return; }
+    log.textContent = "Building ISO…\n";
+    try {
+      const job = await api("/api/iso/build", {
+        method: "POST", body: JSON.stringify({ source, output, editions }),
+      });
+      pollJob(job.id, log, "Building ISO…\n");
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
   $("#btn-dns").addEventListener("click", async () => {
     const log = maintenanceLog();
     const profile = $("#dns-preset").value;
