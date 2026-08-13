@@ -30,6 +30,7 @@ function loadView(name) {
   if (name === "dashboard") loadDashboard();
   if (name === "tweaks") loadTweaks();
   if (name === "apps") loadApps();
+  if (name === "maintenance") loadMaintenance();
   if (name === "history") loadHistory();
 }
 
@@ -179,20 +180,98 @@ async function install(id) {
   log.textContent = `Installing ${id}…\n`;
   try {
     const job = await api("/api/apps/install", { method: "POST", body: JSON.stringify({ id }) });
-    pollJob(job.id, log);
+    pollJob(job.id, log, `Installing ${id}…\n`);
   } catch (err) {
     log.textContent += `Error: ${err.message}\n`;
   }
 }
 
-async function pollJob(id, log) {
-  const job = await api("/api/apps/jobs/" + id);
-  log.textContent = `Installing ${job.id}…\n` + job.lines.join("\n");
+async function pollJob(id, log, header) {
+  const job = await api("/api/jobs/" + id);
+  log.textContent = header + (job.lines || []).join("\n");
   if (!job.done) {
-    setTimeout(() => pollJob(id, log), 800);
+    setTimeout(() => pollJob(id, log, header), 800);
   } else {
-    log.textContent += `\n[${job.status}]\n`;
+    log.textContent += `\n[${job.status}]${job.error ? " " + job.error : ""}\n`;
   }
+}
+
+// ---- Maintenance ----
+async function loadMaintenance() {
+  try {
+    const presets = await api("/api/dns/presets");
+    $("#dns-preset").innerHTML = presets
+      .map((p) => `<option value="${esc(p.profile)}">${esc(p.profile)} — ${esc(p.primary)}</option>`)
+      .join("");
+  } catch (_) {}
+}
+
+function maintenanceLog() {
+  const log = $("#maintenance-log");
+  log.classList.remove("hidden");
+  return log;
+}
+
+async function runMaintenanceJob(endpoint, label) {
+  const log = maintenanceLog();
+  log.textContent = label + "…\n";
+  try {
+    const job = await api(endpoint, { method: "POST" });
+    pollJob(job.id, log, label + "…\n");
+  } catch (err) {
+    log.textContent += `Error: ${err.message}\n`;
+  }
+}
+
+function setupMaintenance() {
+  $("#btn-restore").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    log.textContent = "Creating restore point…\n";
+    try {
+      const info = await api("/api/restore-point", { method: "POST", body: JSON.stringify({}) });
+      log.textContent += `Restore point created (sequence ${info.sequenceNumber}).\n`;
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
+  $("#btn-reset-wu").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/reset-windows-update", "Resetting Windows Update"));
+  $("#btn-repair").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/repair-image", "Repairing system image"));
+  $("#btn-flush").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/flush-dns", "Flushing DNS"));
+  $("#btn-netreset").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/network-reset", "Resetting network"));
+
+  $("#btn-dns").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    const profile = $("#dns-preset").value;
+    log.textContent = `Applying DNS preset ${profile}…\n`;
+    try {
+      await api("/api/dns/apply", { method: "POST", body: JSON.stringify({ profile }) });
+      log.textContent += "DNS applied.\n";
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
+  const feature = async (enable) => {
+    const name = $("#feature-name").value.trim();
+    if (!name) { alert("Enter a feature name"); return; }
+    const log = maintenanceLog();
+    log.textContent = `${enable ? "Enabling" : "Disabling"} feature ${name}…\n`;
+    try {
+      const job = await api(`/api/features/${enable ? "enable" : "disable"}`, {
+        method: "POST", body: JSON.stringify({ name }),
+      });
+      pollJob(job.id, log, `${enable ? "Enabling" : "Disabling"} feature ${name}…\n`);
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  };
+  $("#btn-enable-feature").addEventListener("click", () => feature(true));
+  $("#btn-disable-feature").addEventListener("click", () => feature(false));
 }
 
 // ---- History ----
@@ -230,4 +309,5 @@ function esc(s) {
 }
 
 // Initial load.
+setupMaintenance();
 loadDashboard();

@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"winforge/internal/appmanager"
 	"winforge/internal/audit"
 	"winforge/internal/config"
 	"winforge/internal/engine"
+	"winforge/internal/restorepoint"
 	"winforge/internal/tweak"
 )
 
@@ -27,7 +30,15 @@ type App struct {
 	Tweaks            []config.Tweak
 	Apps              []config.App
 	ProtectedServices []string
+	DnsPresets        []config.DnsEntry
 	DataDir           string
+
+	// AutoRestorePoint enables the safety-first policy: a system restore point
+	// is created (best-effort, throttled) before the first mutation.
+	AutoRestorePoint bool
+
+	mu               sync.Mutex
+	lastRestorePoint time.Time
 }
 
 // New builds the application, reading config (overrides then embedded defaults)
@@ -54,6 +65,10 @@ func New(dataDir string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	dnsCfg, err := loader.LoadDns()
+	if err != nil {
+		return nil, err
+	}
 
 	logger := audit.NewLogger(filepath.Join(dataDir, "logs"))
 	exec := engine.NewExecutor(protected)
@@ -67,7 +82,9 @@ func New(dataDir string) (*App, error) {
 		Tweaks:            tweaksCfg.Tweaks,
 		Apps:              appsCfg.Applications,
 		ProtectedServices: protected,
+		DnsPresets:        dnsCfg.Presets,
 		DataDir:           dataDir,
+		AutoRestorePoint:  os.Getenv("WINFORGE_NO_RESTORE_POINT") == "",
 	}, nil
 }
 
@@ -111,13 +128,63 @@ func (a *App) Health(bloatware int) tweak.Health {
 	return tweak.ComputeHealth(a.Tweaks, a.AppliedMap(), bloatware)
 }
 
-// Apply applies (or dry-runs) a tweak by id.
+// Apply applies (or dry-runs) a tweak by id. Before a real (non-dry-run)
+// mutation it ensures a system restore point exists (safety-first policy).
 func (a *App) Apply(id string, dryRun bool) (tweak.Result, error) {
 	t, ok := a.FindTweak(id)
 	if !ok {
 		return tweak.Result{}, fmt.Errorf("tweak %q not found", id)
 	}
+	if !dryRun {
+		a.EnsureRestorePoint("WinForge: apply " + id)
+	}
 	return a.Orchestrator.Apply(*t, dryRun), nil
+}
+
+// CreateRestorePoint creates a system restore point and records it in the
+// audit log.
+func (a *App) CreateRestorePoint(description string) (restorepoint.Info, error) {
+	info, err := restorepoint.Create(description)
+	if a.Logger != nil {
+		e := audit.Entry{
+			OperationType: "restore_point",
+			Target:        "system",
+			NewValue:      description,
+			Success:       err == nil,
+			CanUndo:       false,
+		}
+		if err != nil {
+			e.ErrorMessage = err.Error()
+		}
+		_ = a.Logger.Append(e)
+	}
+	return info, err
+}
+
+// ListRestorePoints enumerates existing restore points (WMI-backed; not yet
+// implemented, returns an empty list with a clear error).
+func (a *App) ListRestorePoints() ([]restorepoint.Info, error) {
+	return restorepoint.List()
+}
+
+// EnsureRestorePoint creates a restore point at most once per hour. It is
+// best-effort: failure never blocks the underlying operation.
+func (a *App) EnsureRestorePoint(description string) {
+	if !a.AutoRestorePoint {
+		return
+	}
+	a.mu.Lock()
+	if time.Since(a.lastRestorePoint) < time.Hour {
+		a.mu.Unlock()
+		return
+	}
+	a.lastRestorePoint = time.Now()
+	a.mu.Unlock()
+
+	if !restorepoint.IsEnabled() {
+		return
+	}
+	_, _ = a.CreateRestorePoint(description)
 }
 
 // Undo reverses a tweak by id.

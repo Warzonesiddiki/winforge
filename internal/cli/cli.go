@@ -16,7 +16,9 @@ import (
 	"winforge/internal/app"
 	"winforge/internal/appmanager"
 	"winforge/internal/httpapi"
+	"winforge/internal/maintenance"
 	"winforge/internal/platform"
+	"winforge/internal/restorepoint"
 	"winforge/internal/tweak"
 )
 
@@ -43,6 +45,22 @@ func Run(args []string) error {
 		return installCmd(args[1:])
 	case "search":
 		return searchCmd(args[1:])
+	case "restore-point":
+		return restorePointCmd(args[1:])
+	case "reset-windows-update":
+		return maintenanceCmd("reset-windows-update", args[1:])
+	case "repair-image":
+		return maintenanceCmd("repair-image", args[1:])
+	case "flush-dns":
+		return maintenanceCmd("flush-dns", args[1:])
+	case "network-reset":
+		return maintenanceCmd("network-reset", args[1:])
+	case "set-dns":
+		return setDnsCmd(args[1:])
+	case "enable-feature":
+		return featureCmd(args[1:], true)
+	case "disable-feature":
+		return featureCmd(args[1:], false)
 	case "version", "--version", "-v":
 		fmt.Println(app.Version)
 		return nil
@@ -68,6 +86,11 @@ Usage:
   winforge history         show the operation history
   winforge install --id <winget-id>
   winforge search  <query>
+  winforge restore-point [--description "…"]
+  winforge reset-windows-update | repair-image | flush-dns | network-reset
+  winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
+  winforge enable-feature  --name <feature>
+  winforge disable-feature --name <feature>
   winforge version
 `)
 }
@@ -252,4 +275,86 @@ func searchCmd(args []string) error {
 		fmt.Println(id)
 	}
 	return nil
+}
+
+func restorePointCmd(args []string) error {
+	fs := flag.NewFlagSet("restore-point", flag.ExitOnError)
+	desc := fs.String("description", "WinForge restore point", "restore point description")
+	_ = fs.Parse(args)
+	info, err := restorepoint.Create(*desc)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("restore point created: sequence=%d\n", info.SequenceNumber)
+	return nil
+}
+
+// logToStdout prints maintenance progress lines to stdout.
+func logToStdout(line string) { fmt.Println(line) }
+
+func maintenanceCmd(name string, args []string) error {
+	_ = args // maintenance commands take no flags today
+	fmt.Printf("Running %s…\n", name)
+	var err error
+	switch name {
+	case "reset-windows-update":
+		err = maintenance.ResetWindowsUpdate(logToStdout)
+	case "repair-image":
+		err = maintenance.RepairImage(logToStdout)
+	case "flush-dns":
+		err = maintenance.FlushDNS()
+	case "network-reset":
+		err = maintenance.NetworkReset(logToStdout)
+	default:
+		err = fmt.Errorf("unknown maintenance command %q", name)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println("done")
+	return nil
+}
+
+func setDnsCmd(args []string) error {
+	fs := flag.NewFlagSet("set-dns", flag.ExitOnError)
+	primary := fs.String("primary", "", "primary DNS server")
+	secondary := fs.String("secondary", "", "secondary DNS server (optional)")
+	adapter := fs.String("adapter", "", "adapter name (default: all active adapters)")
+	_ = fs.Parse(args)
+	if *primary == "" {
+		return fmt.Errorf("--primary is required")
+	}
+
+	var err error
+	if *adapter != "" {
+		err = maintenance.SetDns(*adapter, *primary, *secondary)
+	} else {
+		err = maintenance.SetDnsOnAll(*primary, *secondary)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Printf("DNS set to %s", *primary)
+	if *secondary != "" {
+		fmt.Printf(" / %s", *secondary)
+	}
+	fmt.Println()
+	return nil
+}
+
+func featureCmd(args []string, enable bool) error {
+	verb := "disable"
+	if enable {
+		verb = "enable"
+	}
+	fs := flag.NewFlagSet(verb+"-feature", flag.ExitOnError)
+	name := fs.String("name", "", "Windows feature name")
+	_ = fs.Parse(args)
+	if *name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if enable {
+		return maintenance.EnableFeature(*name, logToStdout)
+	}
+	return maintenance.DisableFeature(*name, logToStdout)
 }

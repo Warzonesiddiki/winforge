@@ -14,6 +14,11 @@ winforge undo   --id <id>
 winforge history
 winforge install --id <winget-id>
 winforge search  <query>
+winforge restore-point [--description "…"]
+winforge reset-windows-update | repair-image | flush-dns | network-reset
+winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
+winforge enable-feature  --name <feature>
+winforge disable-feature --name <feature>
 winforge version
 ```
 
@@ -85,9 +90,12 @@ internal/
   platform/                elevation check + OS identity (build-tagged)
   tweak/                   orchestrator: apply, dry-run, undo, health score
   audit/                   append-only JSONL operation log
-  engine/                  concrete Executor (registry+service+guards)
+  engine/                  concrete Executor (registry+service+scheduler+appx)
   appmanager/              winget.exe wrapper (streamed progress)
-  httpapi/                 dashboard server + JSON API + async install jobs
+  restorepoint/            System Restore points via SRSetRestorePointW P/Invoke
+  scheduler/               Task Scheduler control via schtasks.exe
+  maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
+  httpapi/                 dashboard server + JSON API + async jobs
   cli/                     command-line interface
 ```
 
@@ -104,6 +112,9 @@ OS while the mutation layer targets Windows.
 - Registry operations record their **previous value**, enabling **per-row undo**
   from the History view.
 - Reversible tweaks carry an explicit **revert list**.
+- A **system restore point** is created (best-effort, throttled to once/hour)
+  before the first mutation — the safety-first policy. Disable with the
+  `WINFORGE_NO_RESTORE_POINT` env var.
 - A **protected-services** list blocks start-mode changes to critical services
   (e.g. `WinDefend`).
 - **Dry-run** (`--dry-run`, or the API's `dryRun` flag) reports what *would*
@@ -142,16 +153,18 @@ Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
 
 ## Roadmap (later phases)
 
-- [ ] WMI restore points (`SystemRestore` via COM)
-- [ ] Appx removal (`PackageManager` WinRT interop)
-- [ ] Task Scheduler enable/disable/remove (COM)
+- [x] System Restore points (`SRSetRestorePointW` P/Invoke — no WMI/COM)
+- [x] Task Scheduler enable/disable/delete (`schtasks.exe`)
+- [x] Windows features via `dism.exe` (native, no PowerShell)
+- [x] One-click fixes (reset Windows Update, repair image, network reset, flush DNS)
+- [x] DNS per-adapter configuration (`netsh`, `net.Interfaces` discovery)
+- [x] Provisioned Appx removal via `dism.exe`
+- [ ] List existing restore points (WMI `SystemRestore` class)
+- [ ] Per-user Appx removal (`PackageManager` WinRT interop)
 - [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
-- [ ] DNS per-adapter configuration (WMI/IP Helper)
-- [ ] Windows features via `dism.exe` (native, no PowerShell)
-- [ ] One-click fixes (reset Windows Update, repair image, network reset)
 - [ ] ISO builder (MicroWin-style)
 - [ ] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
-- [ ] Scheduled maintenance task
+- [ ] Scheduled maintenance task registration
 - [ ] Smart bloatware detection + recommendations
 
 ## Security note

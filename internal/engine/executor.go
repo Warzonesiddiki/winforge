@@ -7,7 +7,9 @@ import (
 	"os/exec"
 	"strings"
 
+	"winforge/internal/maintenance"
 	"winforge/internal/registry"
+	"winforge/internal/scheduler"
 	"winforge/internal/service"
 )
 
@@ -92,25 +94,18 @@ func (e *Executor) ServiceStart(name string) error { return service.Start(name) 
 // ServiceStop stops a service.
 func (e *Executor) ServiceStop(name string) error { return service.Stop(name) }
 
-// TaskDisable is not yet implemented (Task Scheduler COM interop is a later phase).
-func (e *Executor) TaskDisable(path string) error {
-	return fmt.Errorf("task scheduler control not implemented (task: %s)", path)
-}
+// TaskDisable disables a scheduled task via schtasks.exe.
+func (e *Executor) TaskDisable(path string) error { return scheduler.Disable(path) }
 
-// TaskEnable is not yet implemented.
-func (e *Executor) TaskEnable(path string) error {
-	return fmt.Errorf("task scheduler control not implemented (task: %s)", path)
-}
+// TaskEnable enables a scheduled task via schtasks.exe.
+func (e *Executor) TaskEnable(path string) error { return scheduler.Enable(path) }
 
-// TaskDelete is not yet implemented.
-func (e *Executor) TaskDelete(path string) error {
-	return fmt.Errorf("task scheduler control not implemented (task: %s)", path)
-}
+// TaskDelete removes a scheduled task via schtasks.exe.
+func (e *Executor) TaskDelete(path string) error { return scheduler.Delete(path) }
 
-// AppxRemove is not yet implemented (Appx PackageManager interop is a later phase).
-func (e *Executor) AppxRemove(name string) error {
-	return fmt.Errorf("appx removal not implemented (package: %s)", name)
-}
+// AppxRemove removes a provisioned Appx package via DISM. Per-user package
+// removal (which requires PackageManager/WinRT) is a later phase.
+func (e *Executor) AppxRemove(name string) error { return maintenance.RemoveProvisionedAppx(name) }
 
 // RunCommand executes a native command line. Used by explicit command tweaks
 // and the winget fallback. PowerShell is deliberately never invoked here.

@@ -20,6 +20,7 @@
         <a href="#" data-view="dashboard" class="active">Dashboard</a>
         <a href="#" data-view="tweaks">Tweaks</a>
         <a href="#" data-view="apps">Apps</a>
+        <a href="#" data-view="maintenance">Maintenance</a>
         <a href="#" data-view="history">History</a>
       </nav>
       <div class="sidebar-foot">
@@ -65,6 +66,52 @@
         <div id="app-categories" class="chips"></div>
         <div id="apps-list" class="apps-grid"></div>
         <div id="install-log" class="log hidden"></div>
+      </section>
+
+      <section id="view-maintenance" class="view">
+        <h1>Maintenance</h1>
+        <div class="cards">
+          <div class="card">
+            <div class="label">Restore Point</div>
+            <p class="muted">Snapshot the system before making changes.</p>
+            <button id="btn-restore" class="primary">Create Restore Point</button>
+          </div>
+          <div class="card">
+            <div class="label">Windows Update</div>
+            <p class="muted">Reset the update cache and services.</p>
+            <button id="btn-reset-wu">Reset Windows Update</button>
+          </div>
+          <div class="card">
+            <div class="label">System Image</div>
+            <p class="muted">Repair component store with DISM.</p>
+            <button id="btn-repair">Repair Image</button>
+          </div>
+          <div class="card">
+            <div class="label">Network</div>
+            <p class="muted">Flush DNS cache, or fully reset the stack.</p>
+            <button id="btn-flush">Flush DNS</button>
+            <button id="btn-netreset">Network Reset</button>
+          </div>
+        </div>
+
+        <h2>DNS Presets</h2>
+        <div class="card">
+          <div class="toolbar">
+            <select id="dns-preset"></select>
+            <button id="btn-dns" class="primary">Apply DNS</button>
+          </div>
+        </div>
+
+        <h2>Windows Features</h2>
+        <div class="card">
+          <div class="toolbar">
+            <input id="feature-name" placeholder="Feature name (e.g. Microsoft-Hyper-V-All)" />
+            <button id="btn-enable-feature" class="primary">Enable</button>
+            <button id="btn-disable-feature">Disable</button>
+          </div>
+        </div>
+
+        <div id="maintenance-log" class="log hidden"></div>
       </section>
 
       <section id="view-history" class="view">
