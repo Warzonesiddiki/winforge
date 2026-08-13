@@ -150,6 +150,35 @@ func TestUndoWithRevertList(t *testing.T) {
 	}
 }
 
+func TestEnsureApplied(t *testing.T) {
+	exec := newMock()
+	o := NewOrchestrator(exec, nil)
+
+	// a is already at its target value; b is not.
+	exec.dwords[key("HKLM", "A", "X")] = 1
+	tweaks := []config.Tweak{
+		{ID: "a", Risk: config.RiskLow, Operations: []config.Operation{dwordOp("HKLM", "A", "X", 1)}},
+		{ID: "b", Risk: config.RiskLow, Operations: []config.Operation{dwordOp("HKLM", "A", "Y", 2)}},
+	}
+
+	applied, errs := o.EnsureApplied(tweaks)
+	if len(errs) != 0 {
+		t.Fatalf("EnsureApplied errors: %v", errs)
+	}
+	if len(applied) != 1 || applied[0] != "b" {
+		t.Fatalf("want [b] applied, got %v", applied)
+	}
+	if v, _ := exec.RegistryGetDword("HKLM", "A", "Y"); v != 2 {
+		t.Errorf("tweak b not applied: value=%d", v)
+	}
+
+	// A second run must be a no-op.
+	applied, errs = o.EnsureApplied(tweaks)
+	if len(errs) != 0 || len(applied) != 0 {
+		t.Fatalf("second EnsureApplied should be a no-op, got applied=%v errs=%v", applied, errs)
+	}
+}
+
 func TestComputeHealth(t *testing.T) {
 	tweaks := []config.Tweak{
 		{ID: "a", Risk: config.RiskLow},

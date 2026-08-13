@@ -52,6 +52,12 @@ func Run(args []string) error {
 		return restorePointCmd(args[1:])
 	case "restore-points":
 		return listRestorePointsCmd()
+	case "run-maintenance":
+		return runMaintenanceCmd()
+	case "schedule":
+		return scheduleCmd(true)
+	case "unschedule":
+		return scheduleCmd(false)
 	case "reset-windows-update":
 		return maintenanceCmd("reset-windows-update", args[1:])
 	case "repair-image":
@@ -94,6 +100,9 @@ Usage:
   winforge search  <query>
   winforge restore-point [--description "…"]
   winforge restore-points    list existing restore points
+  winforge run-maintenance   verify tweak states + upgrade apps
+  winforge schedule          register the weekly maintenance task
+  winforge unschedule        remove the weekly maintenance task
   winforge reset-windows-update | repair-image | flush-dns | network-reset
   winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
   winforge enable-feature  --name <feature>
@@ -213,11 +222,14 @@ func scanCmd() error {
 	if err != nil {
 		return err
 	}
-	h := a.Health(0)
+	h := a.Health(a.BloatwareCount())
 	fmt.Printf("Health score: %d/100\n", h.Score)
 	fmt.Printf("  tweaks: %d/%d applied\n", h.AppliedTweaks, h.TotalTweaks)
 	fmt.Printf("  unapplied low/medium/high: %d/%d/%d\n", h.UnappliedLow, h.UnappliedMedium, h.UnappliedHigh)
 	fmt.Printf("  bloatware: %d\n", h.BloatwareCount)
+	for _, b := range a.Bloatware() {
+		fmt.Printf("    - %s\n", b)
+	}
 	return nil
 }
 
@@ -324,6 +336,51 @@ func listRestorePointsCmd() error {
 	for _, p := range points {
 		fmt.Printf("%-6d %s  %s\n", p.SequenceNumber, p.CreatedAt.Format("2006-01-02 15:04:05"), p.Description)
 	}
+	return nil
+}
+
+func runMaintenanceCmd() error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	sum := a.RunMaintenance(context.Background(), logToStdout)
+	for _, e := range sum.TweakErrors {
+		fmt.Println("tweak error:", e)
+	}
+	if sum.AppError != "" {
+		fmt.Println("app update error:", sum.AppError)
+	}
+	fmt.Printf("maintenance complete: %d tweaks applied", len(sum.TweaksApplied))
+	switch {
+	case sum.AppsUpgraded:
+		fmt.Print(", apps updated")
+	case sum.AppsSkipped:
+		fmt.Print(", app updates skipped (winget missing)")
+	}
+	fmt.Println()
+	if len(sum.TweakErrors) > 0 || sum.AppError != "" {
+		return fmt.Errorf("maintenance completed with errors")
+	}
+	return nil
+}
+
+func scheduleCmd(register bool) error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
+	if register {
+		if err := a.ScheduleMaintenance(); err != nil {
+			return err
+		}
+		fmt.Printf("scheduled weekly maintenance task %q\n", app.MaintenanceTaskName)
+		return nil
+	}
+	if err := a.UnscheduleMaintenance(); err != nil {
+		return err
+	}
+	fmt.Printf("removed scheduled maintenance task %q\n", app.MaintenanceTaskName)
 	return nil
 }
 

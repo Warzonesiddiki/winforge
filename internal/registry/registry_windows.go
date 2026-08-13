@@ -12,11 +12,16 @@ const (
 	regSz    = 1
 	regDword = 4
 
-	rrfRtRegSz    = 0x00000002
-	rrfRtRegDword = 0x00000010
+	rrfRtRegSz       = 0x00000002
+	rrfRtRegExpandSz = 0x00000004
+	rrfRtRegDword    = 0x00000010
 
-	keySetValue       = 0x0002
+	keySetValue         = 0x0002
+	keyQueryValue       = 0x0001
+	keyEnumerateSubKeys = 0x0008
+
 	errorFileNotFound = 2
+	errorNoMoreItems  = 259
 
 	hkeyClassesRoot  = 0x80000000
 	hkeyCurrentUser  = 0x80000001
@@ -30,6 +35,8 @@ var (
 	procRegSetValueExW  = advapi32.NewProc("RegSetValueExW")
 	procRegCreateKeyExW = advapi32.NewProc("RegCreateKeyExW")
 	procRegDeleteValueW = advapi32.NewProc("RegDeleteValueW")
+	procRegOpenKeyExW   = advapi32.NewProc("RegOpenKeyExW")
+	procRegEnumKeyExW   = advapi32.NewProc("RegEnumKeyExW")
 	procRegCloseKey     = advapi32.NewProc("RegCloseKey")
 )
 
@@ -161,7 +168,8 @@ func dword(h Hive, path, name string) (uint32, error) {
 }
 
 func str(h Hive, path, name string) (string, error) {
-	buf, _, err := regGetValue(h, path, name, rrfRtRegSz)
+	// Accept both REG_SZ and REG_EXPAND_SZ; both are UTF-16LE, null-terminated.
+	buf, _, err := regGetValue(h, path, name, rrfRtRegSz|rrfRtRegExpandSz)
 	if err != nil {
 		return "", err
 	}
@@ -203,4 +211,45 @@ func deleteValue(h Hive, path, name string) error {
 		return errnoFrom(r)
 	}
 	return nil
+}
+
+// enumSubkeys lists the names of the direct subkeys of path.
+func enumSubkeys(h Hive, path string) ([]string, error) {
+	ppath, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	var k syscall.Handle
+	r, _, _ := procRegOpenKeyExW.Call(
+		uintptr(hiveRoot(h)),
+		uintptr(unsafe.Pointer(ppath)),
+		0,
+		uintptr(keyQueryValue|keyEnumerateSubKeys),
+		uintptr(unsafe.Pointer(&k)),
+	)
+	if r != 0 {
+		return nil, errnoFrom(r)
+	}
+	defer procRegCloseKey.Call(uintptr(k))
+
+	var names []string
+	buf := make([]uint16, 256)
+	for i := uint32(0); ; i++ {
+		size := uint32(len(buf))
+		r, _, _ := procRegEnumKeyExW.Call(
+			uintptr(k),
+			uintptr(i),
+			uintptr(unsafe.Pointer(&buf[0])),
+			uintptr(unsafe.Pointer(&size)),
+			0, 0, 0, 0,
+		)
+		if r == errorNoMoreItems {
+			break
+		}
+		if r != 0 {
+			return nil, errnoFrom(r)
+		}
+		names = append(names, syscall.UTF16ToString(buf[:size]))
+	}
+	return names, nil
 }

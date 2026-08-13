@@ -32,6 +32,10 @@
     <main class="content">
       <section id="view-dashboard" class="view active">
         <h1>Dashboard</h1>
+        <div id="bloat-banner" class="banner hidden">
+          <strong>Bloatware detected</strong>
+          <span><span id="bloat-count">0</span> preinstalled app(s) found. Review them in the Apps view.</span>
+        </div>
         <div class="cards">
           <div class="card health-card">
             <div class="label">Health Score</div>
@@ -91,6 +95,16 @@
             <p class="muted">Flush DNS cache, or fully reset the stack.</p>
             <button id="btn-flush">Flush DNS</button>
             <button id="btn-netreset">Network Reset</button>
+          </div>
+        </div>
+
+        <h2>Scheduled Maintenance</h2>
+        <div class="card">
+          <p class="muted">Re-apply any missing tweaks and upgrade outdated apps now, or register a weekly Task Scheduler job.</p>
+          <div class="toolbar">
+            <button id="btn-run-maintenance" class="primary">Run Maintenance</button>
+            <button id="btn-schedule">Schedule Weekly</button>
+            <button id="btn-unschedule">Remove Schedule</button>
           </div>
         </div>
 

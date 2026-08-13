@@ -61,6 +61,20 @@ async function loadDashboard() {
   $("#health-breakdown").innerHTML = rows
     .map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`)
     .join("");
+
+  // Bloatware recommendation banner (>5 detected).
+  const banner = $("#bloat-banner");
+  try {
+    const b = await api("/api/bloatware");
+    if (b.count > 5) {
+      $("#bloat-count").textContent = b.count;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+  } catch (_) {
+    banner.classList.add("hidden");
+  }
 }
 
 // ---- Tweaks ----
@@ -243,6 +257,31 @@ function setupMaintenance() {
     runMaintenanceJob("/api/maintenance/flush-dns", "Flushing DNS"));
   $("#btn-netreset").addEventListener("click", () =>
     runMaintenanceJob("/api/maintenance/network-reset", "Resetting network"));
+
+  $("#btn-run-maintenance").addEventListener("click", () =>
+    runMaintenanceJob("/api/maintenance/run", "Running maintenance"));
+
+  $("#btn-schedule").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    log.textContent = "Scheduling weekly maintenance…\n";
+    try {
+      await api("/api/maintenance/schedule", { method: "POST" });
+      log.textContent += "Weekly maintenance task registered.\n";
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
+
+  $("#btn-unschedule").addEventListener("click", async () => {
+    const log = maintenanceLog();
+    log.textContent = "Removing maintenance schedule…\n";
+    try {
+      await api("/api/maintenance/schedule", { method: "DELETE" });
+      log.textContent += "Maintenance task removed.\n";
+    } catch (err) {
+      log.textContent += `Error: ${err.message}\n`;
+    }
+  });
 
   $("#btn-dns").addEventListener("click", async () => {
     const log = maintenanceLog();

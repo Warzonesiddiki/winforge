@@ -17,6 +17,9 @@ winforge search  <query>
 winforge restore-point [--description "…"]
 winforge restore-points    # list existing restore points (WMI)
 winforge plugins           # list installed plugins
+winforge run-maintenance   # verify tweak states + upgrade apps
+winforge schedule          # register the weekly maintenance task
+winforge unschedule        # remove the weekly maintenance task
 winforge reset-windows-update | repair-image | flush-dns | network-reset
 winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
 winforge enable-feature  --name <feature>
@@ -97,6 +100,7 @@ internal/
   appmanager/              winget.exe wrapper (streamed progress)
   restorepoint/            System Restore points via SRSetRestorePointW P/Invoke
   scheduler/               Task Scheduler control via schtasks.exe
+  bloatware/               bloatware detection (registry uninstall keys + rules)
   maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
   httpapi/                 dashboard server + JSON API + async jobs
   cli/                     command-line interface
@@ -131,6 +135,21 @@ OS while the mutation layer targets Windows.
 ```
 
 clamped to `[0, 100]`.
+
+### Scheduled maintenance
+
+`winforge schedule` registers a weekly Task Scheduler task that runs
+`winforge run-maintenance`. The maintenance pass re-applies any tweak that is
+not in its target state and upgrades outdated winget apps (`winget upgrade
+--all`), streaming progress to the dashboard. Each pass is recorded in the
+audit log, and a restore point is taken (throttled) before any mutation.
+
+### Bloatware detection
+
+The dashboard scans the registry uninstall keys (HKLM 32/64-bit and HKCU) and
+matches display names against a curated bloatware list (exact names plus
+family signatures). When more than 5 bloatware apps are found, the dashboard
+shows a recommendation banner and the count is folded into the health score.
 
 ---
 
@@ -182,8 +201,8 @@ Malformed plugins are skipped (best-effort).
 - [ ] Windows Update search/install (COM `Microsoft.Update.Session`)
 - [ ] ISO builder (MicroWin-style)
 - [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
-- [ ] Scheduled maintenance task registration
-- [ ] Smart bloatware detection + recommendations
+- [x] Scheduled maintenance task registration + `run-maintenance`
+- [x] Smart bloatware detection + recommendations
 
 ## Security note
 

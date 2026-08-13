@@ -86,6 +86,25 @@ func (m *Manager) Install(ctx context.Context, packageID string, progress func(P
 	return &Result{Success: ok, Lines: lines, Error: err}, err
 }
 
+// Upgrade upgrades a single package by exact id, streaming progress.
+func (m *Manager) Upgrade(ctx context.Context, packageID string, progress func(Progress)) (*Result, error) {
+	lines, ok, err := m.report(ctx, []string{
+		"upgrade", "--id", packageID, "--silent",
+		"--accept-source-agreements", "--accept-package-agreements", "-e",
+	}, progress)
+	return &Result{Success: ok, Lines: lines, Error: err}, err
+}
+
+// UpgradeAll upgrades every outdated package, streaming progress. Used by the
+// scheduled maintenance pass.
+func (m *Manager) UpgradeAll(ctx context.Context, progress func(Progress)) (*Result, error) {
+	lines, ok, err := m.report(ctx, []string{
+		"upgrade", "--all", "--silent",
+		"--accept-source-agreements", "--accept-package-agreements",
+	}, progress)
+	return &Result{Success: ok, Lines: lines, Error: err}, err
+}
+
 // Uninstall removes a package by exact id.
 func (m *Manager) Uninstall(ctx context.Context, packageID string, progress func(Progress)) (*Result, error) {
 	lines, ok, err := m.report(ctx, []string{

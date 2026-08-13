@@ -323,6 +323,26 @@ func (o *Orchestrator) Undo(t config.Tweak) Result {
 	return res
 }
 
+// EnsureApplied re-applies every tweak that is not currently in its target
+// state, returning the ids it applied and one error per failing tweak.
+// Tweaks that are already applied are skipped. Used by the scheduled
+// maintenance pass.
+func (o *Orchestrator) EnsureApplied(tweaks []config.Tweak) (applied []string, errs []error) {
+	for i := range tweaks {
+		t := tweaks[i]
+		if o.IsApplied(t) {
+			continue
+		}
+		res := o.Apply(t, false)
+		if res.Failed > 0 {
+			errs = append(errs, fmt.Errorf("tweak %s: %d operation(s) failed", t.ID, res.Failed))
+		} else if res.Changed > 0 {
+			applied = append(applied, t.ID)
+		}
+	}
+	return applied, errs
+}
+
 // IsApplied reports whether every stateful operation in a tweak already
 // matches its target state.
 func (o *Orchestrator) IsApplied(t config.Tweak) bool {

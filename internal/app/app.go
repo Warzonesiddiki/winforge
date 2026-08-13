@@ -4,6 +4,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,15 +14,31 @@ import (
 
 	"winforge/internal/appmanager"
 	"winforge/internal/audit"
+	"winforge/internal/bloatware"
 	"winforge/internal/config"
 	"winforge/internal/engine"
 	"winforge/internal/plugin"
 	"winforge/internal/restorepoint"
+	"winforge/internal/scheduler"
 	"winforge/internal/tweak"
 )
 
 // Version is the application version, stamped at build time via -ldflags.
 var Version = "0.1.0-dev"
+
+// MaintenanceTaskName is the Task Scheduler task name used for the weekly
+// scheduled maintenance pass.
+const MaintenanceTaskName = "WinForge Maintenance"
+
+// MaintenanceSummary reports the outcome of a scheduled maintenance run.
+type MaintenanceSummary struct {
+	TweaksApplied []string  `json:"tweaksApplied"`
+	TweakErrors   []string  `json:"tweakErrors,omitempty"`
+	AppsUpgraded  bool      `json:"appsUpgraded"`
+	AppsSkipped   bool      `json:"appsSkipped"`
+	AppError      string    `json:"appError,omitempty"`
+	RanAt         time.Time `json:"ranAt"`
+}
 
 // App bundles all runtime dependencies.
 type App struct {
@@ -41,6 +59,9 @@ type App struct {
 
 	mu               sync.Mutex
 	lastRestorePoint time.Time
+
+	bloatwareOnce sync.Once
+	bloatwareList []string
 }
 
 // New builds the application, reading config (overrides then embedded defaults)
@@ -136,11 +157,23 @@ func (a *App) AppliedMap() map[string]bool {
 	return m
 }
 
-// Health computes the dashboard health score. bloatware is the number of
-// detected bloatware apps (0 until the bloatware scanner lands in a later phase).
+// Health computes the dashboard health score from the given bloatware count.
 func (a *App) Health(bloatware int) tweak.Health {
 	return tweak.ComputeHealth(a.Tweaks, a.AppliedMap(), bloatware)
 }
+
+// Bloatware returns the display names of installed applications that WinForge
+// recognizes as bloatware. The registry scan runs once per process and is
+// memoized.
+func (a *App) Bloatware() []string {
+	a.bloatwareOnce.Do(func() {
+		a.bloatwareList = bloatware.Detect(bloatware.Installed())
+	})
+	return a.bloatwareList
+}
+
+// BloatwareCount returns the number of detected bloatware apps.
+func (a *App) BloatwareCount() int { return len(a.Bloatware()) }
 
 // Apply applies (or dry-runs) a tweak by id. Before a real (non-dry-run)
 // mutation it ensures a system restore point exists (safety-first policy).
@@ -234,4 +267,82 @@ func (a *App) UndoEntry(id string) error {
 		}
 	}
 	return fmt.Errorf("operation %q not found", id)
+}
+
+// RunMaintenance performs a full maintenance pass: it re-applies any tweak that
+// is not in its target state and upgrades outdated winget apps. Progress lines
+// are emitted to log (may be nil). Failures are captured in the returned
+// summary rather than aborting the pass, and the pass is recorded in the audit
+// log.
+func (a *App) RunMaintenance(ctx context.Context, log func(string)) MaintenanceSummary {
+	sum := MaintenanceSummary{RanAt: time.Now()}
+	say := func(s string) {
+		if log != nil {
+			log(s)
+		}
+	}
+
+	// Safety-first: best-effort restore point (throttled to 1/hr) before any
+	// mutation the pass may perform.
+	a.EnsureRestorePoint("WinForge: run-maintenance")
+
+	say("Verifying tweak states…")
+	applied, errs := a.Orchestrator.EnsureApplied(a.Tweaks)
+	sum.TweaksApplied = applied
+	for _, e := range errs {
+		sum.TweakErrors = append(sum.TweakErrors, e.Error())
+	}
+	if len(applied) > 0 {
+		say(fmt.Sprintf("Applied %d tweak(s).", len(applied)))
+	}
+
+	say("Checking for app updates…")
+	if a.Packages == nil {
+		sum.AppsSkipped = true
+		say("app manager unavailable; skipping app updates.")
+	} else {
+		res, err := a.Packages.UpgradeAll(ctx, func(p appmanager.Progress) {
+			if p.Line != "" {
+				say(p.Line)
+			}
+		})
+		switch {
+		case errors.Is(err, appmanager.ErrWingetMissing):
+			sum.AppsSkipped = true
+			say("winget not found; skipping app updates.")
+		case err != nil:
+			sum.AppError = err.Error()
+			say("App update check failed: " + err.Error())
+		default:
+			sum.AppsUpgraded = res.Success
+			say("App update check complete.")
+		}
+	}
+
+	ok := len(errs) == 0 && sum.AppError == "" && !sum.AppsSkipped
+	if a.Logger != nil {
+		_ = a.Logger.Append(audit.Entry{
+			OperationType: "maintenance",
+			Target:        "system",
+			Success:       ok,
+			NewValue:      fmt.Sprintf("%d tweaks applied; appsUpgraded=%v", len(applied), sum.AppsUpgraded),
+			CanUndo:       false,
+		})
+	}
+	return sum
+}
+
+// ScheduleMaintenance registers the weekly Task Scheduler task that runs
+// "<winforge.exe> run-maintenance".
+func (a *App) ScheduleMaintenance() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	return scheduler.Register(MaintenanceTaskName, exe)
+}
+
+// UnscheduleMaintenance removes the weekly maintenance task.
+func (a *App) UnscheduleMaintenance() error {
+	return scheduler.Delete(MaintenanceTaskName)
 }

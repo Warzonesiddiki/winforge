@@ -47,3 +47,9 @@ func SetString(h Hive, path, name, value string) error {
 func DeleteValue(h Hive, path, name string) error {
 	return deleteValue(h, path, name)
 }
+
+// EnumSubkeys returns the names of the direct subkeys under path. It is used
+// by the bloatware scanner to enumerate installed-application uninstall keys.
+func EnumSubkeys(h Hive, path string) ([]string, error) {
+	return enumSubkeys(h, path)
+}

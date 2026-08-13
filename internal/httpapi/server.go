@@ -72,6 +72,11 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/maintenance/repair-image", s.handleRepairImage)
 	mux.HandleFunc("POST /api/maintenance/flush-dns", s.handleFlushDNS)
 	mux.HandleFunc("POST /api/maintenance/network-reset", s.handleNetworkReset)
+	mux.HandleFunc("POST /api/maintenance/run", s.handleRunMaintenance)
+	mux.HandleFunc("POST /api/maintenance/schedule", s.handleScheduleMaintenance)
+	mux.HandleFunc("DELETE /api/maintenance/schedule", s.handleUnscheduleMaintenance)
+
+	mux.HandleFunc("GET /api/bloatware", s.handleBloatware)
 
 	mux.HandleFunc("GET /api/dns/presets", s.handleDnsPresets)
 	mux.HandleFunc("POST /api/dns/apply", s.handleDnsApply)
@@ -135,17 +140,26 @@ func (s *Server) startJob(kind, name string, fn func(log func(string)) error) *j
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	info := platform.GetOSInfo()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":     app.Version,
-		"os":          info,
-		"elevated":    platform.IsElevated(),
-		"dataDir":     s.App.DataDir,
-		"tweakCount":  len(s.App.Tweaks),
-		"pluginCount": len(s.App.Plugins),
+		"version":        app.Version,
+		"os":             info,
+		"elevated":       platform.IsElevated(),
+		"dataDir":        s.App.DataDir,
+		"tweakCount":     len(s.App.Tweaks),
+		"pluginCount":    len(s.App.Plugins),
+		"bloatwareCount": s.App.BloatwareCount(),
 	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.App.Health(0))
+	writeJSON(w, http.StatusOK, s.App.Health(s.App.BloatwareCount()))
+}
+
+func (s *Server) handleBloatware(w http.ResponseWriter, _ *http.Request) {
+	list := s.App.Bloatware()
+	if list == nil {
+		list = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"count": len(list), "apps": list})
 }
 
 // tweakDTO is the API shape for a tweak with its applied state.
@@ -357,6 +371,38 @@ func (s *Server) handleNetworkReset(w http.ResponseWriter, _ *http.Request) {
 		return maintenance.NetworkReset(log)
 	})
 	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleRunMaintenance(w http.ResponseWriter, _ *http.Request) {
+	j := s.startJob("run-maintenance", "Maintenance", func(log func(string)) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		sum := s.App.RunMaintenance(ctx, log)
+		if len(sum.TweakErrors) > 0 {
+			return fmt.Errorf("maintenance: %d tweak(s) failed", len(sum.TweakErrors))
+		}
+		if sum.AppError != "" {
+			return fmt.Errorf("maintenance: app update error: %s", sum.AppError)
+		}
+		return nil
+	})
+	writeJSON(w, http.StatusAccepted, j)
+}
+
+func (s *Server) handleScheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
+	if err := s.App.ScheduleMaintenance(); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"task": app.MaintenanceTaskName})
+}
+
+func (s *Server) handleUnscheduleMaintenance(w http.ResponseWriter, _ *http.Request) {
+	if err := s.App.UnscheduleMaintenance(); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleDnsPresets(w http.ResponseWriter, _ *http.Request) {
