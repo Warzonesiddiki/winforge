@@ -1,0 +1,22 @@
+# Binaries
+/winforge
+/winforge.exe
+/dist/
+/bin/
+
+# Go build cache / test artifacts
+*.test
+*.out
+coverage.*
+
+# Local runtime state (never commit user machines' logs/state)
+localdata/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
