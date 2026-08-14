@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"winforge/internal/maintenance"
 	"winforge/internal/platform"
@@ -115,7 +117,54 @@ func (e *Executor) RegistryDeleteValue(hive, path, name string) error {
 	return registry.DeleteValue(registry.Hive(hive), path, name)
 }
 
+// maxServiceNameLen is the SCM's limit on a service name (CreateService and
+// OpenService both document a 256-character maximum).
+const maxServiceNameLen = 256
+
+// validateServiceName rejects names the SCM would not accept, and any name
+// that is not already in canonical form.
+//
+// The protected-service check is a lookup in a normalised set, so it can only
+// be as strong as the normalisation agrees with the SCM's own comparison. The
+// SCM compares service names case-insensitively, which the lookup mirrors, but
+// a name carrying surrounding whitespace hashes differently from the same name
+// without it: "WinDefend " would miss the protected entry for "WinDefend" and
+// fall through to a real service call. Operation names reach here straight from
+// a tweaks.json (including third-party plugin catalogues), whose validation
+// requires a non-blank name but stores it untrimmed.
+//
+// Such a name is rejected rather than silently trimmed: a padded or otherwise
+// malformed identity is never something the caller meaningfully asked for, and
+// quietly rewriting it into a different service's name is exactly the confusion
+// this guard exists to prevent.
+func validateServiceName(name string) error {
+	if name == "" {
+		return errors.New("service name is required")
+	}
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("service name %q has leading or trailing whitespace", name)
+	}
+	if utf8.RuneCountInString(name) > maxServiceNameLen {
+		return fmt.Errorf("service name exceeds the %d-character limit", maxServiceNameLen)
+	}
+	// Forward-slash and backslash are documented as invalid service name
+	// characters; a NUL would truncate the string once it crosses into the
+	// UTF-16 conversion for the Win32 call.
+	if strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("service name %q contains a path separator", name)
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("service name %q contains a control character", name)
+		}
+	}
+	return nil
+}
+
 func (e *Executor) ensureServiceMutable(name string) error {
+	if err := validateServiceName(name); err != nil {
+		return err
+	}
 	if _, blocked := e.protected[strings.ToLower(name)]; blocked {
 		return fmt.Errorf("service %q is protected and cannot be modified", name)
 	}
@@ -134,8 +183,13 @@ func (e *Executor) ServiceSetStartMode(name string, mode string) error {
 	return service.SetStartMode(name, m)
 }
 
-// ServiceGetStartMode returns the current start mode as a string.
+// ServiceGetStartMode returns the current start mode as a string. Reading is
+// allowed for protected services, but the name is still validated so a
+// malformed identity cannot reach the SCM.
 func (e *Executor) ServiceGetStartMode(name string) (string, error) {
+	if err := validateServiceName(name); err != nil {
+		return "", err
+	}
 	m, err := service.GetStartMode(name)
 	if err != nil {
 		return "", err

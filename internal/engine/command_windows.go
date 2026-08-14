@@ -35,10 +35,3 @@ func trustedCommand(name string) (string, bool) {
 		return "", false
 	}
 }
-
-func resolveCommand(name string) string {
-	if command, ok := trustedCommand(name); ok {
-		return command
-	}
-	return name
-}
