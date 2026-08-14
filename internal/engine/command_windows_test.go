@@ -10,7 +10,7 @@ import (
 	"winforge/internal/winapi"
 )
 
-func TestResolveCommandUsesSystemPathsForInboxTools(t *testing.T) {
+func TestTrustedCommandUsesSystemPathsForInboxTools(t *testing.T) {
 	for _, name := range []string{
 		"dism", "w32tm.exe", "LODCTR", "rundll32.exe", "wevtutil",
 		"fsutil.exe", "setx", "bcdedit.exe", "netsh",
@@ -27,19 +27,16 @@ func TestResolveCommandUsesSystemPathsForInboxTools(t *testing.T) {
 	}
 }
 
-func TestResolveCommandUsesWbemWinmgmt(t *testing.T) {
+func TestTrustedCommandUsesWbemWinmgmt(t *testing.T) {
 	want := filepath.Join(winapi.SystemDirectory(), "wbem", "winmgmt.exe")
 	if got, trusted := trustedCommand("WINMGMT.EXE"); !trusted || !strings.EqualFold(got, want) {
 		t.Fatalf("trustedCommand(winmgmt) = %q, want %q", got, want)
 	}
 }
 
-func TestResolveCommandPreservesUnknownTool(t *testing.T) {
+func TestTrustedCommandRejectsUnknownTool(t *testing.T) {
 	const name = "vendor-tool.exe"
 	if _, trusted := trustedCommand(name); trusted {
 		t.Fatalf("trustedCommand(%q) unexpectedly allowed an unknown tool", name)
-	}
-	if got := resolveCommand(name); got != name {
-		t.Fatalf("resolveCommand(%q) = %q", name, got)
 	}
 }

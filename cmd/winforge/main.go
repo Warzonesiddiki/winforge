@@ -3,6 +3,8 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 
@@ -10,7 +12,16 @@ import (
 )
 
 func main() {
-	if err := cli.Run(os.Args[1:]); err != nil {
+	err := cli.Run(os.Args[1:])
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, flag.ErrHelp):
+		// "winforge apply -h" asked for usage and the flag package already
+		// printed it. Asking for help is not a failure, so exit cleanly rather
+		// than reporting "flag: help requested" as an error.
+		return
+	default:
 		fmt.Fprintln(os.Stderr, "winforge:", err)
 		os.Exit(1)
 	}

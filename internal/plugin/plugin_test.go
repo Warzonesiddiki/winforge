@@ -96,22 +96,69 @@ func TestDiscoverRejectsExcessiveValidPlugins(t *testing.T) {
 
 func TestDiscoverRejectsExcessiveAggregateTweaks(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "too-many-tweaks")
-	writeFile(t, filepath.Join(dir, "manifest.json"), `{}`)
 
+	// The aggregate limit spans plugins, so the tweaks are spread across
+	// several directories. Packing them all into one file would instead trip
+	// the config package's per-file tweak-count limit, which makes load() skip
+	// the plugin as broken and never exercises the aggregate check at all.
+	const tweaksPerPlugin = 2000
+	total := maxDiscoveredPluginTweaks + 1
+	for start, p := 0, 0; start < total; start, p = start+tweaksPerPlugin, p+1 {
+		count := tweaksPerPlugin
+		if remaining := total - start; remaining < count {
+			count = remaining
+		}
+		dir := filepath.Join(root, fmt.Sprintf("bulk-%03d", p))
+		writeFile(t, filepath.Join(dir, "manifest.json"), `{}`)
+
+		var contents strings.Builder
+		contents.WriteString(`{"tweaks":[`)
+		for i := 0; i < count; i++ {
+			if i > 0 {
+				contents.WriteByte(',')
+			}
+			fmt.Fprintf(&contents, `{"id":"t-%d","risk":"low","operations":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}`, start+i)
+		}
+		contents.WriteString(`]}`)
+		writeFile(t, filepath.Join(dir, "tweaks.json"), contents.String())
+	}
+
+	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "tweak aggregate limit") {
+		t.Fatalf("Discover error = %v, want aggregate tweak limit", err)
+	}
+}
+
+// TestDiscoverSkipsPluginExceedingPerFileTweakLimit pins the other half of the
+// interaction above: a single plugin whose tweaks.json exceeds the config
+// package's per-file limit is skipped as broken rather than aborting discovery,
+// so one malformed plugin cannot deny service to every other plugin.
+func TestDiscoverSkipsPluginExceedingPerFileTweakLimit(t *testing.T) {
+	root := t.TempDir()
+
+	good := filepath.Join(root, "aaa-good")
+	writeFile(t, filepath.Join(good, "manifest.json"), `{"name":"Good"}`)
+	writeFile(t, filepath.Join(good, "tweaks.json"),
+		`{"tweaks":[{"id":"ok","risk":"low","operations":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}]}`)
+
+	huge := filepath.Join(root, "zzz-huge")
+	writeFile(t, filepath.Join(huge, "manifest.json"), `{"name":"Huge"}`)
 	var contents strings.Builder
 	contents.WriteString(`{"tweaks":[`)
-	for i := 0; i <= maxDiscoveredPluginTweaks; i++ {
+	for i := 0; i < maxDiscoveredPluginTweaks; i++ {
 		if i > 0 {
 			contents.WriteByte(',')
 		}
 		fmt.Fprintf(&contents, `{"id":"t-%d","risk":"low","operations":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}`, i)
 	}
 	contents.WriteString(`]}`)
-	writeFile(t, filepath.Join(dir, "tweaks.json"), contents.String())
+	writeFile(t, filepath.Join(huge, "tweaks.json"), contents.String())
 
-	if _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "tweak aggregate limit") {
-		t.Fatalf("Discover error = %v, want aggregate tweak limit", err)
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 1 || plugins[0].ID != "aaa-good" {
+		t.Fatalf("want only the valid plugin, got %+v", plugins)
 	}
 }
 
