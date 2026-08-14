@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -26,6 +27,31 @@ import (
 	"winforge/internal/tweak"
 	"winforge/internal/updater"
 )
+
+// out is the destination for command output. It is a package-level variable
+// rather than a hard-coded os.Stdout so tests can capture what a command
+// prints; production never reassigns it.
+var out io.Writer = os.Stdout
+
+// newFlagSet builds a flag set that reports parse failures to the caller
+// instead of terminating the process.
+//
+// flag.ExitOnError calls os.Exit(2) from inside Parse. That bypasses main's
+// error path (which exits 1 after printing "winforge: <err>"), produces an
+// inconsistent exit code for what is simply bad input, and makes the argument
+// parser — the one component that always handles untrusted argv — impossible
+// to test. Usage output is routed to the same writer so a failed parse cannot
+// interleave onto a different stream than the error itself.
+func newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(out)
+	return fs
+}
+
+// listenAndServe runs the dashboard server. It is a variable so tests can
+// exercise serve's argument validation without binding a socket; production
+// never reassigns it.
+var listenAndServe = func(srv *http.Server) error { return srv.ListenAndServe() }
 
 // Run executes the CLI with the given arguments (excluding the program name).
 func Run(args []string) error {
@@ -83,7 +109,7 @@ func Run(args []string) error {
 	case "disable-feature":
 		return featureCmd(args[1:], false)
 	case "version", "--version", "-v":
-		fmt.Println(app.Version)
+		fmt.Fprintln(out, app.Version)
 		return nil
 	case "help", "--help", "-h":
 		usage()
@@ -95,7 +121,7 @@ func Run(args []string) error {
 }
 
 func usage() {
-	fmt.Print(`WinForge — self-contained Windows tuning & maintenance toolkit
+	fmt.Fprint(out, `WinForge — self-contained Windows tuning & maintenance toolkit
 
 Usage:
   winforge                 start the dashboard server (default)
@@ -155,11 +181,13 @@ func ensureRestorePoint(description string) {
 }
 
 func serve(args []string) error {
-	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	fs := newFlagSet("serve")
 	host := fs.String("host", "127.0.0.1", "bind address")
 	port := fs.String("port", "8696", "bind port")
 	noBrowser := fs.Bool("no-browser", false, "do not open the browser")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	hostValue := *host
 	if strings.EqualFold(hostValue, "localhost") {
@@ -192,21 +220,23 @@ func serve(args []string) error {
 	}
 
 	url := "http://" + addr + "/"
-	fmt.Printf("WinForge dashboard: %s\n", url)
-	fmt.Printf("Elevated: %v\n", a.Elevated())
-	fmt.Printf("(Press Ctrl+C to stop.)\n")
+	fmt.Fprintf(out, "WinForge dashboard: %s\n", url)
+	fmt.Fprintf(out, "Elevated: %v\n", a.Elevated())
+	fmt.Fprintf(out, "(Press Ctrl+C to stop.)\n")
 
 	if !*noBrowser {
 		openBrowser(url)
 	}
-	return srv.ListenAndServe()
+	return listenAndServe(srv)
 }
 
 func applyCmd(args []string) error {
-	fs := flag.NewFlagSet("apply", flag.ExitOnError)
+	fs := newFlagSet("apply")
 	id := fs.String("id", "", "tweak id to apply")
 	dryRun := fs.Bool("dry-run", false, "simulate without applying")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
@@ -223,9 +253,11 @@ func applyCmd(args []string) error {
 }
 
 func undoCmd(args []string) error {
-	fs := flag.NewFlagSet("undo", flag.ExitOnError)
+	fs := newFlagSet("undo")
 	id := fs.String("id", "", "tweak id to undo")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
@@ -246,11 +278,11 @@ func printResult(res tweak.Result) {
 	if res.DryRun {
 		mode = "dry-run"
 	}
-	fmt.Printf("%s %s: %d changed, %d succeeded, %d failed\n",
+	fmt.Fprintf(out, "%s %s: %d changed, %d succeeded, %d failed\n",
 		mode, res.TweakID, res.Changed, res.Succeeded, res.Failed)
 	for _, e := range res.Effects {
 		if e.Err != nil {
-			fmt.Printf("  ! %s %s: %v\n", e.OperationType, e.Target, e.Err)
+			fmt.Fprintf(out, "  ! %s %s: %v\n", e.OperationType, e.Target, e.Err)
 		}
 	}
 }
@@ -266,7 +298,7 @@ func listCmd() error {
 		if applied[t.ID] {
 			state = "applied"
 		}
-		fmt.Printf("[%s] %-8s %-28s %s\n", state, t.Risk, t.ID, t.Name)
+		fmt.Fprintf(out, "[%s] %-8s %-28s %s\n", state, t.Risk, t.ID, t.Name)
 	}
 	return nil
 }
@@ -277,12 +309,12 @@ func scanCmd() error {
 		return err
 	}
 	h := a.Health(a.BloatwareCount())
-	fmt.Printf("Health score: %d/100\n", h.Score)
-	fmt.Printf("  tweaks: %d/%d applied\n", h.AppliedTweaks, h.TotalTweaks)
-	fmt.Printf("  unapplied low/medium/high: %d/%d/%d\n", h.UnappliedLow, h.UnappliedMedium, h.UnappliedHigh)
-	fmt.Printf("  bloatware: %d\n", h.BloatwareCount)
+	fmt.Fprintf(out, "Health score: %d/100\n", h.Score)
+	fmt.Fprintf(out, "  tweaks: %d/%d applied\n", h.AppliedTweaks, h.TotalTweaks)
+	fmt.Fprintf(out, "  unapplied low/medium/high: %d/%d/%d\n", h.UnappliedLow, h.UnappliedMedium, h.UnappliedHigh)
+	fmt.Fprintf(out, "  bloatware: %d\n", h.BloatwareCount)
 	for _, b := range a.Bloatware() {
-		fmt.Printf("    - %s\n", b)
+		fmt.Fprintf(out, "    - %s\n", b)
 	}
 	return nil
 }
@@ -293,12 +325,12 @@ func pluginsCmd() error {
 		return err
 	}
 	if len(a.Plugins) == 0 {
-		fmt.Printf("no plugins installed (add a manifest.json to a folder under %s)\n",
+		fmt.Fprintf(out, "no plugins installed (add a manifest.json to a folder under %s)\n",
 			filepath.Join(a.DataDir, "plugins"))
 		return nil
 	}
 	for _, p := range a.Plugins {
-		fmt.Printf("%-24s v%-10s %3d tweaks  %s\n", p.ID, p.Version, len(p.Tweaks), p.Name)
+		fmt.Fprintf(out, "%-24s v%-10s %3d tweaks  %s\n", p.ID, p.Version, len(p.Tweaks), p.Name)
 	}
 	return nil
 }
@@ -314,15 +346,17 @@ func historyCmd() error {
 		if !e.Success {
 			status = "failed"
 		}
-		fmt.Printf("%s  %-8s %-24s %s\n", e.Timestamp.Format("2006-01-02 15:04:05"), status, e.OperationType, e.Target)
+		fmt.Fprintf(out, "%s  %-8s %-24s %s\n", e.Timestamp.Format("2006-01-02 15:04:05"), status, e.OperationType, e.Target)
 	}
 	return readErr
 }
 
 func installCmd(args []string) error {
-	fs := flag.NewFlagSet("install", flag.ExitOnError)
+	fs := newFlagSet("install")
 	id := fs.String("id", "", "winget package id")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
@@ -335,7 +369,7 @@ func installCmd(args []string) error {
 	}
 	res, err := a.InstallPackage(context.Background(), *id, func(p appmanager.Progress) {
 		if p.Line != "" {
-			fmt.Println(p.Line)
+			fmt.Fprintln(out, p.Line)
 		}
 	})
 	if err != nil {
@@ -360,15 +394,17 @@ func searchCmd(args []string) error {
 		return err
 	}
 	for _, id := range ids {
-		fmt.Println(id)
+		fmt.Fprintln(out, id)
 	}
 	return nil
 }
 
 func restorePointCmd(args []string) error {
-	fs := flag.NewFlagSet("restore-point", flag.ExitOnError)
+	fs := newFlagSet("restore-point")
 	desc := fs.String("description", "WinForge restore point", "restore point description")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	a, err := newApp()
 	if err != nil {
 		return err
@@ -377,7 +413,7 @@ func restorePointCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("restore point created: sequence=%d\n", info.SequenceNumber)
+	fmt.Fprintf(out, "restore point created: sequence=%d\n", info.SequenceNumber)
 	return nil
 }
 
@@ -387,11 +423,11 @@ func listRestorePointsCmd() error {
 		return err
 	}
 	if len(points) == 0 {
-		fmt.Println("no restore points found")
+		fmt.Fprintln(out, "no restore points found")
 		return nil
 	}
 	for _, p := range points {
-		fmt.Printf("%-6d %s  %s\n", p.SequenceNumber, p.CreatedAt.Format("2006-01-02 15:04:05"), p.Description)
+		fmt.Fprintf(out, "%-6d %s  %s\n", p.SequenceNumber, p.CreatedAt.Format("2006-01-02 15:04:05"), p.Description)
 	}
 	return nil
 }
@@ -403,22 +439,22 @@ func runMaintenanceCmd() error {
 	}
 	sum := a.RunMaintenance(context.Background(), logToStdout)
 	for _, e := range sum.TweakErrors {
-		fmt.Println("tweak error:", e)
+		fmt.Fprintln(out, "tweak error:", e)
 	}
 	if sum.AppError != "" {
-		fmt.Println("app update error:", sum.AppError)
+		fmt.Fprintln(out, "app update error:", sum.AppError)
 	}
 	if sum.AuditError != "" {
-		fmt.Println("audit error:", sum.AuditError)
+		fmt.Fprintln(out, "audit error:", sum.AuditError)
 	}
-	fmt.Printf("maintenance complete: %d tweaks applied", len(sum.TweaksApplied))
+	fmt.Fprintf(out, "maintenance complete: %d tweaks applied", len(sum.TweaksApplied))
 	switch {
 	case sum.AppsUpgraded:
-		fmt.Print(", apps updated")
+		fmt.Fprint(out, ", apps updated")
 	case sum.AppsSkipped:
-		fmt.Print(", app updates skipped (winget missing)")
+		fmt.Fprint(out, ", app updates skipped (winget missing)")
 	}
-	fmt.Println()
+	fmt.Fprintln(out)
 	if len(sum.TweakErrors) > 0 || sum.AppError != "" || sum.AuditError != "" {
 		return fmt.Errorf("maintenance completed with errors")
 	}
@@ -434,13 +470,13 @@ func scheduleCmd(register bool) error {
 		if err := a.ScheduleMaintenance(); err != nil {
 			return err
 		}
-		fmt.Printf("scheduled weekly maintenance task %q\n", app.MaintenanceTaskName)
+		fmt.Fprintf(out, "scheduled weekly maintenance task %q\n", app.MaintenanceTaskName)
 		return nil
 	}
 	if err := a.UnscheduleMaintenance(); err != nil {
 		return err
 	}
-	fmt.Printf("removed scheduled maintenance task %q\n", app.MaintenanceTaskName)
+	fmt.Fprintf(out, "removed scheduled maintenance task %q\n", app.MaintenanceTaskName)
 	return nil
 }
 
@@ -455,14 +491,16 @@ func (s *stringListFlag) Set(v string) error {
 }
 
 func buildIsoCmd(args []string) error {
-	fs := flag.NewFlagSet("build-iso", flag.ExitOnError)
+	fs := newFlagSet("build-iso")
 	source := fs.String("source", "", "extracted Windows installation source directory")
 	output := fs.String("output", "", "output .iso path")
 	label := fs.String("label", "", "ISO volume label")
 	listOnly := fs.Bool("list-editions", false, "list editions in the source image and exit")
 	var editions stringListFlag
 	fs.Var(&editions, "edition", "edition name to keep (repeatable; default keeps all)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if *listOnly {
 		if *source == "" {
@@ -473,11 +511,11 @@ func buildIsoCmd(args []string) error {
 			return err
 		}
 		if len(eds) == 0 {
-			fmt.Println("no editions found")
+			fmt.Fprintln(out, "no editions found")
 			return nil
 		}
 		for _, e := range eds {
-			fmt.Printf("%d: %s\n", e.Index, e.Name)
+			fmt.Fprintf(out, "%d: %s\n", e.Index, e.Name)
 		}
 		return nil
 	}
@@ -496,25 +534,27 @@ func buildIsoCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("ISO built: %s\n", res.ISO)
+	fmt.Fprintf(out, "ISO built: %s\n", res.ISO)
 	return nil
 }
 
 func updatesCmd(args []string) error {
-	fs := flag.NewFlagSet("updates", flag.ExitOnError)
+	fs := newFlagSet("updates")
 	installed := fs.Bool("installed", false, "list installed updates instead of available")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	updates, err := updater.Search(*installed)
 	if err != nil {
 		return err
 	}
 	if len(updates) == 0 {
-		fmt.Println("no updates found")
+		fmt.Fprintln(out, "no updates found")
 		return nil
 	}
 	for _, u := range updates {
-		fmt.Printf("[%s] %s\n", updateState(u), u.Title)
+		fmt.Fprintf(out, "[%s] %s\n", updateState(u), u.Title)
 	}
 	return nil
 }
@@ -522,16 +562,16 @@ func updatesCmd(args []string) error {
 func installUpdatesCmd(args []string) error {
 	_ = args
 	ensureRestorePoint("WinForge: install Windows updates")
-	fmt.Println("Downloading and installing updates (this can take a while)…")
+	fmt.Fprintln(out, "Downloading and installing updates (this can take a while)…")
 	res, err := updater.InstallAll()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("result: %s", res.ResultCode)
+	fmt.Fprintf(out, "result: %s", res.ResultCode)
 	if res.RebootRequired {
-		fmt.Print(" (reboot required)")
+		fmt.Fprint(out, " (reboot required)")
 	}
-	fmt.Println()
+	fmt.Fprintln(out)
 	if res.ResultCode != updater.ResultSucceeded && res.ResultCode != updater.ResultSucceededWithErrors {
 		return fmt.Errorf("install result: %s", res.ResultCode)
 	}
@@ -552,14 +592,14 @@ func updateState(u updater.Update) string {
 }
 
 // logToStdout prints maintenance progress lines to stdout.
-func logToStdout(line string) { fmt.Println(line) }
+func logToStdout(line string) { fmt.Fprintln(out, line) }
 
 func maintenanceCmd(name string, args []string) error {
 	_ = args // maintenance commands take no flags today
 	if name != "flush-dns" {
 		ensureRestorePoint("WinForge: " + name)
 	}
-	fmt.Printf("Running %s…\n", name)
+	fmt.Fprintf(out, "Running %s…\n", name)
 	var err error
 	switch name {
 	case "reset-windows-update":
@@ -576,16 +616,18 @@ func maintenanceCmd(name string, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("done")
+	fmt.Fprintln(out, "done")
 	return nil
 }
 
 func setDnsCmd(args []string) error {
-	fs := flag.NewFlagSet("set-dns", flag.ExitOnError)
+	fs := newFlagSet("set-dns")
 	primary := fs.String("primary", "", "primary DNS server")
 	secondary := fs.String("secondary", "", "secondary DNS server (optional)")
 	adapter := fs.String("adapter", "", "adapter name (default: all active adapters)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *primary == "" {
 		return fmt.Errorf("--primary is required")
 	}
@@ -609,11 +651,11 @@ func setDnsCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("DNS set to %s", *primary)
+	fmt.Fprintf(out, "DNS set to %s", *primary)
 	if *secondary != "" {
-		fmt.Printf(" / %s", *secondary)
+		fmt.Fprintf(out, " / %s", *secondary)
 	}
-	fmt.Println()
+	fmt.Fprintln(out)
 	return nil
 }
 
@@ -622,9 +664,11 @@ func featureCmd(args []string, enable bool) error {
 	if enable {
 		verb = "enable"
 	}
-	fs := flag.NewFlagSet(verb+"-feature", flag.ExitOnError)
+	fs := newFlagSet(verb + "-feature")
 	name := fs.String("name", "", "Windows feature name")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	if *name == "" {
 		return fmt.Errorf("--name is required")
 	}
