@@ -1,22 +1,28 @@
 using Microsoft.Data.Sqlite;
 using Dapper;
 using WinForge.Elite.Models;
+using WinForge.Elite.Helpers;
 using System.Data;
 
 namespace WinForge.Elite.Data
 {
     public class DbConnectionFactory
     {
-        private static readonly string DbPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WinForge",
-            "Elite",
-            "winforge.db"
-        );
+        private static readonly string DbPath = PathHelper.DatabasePath;
         
         private static readonly string ConnectionString = $"Data Source={DbPath}";
         
         static DbConnectionFactory()
+        {
+            InitializeDatabase();
+        }
+
+        /// <summary>
+        /// Ensures the database file, schema, and seed catalog exist. Safe to call
+        /// multiple times: every statement is idempotent (CREATE IF NOT EXISTS /
+        /// INSERT OR IGNORE).
+        /// </summary>
+        public static void Initialize()
         {
             InitializeDatabase();
         }

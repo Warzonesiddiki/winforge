@@ -1,0 +1,59 @@
+# FIXED CI WORKFLOW — copy to .github/workflows/ci.yml
+# The current GitHub App token lacks the "workflows" permission, so this file
+# cannot be pushed directly to .github/workflows/. Once the App has that
+# permission (or a maintainer copies it), it replaces the stale Go-based
+# workflow that currently fails on every run (it expects go.mod and a web/
+# directory that do not exist in this repo).
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Build WinForge.Elite (Windows, .NET 8)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build WPF project (Release)
+        run: dotnet build WinForge.Elite/WinForge.Elite.csproj -c Release
+
+  web:
+    name: Web app checks (Linux, Node 20)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Validate JSON files
+        run: |
+          import glob, json, sys
+          ok = True
+          for f in glob.glob("**/*.json", recursive=True):
+              if ".git" in f or "node_modules" in f:
+                  continue
+              try:
+                  json.load(open(f, encoding="utf-8"))
+              except Exception as e:
+                  print(f"::error file={f}::invalid JSON ({e})")
+                  ok = False
+          sys.exit(0 if ok else 1)
+        shell: python

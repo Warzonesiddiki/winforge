@@ -38,3 +38,5 @@ desktop.ini
 *.tmp
 *.temp
 ```
+# TypeScript incremental build info
+*.tsbuildinfo

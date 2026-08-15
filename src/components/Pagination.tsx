@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface PaginationProps {
   currentPage: number;
@@ -77,19 +77,13 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalItems, 
 export function usePagination<T>(items: T[], perPage: number = 20) {
   const [page, setPage] = useState(1);
   const totalPages = Math.ceil(items.length / perPage);
-  const paginatedItems = items.slice((page - 1) * perPage, page * perPage);
-  
-  // Reset to page 1 if items change
-  const itemsLength = items.length;
-  useEffect(() => {
-    if (page > Math.ceil(itemsLength / perPage)) {
-      setPage(1);
-    }
-  }, [itemsLength, perPage, page]);
+  // Clamp during render when the item list shrinks below the current page.
+  const currentPage = page > totalPages ? 1 : page;
+  const paginatedItems = items.slice((currentPage - 1) * perPage, currentPage * perPage);
 
   return {
     items: paginatedItems,
-    page,
+    page: currentPage,
     setPage,
     totalPages,
     totalItems: items.length,
