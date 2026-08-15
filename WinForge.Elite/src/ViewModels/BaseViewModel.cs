@@ -37,6 +37,16 @@ namespace WinForge.Elite.ViewModels
             private set => SetProperty(ref _errorMessage, value);
         }
 
+        /// <summary>False while a background operation is running, so the UI can disable refresh buttons.</summary>
+        public bool CanRefresh => !IsBusy;
+
+        /// <summary>
+        /// Loads the view model's initial state. Called by the navigation shell once
+        /// the page is created. Implementations must catch their own errors and
+        /// surface them through StatusMessage/ErrorMessage.
+        /// </summary>
+        public virtual Task InitializeAsync() => Task.CompletedTask;
+
         protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
         {
             if (EqualityComparer<T>.Default.Equals(field, value))
@@ -52,6 +62,10 @@ namespace WinForge.Elite.ViewModels
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            if (propertyName == nameof(IsBusy))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanRefresh)));
+            }
         }
 
         protected void SetStatus(string message)

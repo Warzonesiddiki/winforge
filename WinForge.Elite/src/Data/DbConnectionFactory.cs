@@ -14,6 +14,8 @@ namespace WinForge.Elite.Data
         
         static DbConnectionFactory()
         {
+            // Maps JSON-encoded TEXT columns to List<string> entity properties (Dapper).
+            SqlMapper.AddTypeHandler(new JsonStringListTypeHandler());
             InitializeDatabase();
         }
 
@@ -88,6 +90,8 @@ namespace WinForge.Elite.Data
                     Risk INTEGER NOT NULL,
                     DefaultEnabled INTEGER NOT NULL,
                     Enabled INTEGER NOT NULL DEFAULT 0,
+                    Operations TEXT,
+                    UndoOperations TEXT,
                     UpdatedAt TEXT NOT NULL
                 )
             ");
@@ -224,8 +228,33 @@ namespace WinForge.Elite.Data
                 )
             ");
             
+            // Migrate pre-existing databases that predate the privacy operations columns.
+            MigratePrivacyRulesSchema(connection);
+
             // Seed initial data
             SeedData.SeedAll(connection);
+        }
+
+        /// <summary>
+        /// Pre-existing databases created before the Operations/UndoOperations columns
+        /// were added to PrivacyRules need those columns backfilled. Fresh databases
+        /// already include them via CREATE TABLE, so this is a no-op for them.
+        /// </summary>
+        private static void MigratePrivacyRulesSchema(IDbConnection connection)
+        {
+            var columns = connection.Query("PRAGMA table_info(PrivacyRules)")
+                .Select(row => (string)row.name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (!columns.Contains("Operations"))
+            {
+                connection.Execute("ALTER TABLE PrivacyRules ADD COLUMN Operations TEXT");
+            }
+
+            if (!columns.Contains("UndoOperations"))
+            {
+                connection.Execute("ALTER TABLE PrivacyRules ADD COLUMN UndoOperations TEXT");
+            }
         }
     }
 }

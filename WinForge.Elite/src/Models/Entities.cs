@@ -49,8 +49,9 @@ namespace WinForge.Elite.Models
         public List<string> Tags { get; set; } = new();
         public string? WarningMessage { get; set; }
         public List<string> BreaksFeatures { get; set; } = new();
-        public List<string> Operations { get; set; } = new();
-        public List<string> UndoOperations { get; set; } = new();
+        // Raw JSON arrays of operation objects; parsed by TweakService.ParseOperations.
+        public string Operations { get; set; } = "[]";
+        public string UndoOperations { get; set; } = "[]";
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
     
@@ -79,6 +80,8 @@ namespace WinForge.Elite.Models
         public RiskLevel Risk { get; set; } = RiskLevel.Low;
         public bool DefaultEnabled { get; set; } = false;
         public bool Enabled { get; set; } = false;
+        public string Operations { get; set; } = "[]";
+        public string UndoOperations { get; set; } = "[]";
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
     

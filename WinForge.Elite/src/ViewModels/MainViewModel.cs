@@ -1,14 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Dapper;
 using WinForge.Elite.Data;
 using WinForge.Elite.Helpers;
-using WinForge.Elite.Models;
+using WinForge.Elite.Services;
 
 namespace WinForge.Elite.ViewModels
 {
-    /// <summary>Top-level navigation destinations. Module views are added per section in Phase 1 Step 3.</summary>
+    /// <summary>Top-level navigation destinations.</summary>
     public enum AppSection
     {
         Dashboard,
@@ -29,14 +28,12 @@ namespace WinForge.Elite.ViewModels
 
     /// <summary>
     /// Main window view model: owns section navigation and the live catalog
-    /// summary (module statistics + recent operation history) read from the
-    /// local SQLite database.
+    /// summary (module statistics) read from the local SQLite database. Each
+    /// section hosts its own page view model created by the composition root.
     /// </summary>
     public sealed class MainViewModel : BaseViewModel
     {
         private static readonly Serilog.ILogger Log = Logging.Logger.GetLogger<MainViewModel>();
-
-        private const int RecentActivityLimit = 8;
 
         private AppSection _currentSection;
 
@@ -50,8 +47,6 @@ namespace WinForge.Elite.ViewModels
         }
 
         public ObservableCollection<ModuleSummary> Modules { get; } = new();
-
-        public ObservableCollection<OperationHistory> RecentActivity { get; } = new();
 
         /// <summary>Elevation state of the current process ("Administrator" or "Standard User").</summary>
         public string AdminStatus { get; }
@@ -69,39 +64,68 @@ namespace WinForge.Elite.ViewModels
             private set => SetProperty(ref _currentSection, value);
         }
 
+        /// <summary>The page view model currently shown in the main content area.</summary>
+        public BaseViewModel? CurrentPage
+        {
+            get => _currentPage;
+            private set => SetProperty(ref _currentPage, value);
+        }
+
+        private BaseViewModel? _currentPage;
+
         public string SectionTitle => TitleFor(CurrentSection);
 
-        /// <summary>False while a refresh is running so the UI can disable the refresh button.</summary>
-        public bool CanRefresh => !IsBusy;
-
         /// <summary>
-        /// Loads module statistics and recent activity from the database.
-        /// Safe to call from the window Loaded event; exceptions are captured and
-        /// surfaced via StatusMessage/ErrorMessage instead of crashing the UI.
+        /// Loads module statistics from the database. Safe to call from the window
+        /// Loaded event; exceptions are captured and surfaced via StatusMessage.
         /// </summary>
-        public async Task InitializeAsync()
+        public override async Task InitializeAsync()
         {
             await RunBusyAsync(LoadCatalogAsync, "Failed to load the catalog from the local database").ConfigureAwait(true);
         }
 
         public void Navigate(AppSection section)
         {
-            if (CurrentSection == section)
+            if (CurrentSection == section && CurrentPage is not null)
             {
                 return;
             }
 
+            if (CurrentPage is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
             CurrentSection = section;
-            OnPropertyChanged(nameof(SectionTitle));
+            var page = CreatePage(section);
+            CurrentPage = page;
+            _ = InitializePageAsync(page);
             Log.Information("Navigated to {Section}", section);
         }
 
-        protected override void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        private static BaseViewModel CreatePage(AppSection section)
         {
-            base.OnPropertyChanged(propertyName);
-            if (propertyName == nameof(IsBusy))
+            return section switch
             {
-                base.OnPropertyChanged(nameof(CanRefresh));
+                AppSection.Dashboard => AppServices.CreateDashboardViewModel(),
+                AppSection.Tweaks => AppServices.CreateTweaksViewModel(),
+                AppSection.Debloat => AppServices.CreateDebloatViewModel(),
+                AppSection.Privacy => AppServices.CreatePrivacyViewModel(),
+                AppSection.Software => AppServices.CreateSoftwareViewModel(),
+                AppSection.Presets => AppServices.CreatePresetsViewModel(),
+                _ => throw new ArgumentOutOfRangeException(nameof(section), section, "Unknown application section.")
+            };
+        }
+
+        private async Task InitializePageAsync(BaseViewModel page)
+        {
+            try
+            {
+                await page.InitializeAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to initialize page {Page}", page.GetType().Name);
             }
         }
 
@@ -174,16 +198,6 @@ namespace WinForge.Elite.ViewModels
                 Title = TitleFor(AppSection.Presets),
                 CountLabel = $"{presetsTotal} profiles"
             });
-
-            var activity = connection.Query<OperationHistory>(
-                "SELECT * FROM OperationHistory ORDER BY Id DESC LIMIT @Limit",
-                new { Limit = RecentActivityLimit }).ToList();
-
-            RecentActivity.Clear();
-            foreach (var entry in activity)
-            {
-                RecentActivity.Add(entry);
-            }
 
             SetStatus($"Catalog loaded: {tweaksTotal} tweaks, {debloatTotal} debloat packages, " +
                       $"{privacyTotal} privacy rules, {appsTotal} applications, {presetsTotal} presets.");

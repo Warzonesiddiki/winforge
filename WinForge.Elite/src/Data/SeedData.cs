@@ -34,7 +34,7 @@ namespace WinForge.Elite.Data
 
         private sealed record PrivacyRow(
             string Id, string Name, string Description, string Category, int Risk,
-            int DefaultEnabled, int Enabled, string UpdatedAt);
+            int DefaultEnabled, int Enabled, string Operations, string UndoOperations, string UpdatedAt);
 
         private sealed record ApplicationRow(
             string Id, string Name, string Publisher, string Category, string Version,
@@ -213,30 +213,56 @@ namespace WinForge.Elite.Data
         {
             const string sql = @"
                 INSERT OR IGNORE INTO PrivacyRules
-                    (Id, Name, Description, Category, Risk, DefaultEnabled, Enabled, UpdatedAt)
+                    (Id, Name, Description, Category, Risk, DefaultEnabled, Enabled, Operations, UndoOperations, UpdatedAt)
                 VALUES
-                    (@Id, @Name, @Description, @Category, @Risk, @DefaultEnabled, @Enabled, @UpdatedAt)";
+                    (@Id, @Name, @Description, @Category, @Risk, @DefaultEnabled, @Enabled, @Operations, @UndoOperations, @UpdatedAt)";
 
             var now = DateTime.UtcNow.ToString("o");
 
-            PrivacyRow Rule(string id, string name, string description, string category, RiskLevel risk, int defaultEnabled = 0)
-                => new PrivacyRow(id, name, description, category, (int)risk, defaultEnabled, 0, now);
+            PrivacyRow Rule(string id, string name, string description, string category, RiskLevel risk, int defaultEnabled, string operations, string undoOperations)
+                => new PrivacyRow(id, name, description, category, (int)risk, defaultEnabled, 0, operations, undoOperations, now);
 
             var rows = new[]
             {
-                Rule("priv-telemetry", "Disable Telemetry Data Collection", "Sets Windows diagnostic data to the minimum (Security) level.", "Data Collection", RiskLevel.Low, 1),
-                Rule("priv-advertising-id", "Disable Advertising ID", "Turns off the per-user advertising identifier used for targeted ads.", "Advertising", RiskLevel.Low, 1),
-                Rule("priv-tailored-experiences", "Disable Tailored Experiences", "Stops Windows from using diagnostic data to show personalized tips and ads.", "Diagnostics", RiskLevel.Low),
-                Rule("priv-feedback-frequency", "Reduce Feedback Frequency", "Stops Windows from periodically requesting feedback.", "Diagnostics", RiskLevel.Low, 1),
-                Rule("priv-location-tracking", "Disable Location Tracking", "Turns off the Windows location service for apps and the system.", "Apps", RiskLevel.Low),
-                Rule("priv-wifi-sense", "Disable Wi-Fi Sense", "Prevents automatic connection to suggested open hotspots.", "Network", RiskLevel.Low, 1),
-                Rule("priv-copilot", "Disable Windows Copilot", "Removes the Copilot icon and disables the Copilot AI component.", "AI", RiskLevel.High),
-                Rule("priv-recall", "Disable Windows Recall", "Turns off AI snapshot capture on Copilot+ PCs (Windows 11 24H2+).", "AI", RiskLevel.High),
+                Rule("priv-telemetry", "Disable Telemetry Data Collection", "Sets Windows diagnostic data to the minimum (Security) level.", "Data Collection", RiskLevel.Low, 1,
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", "DWord", "0"),
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", "DWord", "1")),
+                Rule("priv-advertising-id", "Disable Advertising ID", "Turns off the per-user advertising identifier used for targeted ads.", "Advertising", RiskLevel.Low, 1,
+                    Op("HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo", "Enabled", "DWord", "0"),
+                    Op("HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo", "Enabled", "DWord", "1")),
+                Rule("priv-tailored-experiences", "Disable Tailored Experiences", "Stops Windows from using diagnostic data to show personalized tips and ads.", "Diagnostics", RiskLevel.Low, 0,
+                    Op("HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy", "TailoredExperiencesWithDiagnosticDataEnabled", "DWord", "0"),
+                    Op("HKCU", @"SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy", "TailoredExperiencesWithDiagnosticDataEnabled", "DWord", "1")),
+                Rule("priv-feedback-frequency", "Reduce Feedback Frequency", "Stops Windows from periodically requesting feedback.", "Diagnostics", RiskLevel.Low, 1,
+                    Op("HKCU", @"SOFTWARE\Microsoft\Siuf\Rules", "NumberOfSIUFInPeriod", "DWord", "0"),
+                    Op("HKCU", @"SOFTWARE\Microsoft\Siuf\Rules", "NumberOfSIUFInPeriod", "DWord", "1")),
+                Rule("priv-location-tracking", "Disable Location Tracking", "Turns off the Windows location service for apps and the system.", "Apps", RiskLevel.Low, 0,
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors", "DisableLocation", "DWord", "1"),
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors", "DisableLocation", "DWord", "0")),
+                Rule("priv-wifi-sense", "Disable Wi-Fi Sense", "Prevents automatic connection to suggested open hotspots.", "Network", RiskLevel.Low, 1,
+                    Op("HKLM", @"SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config", "AutoConnectAllowedOEM", "DWord", "0"),
+                    Op("HKLM", @"SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config", "AutoConnectAllowedOEM", "DWord", "1")),
+                Rule("priv-copilot", "Disable Windows Copilot", "Removes the Copilot icon and disables the Copilot AI component.", "AI", RiskLevel.High, 0,
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", "TurnOffWindowsCopilot", "DWord", "1"),
+                    Op("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot", "TurnOffWindowsCopilot", "DWord", "0")),
+                Rule("priv-recall", "Disable Windows Recall", "Turns off AI snapshot capture on Copilot+ PCs (Windows 11 24H2+).", "AI", RiskLevel.High, 0,
+                    Op("HKCU", @"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", "DisableAIDataAnalysis", "DWord", "1"),
+                    Op("HKCU", @"SOFTWARE\Policies\Microsoft\Windows\WindowsAI", "DisableAIDataAnalysis", "DWord", "0")),
             };
 
             foreach (var row in rows)
             {
                 connection.Execute(sql, row);
+            }
+
+            // Backfill operations for rows that already existed before these columns were added.
+            const string backfill = @"
+                UPDATE PrivacyRules
+                SET Operations = @Operations, UndoOperations = @UndoOperations
+                WHERE Id = @Id AND (Operations IS NULL OR Operations = '')";
+            foreach (var row in rows)
+            {
+                connection.Execute(backfill, new { row.Id, row.Operations, row.UndoOperations });
             }
         }
 
