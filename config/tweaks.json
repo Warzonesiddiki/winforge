@@ -6811,34 +6811,6 @@
       ]
     },
     {
-      "id": "perf-ultimate-power",
-      "name": "Ultimate Performance Power Plan",
-      "category": "Performance",
-      "description": "Unlocks and activates the hidden Ultimate Performance power plan.",
-      "risk": "low",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "-duplicatescheme",
-            "e9a42b02-d5df-448d-aa00-03f14749eb61"
-          ]
-        }
-      ],
-      "revert": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "-delete",
-            "e9a42b02-d5df-448d-aa00-03f14749eb61"
-          ]
-        }
-      ]
-    },
-    {
       "id": "perf-8dot3",
       "name": "Disable NTFS 8.3 Name Generation",
       "category": "Performance",
@@ -6866,36 +6838,6 @@
             "set",
             "disable8dot3",
             "0"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "perf-memcompression",
-      "name": "Tune Memory Compression",
-      "category": "Performance",
-      "description": "Adjusts the memory compression store to reduce CPU overhead on low-core systems.",
-      "risk": "medium",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "command",
-          "value": "powershell",
-          "args": [
-            "-NoProfile",
-            "-Command",
-            "Disable-MMAgent -MemoryCompression"
-          ]
-        }
-      ],
-      "revert": [
-        {
-          "type": "command",
-          "value": "powershell",
-          "args": [
-            "-NoProfile",
-            "-Command",
-            "Enable-MMAgent -MemoryCompression"
           ]
         }
       ]
@@ -7229,36 +7171,6 @@
           "path": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient",
           "name": "EnableMulticast",
           "value": 1
-        }
-      ]
-    },
-    {
-      "id": "net-disable-netbios",
-      "name": "Disable NetBIOS over TCP/IP",
-      "category": "Network",
-      "description": "Disables legacy NetBIOS name resolution on all adapters.",
-      "risk": "medium",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "command",
-          "value": "powershell",
-          "args": [
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | ForEach-Object { $_.SetTcpipNetbios(2) }"
-          ]
-        }
-      ],
-      "revert": [
-        {
-          "type": "command",
-          "value": "powershell",
-          "args": [
-            "-NoProfile",
-            "-Command",
-            "Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | ForEach-Object { $_.SetTcpipNetbios(0) }"
-          ]
         }
       ]
     },
@@ -7618,34 +7530,6 @@
       ]
     },
     {
-      "id": "pwr-hibernation",
-      "name": "Disable Hibernation",
-      "category": "Power",
-      "description": "Disables hibernation and removes hiberfil.sys to reclaim disk space.",
-      "risk": "medium",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "/hibernate",
-            "off"
-          ]
-        }
-      ],
-      "revert": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "/hibernate",
-            "on"
-          ]
-        }
-      ]
-    },
-    {
       "id": "pwr-fast-startup",
       "name": "Disable Fast Startup",
       "category": "Power",
@@ -7694,40 +7578,6 @@
           "path": "SYSTEM\\CurrentControlSet\\Control\\Power",
           "name": "USBSelectiveSuspend",
           "value": 1
-        }
-      ]
-    },
-    {
-      "id": "pwr-processor-mgmt",
-      "name": "Maximize Processor Power Management",
-      "category": "Power",
-      "description": "Sets minimum processor state to reduce ramp-up latency under load.",
-      "risk": "medium",
-      "reversible": true,
-      "operations": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "-setacvalueindex",
-            "SCHEME_CURRENT",
-            "SUB_PROCESSOR",
-            "PROCTHROTTLEMIN",
-            "50"
-          ]
-        }
-      ],
-      "revert": [
-        {
-          "type": "command",
-          "value": "powercfg",
-          "args": [
-            "-setacvalueindex",
-            "SCHEME_CURRENT",
-            "SUB_PROCESSOR",
-            "PROCTHROTTLEMIN",
-            "5"
-          ]
         }
       ]
     },

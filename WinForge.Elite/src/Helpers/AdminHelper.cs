@@ -17,7 +17,7 @@ namespace WinForge.Elite.Helpers
                 return false;
             }
         }
-        
+
         public static void RestartAsAdmin()
         {
             try
@@ -29,7 +29,7 @@ namespace WinForge.Elite.Helpers
                     Verb = "runas",
                     WorkingDirectory = Environment.CurrentDirectory
                 };
-                
+
                 System.Diagnostics.Process.Start(startInfo);
                 System.Diagnostics.Process.GetCurrentProcess().Kill();
             }
@@ -39,7 +39,7 @@ namespace WinForge.Elite.Helpers
                 throw new InvalidOperationException("Administrator privileges are required to run WinForge Elite.");
             }
         }
-        
+
         public static string GetAdminStatus()
         {
             return IsRunningAsAdmin() ? "Administrator" : "Standard User";

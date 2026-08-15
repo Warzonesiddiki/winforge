@@ -267,7 +267,7 @@ The **goal** is to migrate from the web simulation to a **native Windows WPF/.NE
 
 1. Edit `src/db/seed-data.ts` → add entry to `tweaksSeed` array:
    ```typescript
-   t("new-tweak-id", "Name", "Description", "Category", "risk", true, ["tags"], 
+   t("new-tweak-id", "Name", "Description", "Category", "risk", true, ["tags"],
      ["registry\\path\\operation"], ["registry\\path\\undo-operation"])
    ```
 2. Run `npx drizzle-kit push` (if using PostgreSQL) or manually update SQLite
@@ -295,7 +295,7 @@ int score = 50;
 // Tweak bonus: up to +20
 int tweakBonus = Math.Min(20, appliedTweaks.Count * 2);
 
-// Debloat bonus: up to +15  
+// Debloat bonus: up to +15
 int debloatBonus = Math.Min(15, removedBloatCount * 5 / 10); // 0.5 per package → integer math
 
 // Privacy bonus: up to +15
@@ -328,7 +328,7 @@ score = Math.Max(0, Math.Min(100, (int)Math.Round(score)));
 
 ### Migration Path to Native WPF
 
-**Phase 1 (Foundation)**: 
+**Phase 1 (Foundation)**:
 - Scaffold `dotnet new wpf -n WinForge.Wpf`
 - Migrate `seed-data.ts` → C# models + embedded JSON resources
 - Implement `AdminChecker.cs` (auto-elevate via `process.StartInfo.Verb = "runas"`)

@@ -137,30 +137,27 @@ def convert_op(raw, tweak_id, is_undo=False):
             skip(f"unknown task action {m['action']!r}", tweak_id, raw)
         return ops
     if (m := WMI_NETBIOS.match(s)):
-        arg = m.group(1)
-        cmd = (
-            "Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration | "
-            f"ForEach-Object {{ $_.SetTcpipNetbios({arg}) }}"
-        )
-        ops.append({"type": "command", "value": "powershell", "args": ["-NoProfile", "-Command", cmd]})
+        skip("WMI SetTcpipNetbios requires PowerShell/CIM — engine never invokes PowerShell from its elevated executor (security boundary); needs a native WMI op", tweak_id, raw)
         return ops
     if s.startswith(("Disable-MMAgent", "Enable-MMAgent")):
-        cmd = s.split(" (native API equivalent)")[0]
-        ops.append({"type": "command", "value": "powershell", "args": ["-NoProfile", "-Command", cmd]})
+        skip("PowerShell-only MMAgent cmdlet — engine never invokes PowerShell from its elevated executor (security boundary)", tweak_id, raw)
         return ops
     if s.startswith("Appx:"):
         skip("Appx narrative op (engine handles Appx via the debloat catalog)", tweak_id, raw)
         return ops
-    # Plain commands: powercfg, bcdedit, fsutil, …
+    if s.lower().startswith("powercfg"):
+        skip("powercfg is not an allowlisted elevated command; the engine exposes native power operations (power_scheme, SetProcessorState)", tweak_id, raw)
+        return ops
+    # Plain commands: bcdedit, fsutil, … (elevated-executor allowlist)
     try:
         tokens = shlex.split(s, posix=True)
     except ValueError:
         skip("unparseable command line", tweak_id, raw)
         return ops
-    if tokens and tokens[0].lower() in {"powercfg", "bcdedit", "fsutil", "sc", "schtasks", "wmic"}:
+    if tokens and tokens[0].lower() in {"bcdedit", "fsutil"}:
         ops.append({"type": "command", "value": tokens[0], "args": tokens[1:]})
     else:
-        skip("unrecognized operation", tweak_id, raw)
+        skip(f"unrecognized or non-allowlisted command {tokens[0] if tokens else '?'!r}", tweak_id, raw)
     return ops
 
 
@@ -171,8 +168,6 @@ def main():
 
     web_tweaks = parse_web_catalog()
     eng = json.load(open(ROOT / "config/tweaks.json"))["tweaks"]
-    existing_ids = {t["id"] for t in eng}
-
     converted, excluded, skipped_ops = [], [], 0
     for wt in web_tweaks:
         ops, revert = [], []
@@ -198,18 +193,29 @@ def main():
         converted.append(entry)
 
     if args.apply:
-        merged = [t for t in eng if t["id"] not in {e["id"] for e in converted}]
+        web_ids = {wt["id"] for wt in web_tweaks}
+        converted_ids = {e["id"] for e in converted}
+        # Drop engine entries the web catalog owns but that are no longer
+        # converted (e.g. previously merged tweaks that now hit a security
+        # exclusion such as the PowerShell/powercfg command boundary).
+        stale = [t for t in eng if t["id"] in web_ids and t["id"] not in converted_ids]
+        for t in stale:
+            report.append(f"    - REMOVED stale merge `{t['id']}` (no longer convertible)")
+        # Rebuild: all non-web entries + the freshly converted web entries.
+        merged = [t for t in eng if t["id"] not in web_ids]
         merged.extend(converted)
         with open(ROOT / "config/tweaks.json", "w") as f:
             json.dump({"tweaks": merged}, f, indent=2)
             f.write("\n")
+        print(f"\nconfig/tweaks.json: WRITTEN — engine tweaks now: {len(merged)}")
 
     print(f"web tweaks: {len(web_tweaks)} · converted: {len(converted)} · excluded (no real ops): {len(excluded)}")
     if excluded:
         print("excluded:", ", ".join(excluded))
     print("\n".join(report) if report else "(no skipped ops)")
-    print(f"\nconfig/tweaks.json: {'WRITTEN' if args.apply else 'dry-run'} — engine tweaks now: "
-          f"{len(eng) - sum(1 for e in converted if e['id'] in existing_ids) + len(converted)}")
+    if not args.apply:
+        print(f"\nconfig/tweaks.json: dry-run — engine tweaks would be: "
+              f"{len([t for t in eng if t['id'] not in {e['id'] for e in converted}]) + len(converted)}")
 
 
 if __name__ == "__main__":

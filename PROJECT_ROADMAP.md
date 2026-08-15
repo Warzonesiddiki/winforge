@@ -25,7 +25,7 @@
 | 5 | `AdminChecker.cs`: Check `WindowsIdentity.IsAdmin` → if false, `RestartAsAdministrator()` via `process.StartInfo.Verb = "runas"` |
 | 6-7 | Embed first catalog JSON (tweaks) from `seed-data.ts` → `Resources/tweaks.json` |
 
-**Milestone 1 "Alpha Launch"**: 
+**Milestone 1 "Alpha Launch"**:
 - [ ] App compiles and runs
 - [ ] UAC prompt appears on first run (or auto-restart)
 - [ ] 60 tweaks loaded from embedded JSON, displayed in ListBox
@@ -65,9 +65,9 @@
 - [ ] Warnings shown for risky tweaks
 
 **Phase 1 Exit Criteria**:
-✅ All above working  
-✅ No crashes on tweak apply/undo  
-✅ Catalog JSON embedded and loading correctly  
+✅ All above working
+✅ No crashes on tweak apply/undo
+✅ Catalog JSON embedded and loading correctly
 ✅ Admin elevation working via `runas` verb
 
 ---
@@ -164,14 +164,14 @@
 - [ ] Restore point history shows chronological list with descriptions
 
 **Phase 2 Exit Criteria**:
-✅ Tweak apply/undo works for all 60+ tweaks  
-✅ Debloat remove/reinstall works for 90+ packages  
-✅ Privacy Harden All + individual toggles work  
-✅ SQLite audit DB has complete history  
-✅ "Undo All Today" functions correctly  
-✅ Protected packages correctly blocked  
-✅ Warnings shown for breaksFeatures  
-✅ Software Installer: batch install + category filtering + installed detection badges  
+✅ Tweak apply/undo works for all 60+ tweaks
+✅ Debloat remove/reinstall works for 90+ packages
+✅ Privacy Harden All + individual toggles work
+✅ SQLite audit DB has complete history
+✅ "Undo All Today" functions correctly
+✅ Protected packages correctly blocked
+✅ Warnings shown for breaksFeatures
+✅ Software Installer: batch install + category filtering + installed detection badges
 ✅ Per-app undo payload logged to audit DB
 
 ---
@@ -230,11 +230,11 @@
 - [ ] Log window shows each step: "Mounting ISO...", "Removing packages...", "Injecting tweaks...", "Generating ISO..."
 
 **Phase 3 Exit Criteria**:
-✅ DISM SFC operations work and are logged  
-✅ Windows Update search/install/hide works  
-✅ DNS preset applies network config  
-✅ ISO builder: mount → modify → unmount → generate ISO + SHA-256  
-✅ User can select bloatware removal + privacy tweak injection options  
+✅ DISM SFC operations work and are logged
+✅ Windows Update search/install/hide works
+✅ DNS preset applies network config
+✅ ISO builder: mount → modify → unmount → generate ISO + SHA-256
+✅ User can select bloatware removal + privacy tweak injection options
 ✅ All advanced ops logged to audit DB
 
 ---
@@ -280,12 +280,12 @@
 - [ ] GitHub Release v1.0.0 with "Foundation Complete" features
 
 **Phase 4 Exit Criteria**:
-✅ Signed EXE runs without SmartScreen blocks  
-✅ Inno Setup installer installs + uninstalls cleanly  
-✅ Auto-update finds and installs point releases  
-[ ] Help/docs accessible  
-[ ] First-run disclaimer present  
-[ ] Beta testers on board, feedback collected  
+✅ Signed EXE runs without SmartScreen blocks
+✅ Inno Setup installer installs + uninstalls cleanly
+✅ Auto-update finds and installs point releases
+[ ] Help/docs accessible
+[ ] First-run disclaimer present
+[ ] Beta testers on board, feedback collected
 [ ] GitHub Release published with clear roadmap
 
 ---

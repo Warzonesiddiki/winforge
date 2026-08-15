@@ -14,7 +14,7 @@ export function Pagination({ currentPage, totalPages, onPageChange, totalItems, 
   if (totalPages <= 1) return null;
 
   const pages: (number | "...")[] = [];
-  
+
   if (totalPages <= 7) {
     for (let i = 1; i <= totalPages; i++) pages.push(i);
   } else {

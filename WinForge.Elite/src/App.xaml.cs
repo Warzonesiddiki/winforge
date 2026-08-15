@@ -7,10 +7,10 @@ namespace WinForge.Elite
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-            
+
             // Initialize logging
             Logging.Logger.Initialize();
-            
+
             // Check admin privileges
             if (!Helpers.AdminHelper.IsRunningAsAdmin())
             {
@@ -24,10 +24,10 @@ namespace WinForge.Elite
                 Shutdown(1);
                 return;
             }
-            
+
             // Initialize database
             Data.DbConnectionFactory.Initialize();
-            
+
             // Show main window
             var mainWindow = new Views.MainWindow();
             mainWindow.Show();

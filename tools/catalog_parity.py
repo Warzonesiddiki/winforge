@@ -26,6 +26,14 @@ ROOT = Path(__file__).resolve().parent.parent
 SERVICE_OP = re.compile(r"^Service\s+(?P<name>[A-Za-z0-9_. -]+)\s*->\s*(?P<mode>.+)$")
 TASK_OP = re.compile(r"^Scheduled Task:\s*(?P<path>.+?)\s*->\s*(?P<action>.+)$")
 
+# Power-scheme aliases used by the engine catalog (mirrors internal/power/power.go).
+POWER_ALIASES = {
+    "balanced": "381b4222-f694-41f0-9685-ff5bb260df2e",
+    "high-performance": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
+    "power-saver": "a1841308-3541-4fab-bc81-f71556f20b4a",
+    "ultimate": "e9a42b02-d5df-448d-aa00-03f14749eb61",
+}
+
 
 def norm(x):
     return re.sub(r"\s+", "", x).strip('"').lower()
@@ -33,7 +41,7 @@ def norm(x):
 
 def parse_web_tweak_ops(op_strings):
     """Parse the web app's human-readable operation strings into signatures."""
-    regs, commands, services, tasks = [], [], [], []
+    regs, commands, services, tasks, power_guids = [], [], [], [], []
     for raw in op_strings:
         s = raw.strip()
         if s.startswith(("HKCU\\", "HKLM\\", "HKCR\\")):
@@ -49,7 +57,9 @@ def parse_web_tweak_ops(op_strings):
             tasks.append((norm(m["path"]), m["action"].strip().lower()))
         else:
             commands.append(s.lower().split(" (native api equivalent)")[0].strip())
-    return regs, commands, services, tasks
+            for guid in re.findall(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", s.lower()):
+                power_guids.append(norm(guid))
+    return regs, commands, services, tasks, power_guids
 
 
 def parse_web_catalog():
@@ -83,7 +93,7 @@ def parse_web_catalog():
 # ---------------------------------------------------------------- engine configs
 
 def engine_tweak_sigs(t):
-    regs, commands, services, tasks = [], [], [], []
+    regs, commands, services, tasks, power_guids = [], [], [], [], []
     for op in t["operations"]:
         tpe = op.get("type", "")
         if tpe.startswith("registry_"):
@@ -102,13 +112,17 @@ def engine_tweak_sigs(t):
             services.append((norm(op.get("name", "")), op.get("mode", op.get("value", "")).lower()))
         elif tpe.startswith("task_"):
             tasks.append((norm(op.get("path", "")), tpe.removeprefix("task_").lower()))
-    return regs, commands, services, tasks
+        elif tpe == "power_scheme":
+            raw = norm(str(op.get("value", "")))
+            power_guids.append(raw)
+            power_guids.append(POWER_ALIASES.get(raw, raw))
+    return regs, commands, services, tasks, power_guids
 
 
 def engine_has_op_match(web_ops, eng_ops):
     """True when at least one web operation signature is present in the engine tweak."""
-    wr, wc, ws, wt = web_ops
-    er, ec, es, et = eng_ops
+    wr, wc, ws, wt, wp = web_ops
+    er, ec, es, et, ep = eng_ops
     for sig in wr:
         if sig in er:
             return True
@@ -120,6 +134,9 @@ def engine_has_op_match(web_ops, eng_ops):
             return True
     for t in wt:
         if t in et:
+            return True
+    for g in wp:
+        if g in ep:
             return True
     return False
 
@@ -147,11 +164,13 @@ def main():
         if not matches:
             report.append(f"- ❌ GAP — web tweak `{wt['id']}` ({wt['name']}) has no engine equivalent")
             continue
+        backfilled = False
         for t in matches:
             if not t.get("name") or not t.get("description"):
                 if args.fix:
                     t["name"], t["description"] = wt["name"], wt["description"]
                     fixed += 1
+                    backfilled = True
                     report.append(
                         f"- ✅ BACKFILLED `{t['id']}` ← {wt['id']} ({wt['name']}, {wt['category']})"
                     )
@@ -159,6 +178,11 @@ def main():
                     report.append(
                         f"- ⚠️ METADATA-GAP `{t['id']}` matches web {wt['id']} ({wt['name']}) but has empty name/description"
                     )
+        if matches and not backfilled:
+            report.append(
+                f"- ✅ EQUIVALENT — web tweak `{wt['id']}` ({wt['name']}) is covered by engine tweak(s) "
+                + ", ".join(f"`{t['id']}`" for t in matches)
+            )
 
     if args.fix and fixed:
         with open(ROOT / "config/tweaks.json", "w") as f:

@@ -50,3 +50,7 @@ native/out/
 node_modules/
 obj/
 packages/
+
+# Python caches
+__pycache__/
+*.pyc

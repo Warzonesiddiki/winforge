@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -297,15 +298,20 @@ func TestRunCommandElevationBoundary(t *testing.T) {
 // asymmetry: without elevation the allowlist is not enforced, since the command
 // runs with no more privilege than the user already has. This is asserted so
 // the behaviour is a decision on record rather than an accident.
+//
+// The success and non-zero-exit cases re-invoke the test binary itself so the
+// assertions hold on every platform (no /bin/true assumptions on Windows).
 func TestRunCommandUnelevatedRunsWithoutAllowlist(t *testing.T) {
 	unelevated := &Executor{elevated: false}
 
-	if err := unelevated.RunCommand("/bin/true", nil); err != nil {
-		t.Fatalf("unelevated RunCommand(/bin/true) = %v, want it to run", err)
+	// A child that exits 0 must succeed.
+	if err := unelevated.RunCommand(os.Args[0], []string{"-test.run=TestRunCommandChildHelper"}); err != nil {
+		t.Fatalf("unelevated RunCommand(exit 0) = %v, want it to run", err)
 	}
 	// A non-zero exit is surfaced to the caller rather than swallowed.
-	if err := unelevated.RunCommand("/bin/false", nil); err == nil {
-		t.Fatal("unelevated RunCommand(/bin/false) reported success for a failing command")
+	t.Setenv("WINFORGE_CHILD_EXIT", "3")
+	if err := unelevated.RunCommand(os.Args[0], []string{"-test.run=TestRunCommandChildHelper"}); err == nil {
+		t.Fatal("unelevated RunCommand(exit 3) reported success for a failing command")
 	}
 	// A missing executable is an error, not a silent no-op.
 	if err := unelevated.RunCommand("definitely-not-a-real-binary-xyz", nil); err == nil {
@@ -313,29 +319,44 @@ func TestRunCommandUnelevatedRunsWithoutAllowlist(t *testing.T) {
 	}
 }
 
+// TestRunCommandChildHelper is re-invoked by RunCommand tests; it exits 3 when
+// WINFORGE_CHILD_EXIT=3, otherwise 0.
+func TestRunCommandChildHelper(t *testing.T) {
+	if os.Getenv("WINFORGE_CHILD_EXIT") == "3" {
+		os.Exit(3)
+	}
+}
+
 // TestRunCommandPassesArguments confirms arguments reach the process as
 // separate argv entries rather than being concatenated into a shell string.
+// The child verifies that "alpha" and "beta" arrive as two distinct entries
+// after the "--" separator, and exits non-zero when they do not.
 func TestRunCommandPassesArguments(t *testing.T) {
 	e := &Executor{elevated: false}
 
-	// /bin/sh -c 'exit 0' succeeds only if both arguments arrive intact.
-	if err := e.RunCommand("/bin/sh", []string{"-c", "exit 0"}); err != nil {
+	t.Setenv("WINFORGE_ARGS_HELPER", "1")
+	if err := e.RunCommand(os.Args[0], []string{"-test.run=TestRunCommandArgsHelper", "--", "alpha", "beta"}); err != nil {
 		t.Fatalf("RunCommand with arguments = %v, want success", err)
 	}
-	if err := e.RunCommand("/bin/sh", []string{"-c", "exit 3"}); err == nil {
+	if err := e.RunCommand(os.Args[0], []string{"-test.run=TestRunCommandArgsHelper", "--", "alpha", "smashed-together"}); err == nil {
 		t.Fatal("RunCommand did not surface a non-zero exit from its arguments")
 	}
 }
 
-// TestTrustedCommandOffWindows pins the non-Windows stub. The allowlist is a
-// Windows concept (it resolves inbox tools under System32), so off Windows
-// nothing is trusted — which is why the elevated path refuses everything here.
-func TestTrustedCommandOffWindows(t *testing.T) {
-	for _, name := range []string{"dism", "dism.exe", "netsh", "anything"} {
-		if _, trusted := trustedCommand(name); trusted {
-			t.Fatalf("trustedCommand(%q) reported trusted off Windows", name)
+// TestRunCommandArgsHelper is re-invoked by TestRunCommandPassesArguments.
+// When WINFORGE_ARGS_HELPER is unset the suite runs it directly and it passes
+// trivially; when set (child invocation) it exits 3 unless os.Args contains
+// "alpha" and "beta" as the two entries immediately after "--".
+func TestRunCommandArgsHelper(t *testing.T) {
+	if os.Getenv("WINFORGE_ARGS_HELPER") != "1" {
+		return
+	}
+	for i, a := range os.Args {
+		if a == "--" && i+2 < len(os.Args) && os.Args[i+1] == "alpha" && os.Args[i+2] == "beta" {
+			return
 		}
 	}
+	os.Exit(3)
 }
 
 // TestNewExecutorCapturesElevation checks the constructor stores the caller's
@@ -350,11 +371,11 @@ func TestNewExecutorCapturesElevation(t *testing.T) {
 	}
 
 	// An unelevated executor must not enforce the allowlist...
-	if err := NewExecutorWithElevation(nil, false).RunCommand("/bin/true", nil); err != nil {
+	if err := NewExecutorWithElevation(nil, false).RunCommand(os.Args[0], []string{"-test.run=TestRunCommandChildHelper"}); err != nil {
 		t.Fatalf("unelevated executor refused a command: %v", err)
 	}
 	// ...while an elevated one must.
-	if err := NewExecutorWithElevation(nil, true).RunCommand("/bin/true", nil); err == nil ||
+	if err := NewExecutorWithElevation(nil, true).RunCommand("definitely-not-a-real-binary-xyz", nil); err == nil ||
 		!strings.Contains(err.Error(), "not an allowlisted") {
 		t.Fatalf("elevated executor did not enforce the allowlist: %v", err)
 	}

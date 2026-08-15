@@ -9,9 +9,9 @@ namespace WinForge.Elite.Data
     public class DbConnectionFactory
     {
         private static readonly string DbPath = PathHelper.DatabasePath;
-        
+
         private static readonly string ConnectionString = $"Data Source={DbPath}";
-        
+
         static DbConnectionFactory()
         {
             // Maps JSON-encoded TEXT columns to List<string> entity properties (Dapper).
@@ -28,12 +28,12 @@ namespace WinForge.Elite.Data
         {
             InitializeDatabase();
         }
-        
+
         public static IDbConnection CreateConnection()
         {
             return new SqliteConnection(ConnectionString);
         }
-        
+
         private static void InitializeDatabase()
         {
             var dir = Path.GetDirectoryName(DbPath);
@@ -41,10 +41,10 @@ namespace WinForge.Elite.Data
             {
                 Directory.CreateDirectory(dir);
             }
-            
+
             using var connection = CreateConnection();
             connection.Open();
-            
+
             // Create Tweaks table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS Tweaks (
@@ -63,7 +63,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create DebloatPackages table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS DebloatPackages (
@@ -79,7 +79,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create PrivacyRules table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS PrivacyRules (
@@ -95,7 +95,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create Applications table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS Applications (
@@ -109,7 +109,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create Presets table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS Presets (
@@ -124,7 +124,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create RestorePoints table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS RestorePoints (
@@ -137,7 +137,7 @@ namespace WinForge.Elite.Data
                     DiskSpaceUsed INTEGER NOT NULL DEFAULT 0
                 )
             ");
-            
+
             // Create OperationHistory table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS OperationHistory (
@@ -152,7 +152,7 @@ namespace WinForge.Elite.Data
                     RestorePointId INTEGER
                 )
             ");
-            
+
             // Create HealthHistory table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS HealthHistory (
@@ -168,7 +168,7 @@ namespace WinForge.Elite.Data
                     RecordedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create WindowsServices table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS WindowsServices (
@@ -185,7 +185,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create ScheduledTasks table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS ScheduledTasks (
@@ -200,7 +200,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create StartupItems table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS StartupItems (
@@ -214,7 +214,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Create ContextMenuItems table
             connection.Execute(@"
                 CREATE TABLE IF NOT EXISTS ContextMenuItems (
@@ -227,7 +227,7 @@ namespace WinForge.Elite.Data
                     UpdatedAt TEXT NOT NULL
                 )
             ");
-            
+
             // Migrate pre-existing databases that predate the privacy operations columns.
             MigratePrivacyRulesSchema(connection);
 
