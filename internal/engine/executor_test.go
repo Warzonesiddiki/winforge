@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,6 +12,19 @@ import (
 	"winforge/internal/registry"
 	"winforge/internal/service"
 )
+
+// skipOnWindows guards tests that assert the off-Windows platform stub
+// (ErrUnsupported). On a real Windows runner those calls reach the live service
+// control manager, registry, Appx store, task scheduler and power APIs: stub
+// assertions do not hold there, and several of the calls would mutate runner
+// state. The Windows build path is still exercised by compilation, vet, and the
+// windows-tagged tests in this package.
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("asserts the off-Windows platform stub; on Windows it would hit live system state")
+	}
+}
 
 func TestElevatedExecutorRejectsUnknownCommand(t *testing.T) {
 	executor := &Executor{elevated: true}
@@ -135,6 +149,7 @@ func TestServiceNameAtLimitIsAccepted(t *testing.T) {
 // ErrUnsupported. Without this, a guard that rejected everything would satisfy
 // every other service test here.
 func TestUnprotectedServiceReachesPlatformLayer(t *testing.T) {
+	skipOnWindows(t)
 	executor := NewExecutor([]string{"WinDefend"})
 	for _, name := range []string{"Spooler", "wuauserv", "Some.Service_Name-1"} {
 		t.Run(name, func(t *testing.T) {
@@ -155,6 +170,7 @@ func TestUnprotectedServiceReachesPlatformLayer(t *testing.T) {
 // platform call, and that the protected check runs before mode parsing so a
 // protected service is refused even with a nonsense mode.
 func TestServiceSetStartModeValidatesMode(t *testing.T) {
+	skipOnWindows(t)
 	executor := NewExecutor([]string{"WinDefend"})
 
 	for _, mode := range []string{"sideways", "", "auto ; delete", "4"} {
@@ -185,6 +201,7 @@ func TestServiceSetStartModeValidatesMode(t *testing.T) {
 // TestRegistryHiveValidation checks an unrecognised hive is rejected before any
 // platform call rather than being passed through as an opaque string.
 func TestRegistryHiveValidation(t *testing.T) {
+	skipOnWindows(t)
 	e := &Executor{}
 	const path = `Software\WinForge`
 
@@ -232,6 +249,7 @@ func TestRegistryHiveValidation(t *testing.T) {
 // (zero, false, nil), while a real failure keeps its error. Collapsing the two
 // would make a failed read look like a value that was simply absent.
 func TestRegistryGetMapsNotFoundToAbsent(t *testing.T) {
+	skipOnWindows(t)
 	e := &Executor{}
 
 	// Off Windows every read fails with ErrUnsupported, which must NOT be
@@ -384,6 +402,7 @@ func TestNewExecutorCapturesElevation(t *testing.T) {
 // TestProtectedSetIsSnapshotAtConstruction checks the caller's slice is copied
 // into the set, so mutating it afterwards cannot unprotect a service.
 func TestProtectedSetIsSnapshotAtConstruction(t *testing.T) {
+	skipOnWindows(t)
 	names := []string{"WinDefend"}
 	e := NewExecutor(names)
 	names[0] = "Spooler"
@@ -397,6 +416,7 @@ func TestProtectedSetIsSnapshotAtConstruction(t *testing.T) {
 }
 
 func TestEmptyProtectedListProtectsNothing(t *testing.T) {
+	skipOnWindows(t)
 	for _, e := range []*Executor{NewExecutor(nil), NewExecutor([]string{})} {
 		if err := e.ServiceStop("WinDefend"); !errors.Is(err, service.ErrUnsupported) {
 			t.Fatalf("empty protected list still refused a service: %v", err)
@@ -409,6 +429,7 @@ func TestEmptyProtectedListProtectsNothing(t *testing.T) {
 // can be registered in either or both places and a partial failure must not
 // read as a clean removal.
 func TestAppxRemoveReportsBothLayers(t *testing.T) {
+	skipOnWindows(t)
 	e := &Executor{}
 	const pkg = "Microsoft.BingWeather"
 
@@ -432,6 +453,7 @@ func TestAppxRemoveReportsBothLayers(t *testing.T) {
 // TestTaskAndPowerDelegate confirms the thin wrappers forward to their packages
 // and propagate the error rather than reporting success.
 func TestTaskAndPowerDelegate(t *testing.T) {
+	skipOnWindows(t)
 	e := &Executor{}
 	const task = `\Microsoft\Windows\Application Experience\ProgramDataUpdater`
 
