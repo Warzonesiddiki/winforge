@@ -1,0 +1,102 @@
+<Window x:Class="WinForge.Elite.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:WinForge.Elite.ViewModels"
+        xmlns:views="clr-namespace:WinForge.Elite.Views"
+        Title="WinForge Elite — Control Center"
+        Width="1200" Height="760"
+        MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Loaded="OnLoaded"
+        Closing="OnClosing">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Navigation sidebar -->
+        <Border Grid.Column="0" BorderBrush="#1F000000" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="16,20,16,12">
+                    <TextBlock Text="WINFORGE ELITE" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="Control Center" FontSize="12" Opacity="0.6" />
+                </StackPanel>
+
+                <ListBox x:Name="ModuleList"
+                         ItemsSource="{Binding Modules}"
+                         SelectionChanged="OnModuleSelected"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="16,8" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ModuleSummary}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="{Binding CountLabel}" FontSize="11" Opacity="0.55" Margin="0,1,0,0" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- Main area -->
+        <DockPanel Grid.Column="1" Margin="20,16,20,12">
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <Button DockPanel.Dock="Right"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        IsEnabled="{Binding CanRefresh}"
+                        Padding="16,6"
+                        VerticalAlignment="Center" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SectionTitle}" FontSize="22" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="12" Opacity="0.6" Margin="0,2,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </DockPanel>
+
+            <StatusBar DockPanel.Dock="Bottom">
+                <StatusBarItem>
+                    <TextBlock Text="{Binding AdminStatus}" />
+                </StatusBarItem>
+                <Separator />
+                <StatusBarItem>
+                    <TextBlock Text="{Binding DatabasePath}" ToolTip="{Binding DatabasePath}" />
+                </StatusBarItem>
+            </StatusBar>
+
+            <!-- Section content: the DataTemplate for the current page view model is resolved automatically. -->
+            <ContentControl Content="{Binding CurrentPage}">
+                <ContentControl.Resources>
+                    <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+                        <views:DashboardView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:TweaksViewModel}">
+                        <views:TweaksView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:DebloatViewModel}">
+                        <views:DebloatView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:PrivacyViewModel}">
+                        <views:PrivacyView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:SoftwareViewModel}">
+                        <views:SoftwareView />
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type vm:PresetsViewModel}">
+                        <views:PresetsView />
+                    </DataTemplate>
+                </ContentControl.Resources>
+            </ContentControl>
+        </DockPanel>
+    </Grid>
+</Window>

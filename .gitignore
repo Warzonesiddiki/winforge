@@ -1,40 +1,56 @@
-```
+
+# Binaries
 # Build artifacts
-bin/
-obj/
-Debug/
-Release/
-*.exe
-*.dll
-*.pdb
-*.userprefs
-
 # Dependencies
-packages/
-node_modules/
-
-# Logs
-*.log
-
-# Environment
-.env
-.env.local
-*.env.*
-
+# Editor
 # Editors
-.vscode/
-.idea/
+# Environment
+# Go build cache / test artifacts
+# Local runtime state (never commit user machines' logs/state)
+# Logs
+# OS
+# OS generated files
+# Temporary files
+# TypeScript incremental build info
+# WinForge hybrid native build artifacts
+*.dll
+*.env.*
+*.exe
+*.log
+*.out
+*.pdb
+*.sln.docstates
 *.suo
+*.swp
+*.temp
+*.test
+*.tmp
+*.tsbuildinfo
 *.user
 *.userosscache
-*.sln.docstates
-
-# OS generated files
+*.userprefs
 .DS_Store
+.env
+.env.local
+.idea/
+.vscode/
+/bin/
+/dist/
+/winforge
+/winforge.exe
+Debug/
+Release/
 Thumbs.db
-desktop.ini
-
-# Temporary files
-*.tmp
-*.temp
 ```
+bin/
+coverage.*
+desktop.ini
+localdata/
+native/out/
+node_modules/
+obj/
+packages/
+
+# Python caches
+__pycache__/
+*.pyc

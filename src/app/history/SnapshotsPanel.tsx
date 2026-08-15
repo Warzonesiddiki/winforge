@@ -80,7 +80,7 @@ export function SnapshotsPanel({ snapshots }: { snapshots: SnapshotRow[] }) {
 
       {snapshots.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
-          No snapshots yet. Capture one before making major changes — you'll be able to restore the exact state later.
+          No snapshots yet. Capture one before making major changes — you&apos;ll be able to restore the exact state later.
         </div>
       ) : (
         <div className="space-y-2">

@@ -1,0 +1,605 @@
+{
+  "entries": [
+    {
+      "family": "Clipchamp.Clipchamp",
+      "name": "Clipchamp",
+      "category": "Utilities & Productivity",
+      "description": "Provides a user-friendly video editor with built-in templates, effects, and timeline editing tools."
+    },
+    {
+      "family": "Disney.37853FC22B2CE",
+      "name": "Disney.37853FC22B2CE",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Ink.Handwriting.Main.Store.en-US1.0",
+      "name": "Ink.Handwriting.Main.Store.en-US1.0",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "MSTeams",
+      "name": "Microsoft Teams",
+      "category": "Microsoft Apps",
+      "description": "Facilitates instant messaging, video conferencing, file sharing, and workspace collaboration."
+    },
+    {
+      "family": "Microsoft.BingNews",
+      "name": "News",
+      "category": "Bing & Web Services",
+      "description": "Aggregates breaking news headlines, personalized article feeds, and world current events."
+    },
+    {
+      "family": "Microsoft.BingSearch",
+      "name": "Bing Search",
+      "category": "Bing & Web Services",
+      "description": "Integrates Microsoft Bing search capabilities and web services directly into the operating system."
+    },
+    {
+      "family": "Microsoft.BingWeather",
+      "name": "Weather",
+      "category": "Bing & Web Services",
+      "description": "Displays local real-time weather tracking, radar maps, and historical meteorological forecasts."
+    },
+    {
+      "family": "Microsoft.Copilot",
+      "name": "Copilot",
+      "category": "Bing & Web Services",
+      "description": "Launches the Microsoft AI companion for contextual answers, creative writing assistance, and intelligent web search."
+    },
+    {
+      "family": "Microsoft.GamingApp",
+      "name": "Xbox App",
+      "category": "Xbox & Gaming",
+      "description": "Serves as the primary gaming library manager, social community interface, and PC Game Pass dashboard."
+    },
+    {
+      "family": "Microsoft.GetHelp",
+      "name": "Get Help",
+      "category": "Microsoft Apps",
+      "description": "Provides access to automated troubleshooting guides, support documentation, and direct Microsoft customer assistance."
+    },
+    {
+      "family": "Microsoft.Microsoft3DViewer",
+      "name": "Microsoft.Microsoft3DViewer",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.MicrosoftOfficeHub",
+      "name": "Microsoft 365",
+      "category": "Microsoft Apps",
+      "description": "Serves as a centralized launcher and dashboard for accessing cloud-based Microsoft 365 apps and recent documents."
+    },
+    {
+      "family": "Microsoft.MicrosoftSolitaireCollection",
+      "name": "Solitaire Collection",
+      "category": "Xbox & Gaming",
+      "description": "Bundles built-in card game modes including Klondike, Spider, FreeCell, Pyramid, and TriPeaks alongside daily challenges."
+    },
+    {
+      "family": "Microsoft.MicrosoftStickyNotes",
+      "name": "Sticky Notes",
+      "category": "Utilities & Productivity",
+      "description": "Creates quick, floating text notes on the desktop that automatically sync across devices."
+    },
+    {
+      "family": "Microsoft.MixedReality.Portal",
+      "name": "Microsoft.MixedReality.Portal",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.Office.OneNote",
+      "name": "Microsoft.Office.OneNote",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.OutlookForWindows",
+      "name": "Outlook for Windows",
+      "category": "Microsoft Apps",
+      "description": "Provides modern email management, calendar scheduling, and contact organization features."
+    },
+    {
+      "family": "Microsoft.Paint",
+      "name": "Paint",
+      "category": "Utilities & Productivity",
+      "description": "Provides built-in digital sketching, basic image editing, and pixel-level graphic manipulation tools."
+    },
+    {
+      "family": "Microsoft.People",
+      "name": "Microsoft.People",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.PowerAutomateDesktop",
+      "name": "Power Automate",
+      "category": "Developer Tools",
+      "description": "Automates repetitive workflows and desktop tasks using low-code visual scripting."
+    },
+    {
+      "family": "Microsoft.ScreenSketch",
+      "name": "Snipping Tool",
+      "category": "Utilities & Productivity",
+      "description": "Captures screenshots or screen recordings with built-in markup, image cropping, and optical character recognition (OCR)."
+    },
+    {
+      "family": "Microsoft.SkypeApp",
+      "name": "Microsoft.SkypeApp",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.StartExperiencesApp",
+      "name": "Start Experiences App",
+      "category": "Bing & Web Services",
+      "description": "Powers the Windows Widgets board, delivering a personalized feed of news, weather, sports, and finance content."
+    },
+    {
+      "family": "Microsoft.Todos",
+      "name": "To Do",
+      "category": "Utilities & Productivity",
+      "description": "Creates, tracks, and synchronizes personal tasks, smart lists, and daily reminders."
+    },
+    {
+      "family": "Microsoft.Windows.DevHome",
+      "name": "Dev Home",
+      "category": "Developer Tools",
+      "description": "Provides a specialized dashboard for software developer environment setups, repository syncing, and hardware widgets."
+    },
+    {
+      "family": "Microsoft.Windows.Photos",
+      "name": "Photos",
+      "category": "Utilities & Productivity",
+      "description": "Organizes, views, and crops local images with basic color adjustment and album creation tools."
+    },
+    {
+      "family": "Microsoft.WindowsAlarms",
+      "name": "Clock",
+      "category": "Utilities & Productivity",
+      "description": "Features world clocks, alarms, countdown timers, stopwatches, and dedicated focus session tracking."
+    },
+    {
+      "family": "Microsoft.WindowsCalculator",
+      "name": "Calculator",
+      "category": "Utilities & Productivity",
+      "description": "Performs standard arithmetic, scientific operations, programming calculations, and unit conversions."
+    },
+    {
+      "family": "Microsoft.WindowsCamera",
+      "name": "Camera",
+      "category": "Utilities & Productivity",
+      "description": "Captures photographs and records video files via connected webcams or imaging hardware."
+    },
+    {
+      "family": "Microsoft.WindowsFeedbackHub",
+      "name": "Feedback Hub",
+      "category": "Microsoft Apps",
+      "description": "Allows users to submit bug reports, feature suggestions, and diagnostic data directly to Microsoft."
+    },
+    {
+      "family": "Microsoft.WindowsMaps",
+      "name": "Microsoft.WindowsMaps",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.WindowsNotepad",
+      "name": "Notepad",
+      "category": "Utilities & Productivity",
+      "description": "Provides a lightweight text editor with multi-tab support for plain text files and code snippets."
+    },
+    {
+      "family": "Microsoft.WindowsSoundRecorder",
+      "name": "Sound Recorder",
+      "category": "Utilities & Productivity",
+      "description": "Records and trims live audio inputs with simple microphone adjustment controls."
+    },
+    {
+      "family": "Microsoft.Xbox.TCUI",
+      "name": "Xbox TCUI",
+      "category": "Xbox & Gaming",
+      "description": "Provides core account connection UI modules for single sign-on flows within game titles. Warning: removing this may break Microsoft account authentication in games and apps that do not otherwise require the Xbox app."
+    },
+    {
+      "family": "Microsoft.XboxGamingOverlay",
+      "name": "Xbox Game Bar",
+      "category": "Xbox & Gaming",
+      "description": "Provides customizable in-game status widgets, audio balancing sliders, system monitoring tools, and gameplay recording."
+    },
+    {
+      "family": "Microsoft.XboxIdentityProvider",
+      "name": "Xbox Identity Provider",
+      "category": "Xbox & Gaming",
+      "description": "Manages Xbox network user authentication and background account validation for connected titles. Warning: removing this may break Microsoft account sign-in for non-Xbox games and apps that rely on this authentication pipeline."
+    },
+    {
+      "family": "Microsoft.XboxSpeechToTextOverlay",
+      "name": "Xbox Speech To Text Overlay",
+      "category": "Xbox & Gaming",
+      "description": "Provides system-level live accessibility captions and voice-to-text translation for gaming chat networks."
+    },
+    {
+      "family": "Microsoft.YourPhone",
+      "name": "Phone Link",
+      "category": "Microsoft Ecosystem",
+      "description": "Synchronizes text messages, phone notifications, photos, and calls from a mobile device to the desktop."
+    },
+    {
+      "family": "Microsoft.ZuneMusic",
+      "name": "Media Player",
+      "category": "Utilities & Productivity",
+      "description": "Plays local audio and video files with modern playlist management and casting capabilities."
+    },
+    {
+      "family": "MicrosoftCorporationII.MicrosoftFamily",
+      "name": "MicrosoftCorporationII.MicrosoftFamily",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "MicrosoftCorporationII.QuickAssist",
+      "name": "Quick Assist",
+      "category": "Utilities & Productivity",
+      "description": "Enables secure remote technical support and screen sharing over an internet connection."
+    },
+    {
+      "family": "MicrosoftTeams",
+      "name": "MicrosoftTeams",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "SpotifyAB.SpotifyMusic",
+      "name": "SpotifyAB.SpotifyMusic",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.Getstarted",
+      "name": "Tips",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.WindowsCommunicationsApps",
+      "name": "Mail and Calendar",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.Print3D",
+      "name": "Print 3D",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.Whiteboard",
+      "name": "Whiteboard",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.ZuneVideo",
+      "name": "Movies & TV",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.OneConnect",
+      "name": "Mobile Plans",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.Wallet",
+      "name": "Microsoft Pay",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.549981C3F5F10",
+      "name": "Cortana",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Dell.SupportAssist",
+      "name": "Dell SupportAssist",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Dell.CustomerConnect",
+      "name": "Dell Customer Connect",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "HP.SupportAssistant",
+      "name": "HP Support Assistant",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "HP.JumpStart",
+      "name": "HP JumpStart",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Lenovo.Vantage",
+      "name": "Lenovo Vantage",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Lenovo.Utility",
+      "name": "Lenovo Utility",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "ASUS.GiftBox",
+      "name": "ASUS GiftBox",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "ASUS.LiveUpdate",
+      "name": "ASUS Live Update",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Acer.CareCenter",
+      "name": "Acer Care Center",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "McAfee.LiveSafe",
+      "name": "McAfee LiveSafe (Trial)",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Norton.Security",
+      "name": "Norton Security (Trial)",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Dropbox.Promotion",
+      "name": "Dropbox Promotional Tile",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "CyberLink.PowerDirector",
+      "name": "CyberLink PowerDirector (Trial)",
+      "category": "OEM Apps",
+      "description": "Pre-installed OEM application."
+    },
+    {
+      "family": "Microsoft.Advertising.Xaml",
+      "name": "Advertising Library",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "king.com.CandyCrushSaga",
+      "name": "Candy Crush Saga",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "king.com.CandyCrushSodaSaga",
+      "name": "Candy Crush Soda Saga",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Microsoft.BubbleWitch3Saga",
+      "name": "Bubble Witch 3 Saga",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Disney.MagicKingdoms",
+      "name": "Disney Magic Kingdoms",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Gameloft.MarchofEmpires",
+      "name": "March of Empires",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "ZyngaInc.FarmVille2CountryEscape",
+      "name": "FarmVille 2: Country Escape",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "PicsArt.PicsArtPhotoStudio",
+      "name": "PicsArt Photo Studio",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "TikTok.TikTok",
+      "name": "TikTok",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Facebook.Facebook",
+      "name": "Facebook",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Instagram.Instagram",
+      "name": "Instagram",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "LinkedIn.LinkedIn",
+      "name": "LinkedIn",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Netflix.Netflix",
+      "name": "Netflix (Promoted Tile)",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Microsoft.XboxApp",
+      "name": "Xbox Console Companion",
+      "category": "Gaming",
+      "description": "Xbox gaming component."
+    },
+    {
+      "family": "Microsoft.XboxGameOverlay",
+      "name": "Xbox Game Overlay",
+      "category": "Gaming",
+      "description": "Xbox gaming component."
+    },
+    {
+      "family": "WhatsApp.WhatsApp",
+      "name": "WhatsApp Desktop (Promoted)",
+      "category": "Social",
+      "description": "Promoted social application."
+    },
+    {
+      "family": "Twitter.Twitter",
+      "name": "Twitter / X (Promoted Tile)",
+      "category": "Social",
+      "description": "Promoted social application."
+    },
+    {
+      "family": "MicrosoftWindows.Client.WebExperience",
+      "name": "Widgets",
+      "category": "Widgets",
+      "description": "Windows Widgets experience."
+    },
+    {
+      "family": "Microsoft.Windows.Ai.Copilot",
+      "name": "Copilot",
+      "category": "AI/Copilot",
+      "description": "Windows AI component."
+    },
+    {
+      "family": "Microsoft.Windows.Recall",
+      "name": "Recall (AI Snapshot)",
+      "category": "AI/Copilot",
+      "description": "Windows AI component."
+    },
+    {
+      "family": "Microsoft.Windows.AIFabricService",
+      "name": "AI Fabric Service",
+      "category": "AI/Copilot",
+      "description": "Windows AI component."
+    },
+    {
+      "family": "Microsoft.Windows.CopilotRuntime",
+      "name": "Copilot Runtime",
+      "category": "AI/Copilot",
+      "description": "Windows AI component."
+    },
+    {
+      "family": "Microsoft.WindowsStore",
+      "name": "Microsoft Store",
+      "category": "Protected",
+      "description": "Critical system component \u2014 protected from removal."
+    },
+    {
+      "family": "Microsoft.DesktopAppInstaller",
+      "name": "App Installer",
+      "category": "Protected",
+      "description": "Critical system component \u2014 protected from removal."
+    },
+    {
+      "family": "Microsoft.UI.Xaml.2.8",
+      "name": "Windows UI Library",
+      "category": "Protected",
+      "description": "Critical system component \u2014 protected from removal."
+    },
+    {
+      "family": "Microsoft.VCLibs.140.00",
+      "name": "Visual C++ Runtime Framework",
+      "category": "Protected",
+      "description": "Critical system component \u2014 protected from removal."
+    },
+    {
+      "family": "Windows.CBSPreview",
+      "name": "Component-Based Servicing Preview",
+      "category": "Protected",
+      "description": "Critical system component \u2014 protected from removal."
+    },
+    {
+      "family": "Microsoft.DevHome",
+      "name": "Dev Home",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.BingSports",
+      "name": "Bing Sports",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.BingFinance",
+      "name": "Bing Finance",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.WindowsClock",
+      "name": "Clock",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.MSPaint",
+      "name": "Paint",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "MicrosoftWindows.CrossDevice",
+      "name": "Cross Device Experience (Phone Link)",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.Teams",
+      "name": "Microsoft Teams (New)",
+      "category": "Microsoft Bloat",
+      "description": "Inbox Microsoft application."
+    },
+    {
+      "family": "Microsoft.MicrosoftMahjong",
+      "name": "Microsoft Mahjong",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Microsoft.MicrosoftJigsaw",
+      "name": "Microsoft Jigsaw",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Microsoft.MicrosoftSudoku",
+      "name": "Microsoft Sudoku",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    },
+    {
+      "family": "Microsoft.MicrosoftMinesweeper",
+      "name": "Microsoft Minesweeper",
+      "category": "Advertising",
+      "description": "Promotional or advertising application."
+    }
+  ]
+}

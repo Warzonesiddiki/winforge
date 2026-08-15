@@ -1,0 +1,799 @@
+{
+  "applications": [
+    {
+      "id": "Google.Chrome",
+      "name": "Google Chrome",
+      "category": "Browsers",
+      "description": "Popular Chromium-based web browser.",
+      "tags": [
+        "browser",
+        "web"
+      ]
+    },
+    {
+      "id": "Mozilla.Firefox",
+      "name": "Mozilla Firefox",
+      "category": "Browsers",
+      "description": "Privacy-focused open-source browser.",
+      "tags": [
+        "browser",
+        "web"
+      ]
+    },
+    {
+      "id": "Brave.Brave",
+      "name": "Brave",
+      "category": "Browsers",
+      "description": "Privacy browser with built-in ad blocking.",
+      "tags": [
+        "browser",
+        "privacy"
+      ]
+    },
+    {
+      "id": "Microsoft.Edge",
+      "name": "Microsoft Edge",
+      "category": "Browsers",
+      "description": "Chromium browser from Microsoft.",
+      "tags": [
+        "browser",
+        "web"
+      ]
+    },
+    {
+      "id": "Opera.Opera",
+      "name": "Opera",
+      "category": "Browsers",
+      "description": "Feature-rich browser with free VPN.",
+      "tags": [
+        "browser"
+      ]
+    },
+    {
+      "id": "Vivaldi.Vivaldi",
+      "name": "Vivaldi",
+      "category": "Browsers",
+      "description": "Highly customizable Chromium browser.",
+      "tags": [
+        "browser"
+      ]
+    },
+    {
+      "id": "TheTorProject.TorBrowser",
+      "name": "Tor Browser",
+      "category": "Browsers",
+      "description": "Anonymity-focused browser.",
+      "tags": [
+        "browser",
+        "privacy"
+      ]
+    },
+    {
+      "id": "Microsoft.VisualStudioCode",
+      "name": "Visual Studio Code",
+      "category": "Development",
+      "description": "Lightweight extensible code editor.",
+      "tags": [
+        "editor",
+        "code"
+      ]
+    },
+    {
+      "id": "JetBrains.IntelliJIDEA.Community",
+      "name": "IntelliJ IDEA Community",
+      "category": "Development",
+      "description": "Java/Kotlin IDE.",
+      "tags": [
+        "ide",
+        "java"
+      ]
+    },
+    {
+      "id": "JetBrains.PyCharm.Community",
+      "name": "PyCharm Community",
+      "category": "Development",
+      "description": "Python IDE.",
+      "tags": [
+        "ide",
+        "python"
+      ]
+    },
+    {
+      "id": "Git.Git",
+      "name": "Git",
+      "category": "Development",
+      "description": "Distributed version control.",
+      "tags": [
+        "git",
+        "vcs"
+      ]
+    },
+    {
+      "id": "Microsoft.VisualStudio.2022.Community",
+      "name": "Visual Studio 2022 Community",
+      "category": "Development",
+      "description": "Full .NET/C++ IDE.",
+      "tags": [
+        "ide",
+        "dotnet"
+      ]
+    },
+    {
+      "id": "Docker.DockerDesktop",
+      "name": "Docker Desktop",
+      "category": "Development",
+      "description": "Containers and Kubernetes locally.",
+      "tags": [
+        "containers",
+        "devops"
+      ]
+    },
+    {
+      "id": "OpenJS.NodeJS.LTS",
+      "name": "Node.js LTS",
+      "category": "Development",
+      "description": "JavaScript runtime.",
+      "tags": [
+        "js",
+        "runtime"
+      ]
+    },
+    {
+      "id": "Python.Python.3.12",
+      "name": "Python 3.12",
+      "category": "Development",
+      "description": "Python interpreter.",
+      "tags": [
+        "python",
+        "runtime"
+      ]
+    },
+    {
+      "id": "GoLang.Go",
+      "name": "Go",
+      "category": "Development",
+      "description": "The Go programming language toolchain.",
+      "tags": [
+        "go",
+        "runtime"
+      ]
+    },
+    {
+      "id": "Rustlang.Rustup",
+      "name": "Rust (rustup)",
+      "category": "Development",
+      "description": "Rust toolchain installer.",
+      "tags": [
+        "rust",
+        "runtime"
+      ]
+    },
+    {
+      "id": "Microsoft.WindowsTerminal",
+      "name": "Windows Terminal",
+      "category": "Development",
+      "description": "Modern terminal host.",
+      "tags": [
+        "terminal",
+        "cli"
+      ]
+    },
+    {
+      "id": "Notepad++.Notepad++",
+      "name": "Notepad++",
+      "category": "Development",
+      "description": "Lightweight source code editor.",
+      "tags": [
+        "editor"
+      ]
+    },
+    {
+      "id": "dbeaver.dbeaver",
+      "name": "DBeaver",
+      "category": "Development",
+      "description": "Universal database manager.",
+      "tags": [
+        "database",
+        "sql"
+      ]
+    },
+    {
+      "id": "Postman.Postman",
+      "name": "Postman",
+      "category": "Development",
+      "description": "API development and testing.",
+      "tags": [
+        "api",
+        "rest"
+      ]
+    },
+    {
+      "id": "GitHub.cli",
+      "name": "GitHub CLI",
+      "category": "Development",
+      "description": "GitHub from the command line.",
+      "tags": [
+        "git",
+        "cli"
+      ]
+    },
+    {
+      "id": "GitHub.GitHubDesktop",
+      "name": "GitHub Desktop",
+      "category": "Development",
+      "description": "Git GUI client.",
+      "tags": [
+        "git",
+        "gui"
+      ]
+    },
+    {
+      "id": "VideoLAN.VLC",
+      "name": "VLC Media Player",
+      "category": "Media",
+      "description": "Plays nearly any audio/video format.",
+      "tags": [
+        "video",
+        "audio"
+      ]
+    },
+    {
+      "id": "Spotify.Spotify",
+      "name": "Spotify",
+      "category": "Media",
+      "description": "Music streaming.",
+      "tags": [
+        "music"
+      ]
+    },
+    {
+      "id": "Audacity.Audacity",
+      "name": "Audacity",
+      "category": "Media",
+      "description": "Open-source audio editor.",
+      "tags": [
+        "audio",
+        "editor"
+      ]
+    },
+    {
+      "id": "GIMP.GIMP",
+      "name": "GIMP",
+      "category": "Media",
+      "description": "Open-source image editor.",
+      "tags": [
+        "image",
+        "editor"
+      ]
+    },
+    {
+      "id": "OBSProject.OBSStudio",
+      "name": "OBS Studio",
+      "category": "Media",
+      "description": "Streaming and screen recording.",
+      "tags": [
+        "streaming",
+        "video"
+      ]
+    },
+    {
+      "id": "HandBrake.HandBrake",
+      "name": "HandBrake",
+      "category": "Media",
+      "description": "Open-source video transcoder.",
+      "tags": [
+        "video",
+        "convert"
+      ]
+    },
+    {
+      "id": "Microsoft.Office",
+      "name": "Microsoft 365",
+      "category": "Productivity",
+      "description": "Word, Excel, PowerPoint and more.",
+      "tags": [
+        "office",
+        "docs"
+      ]
+    },
+    {
+      "id": "TheDocumentFoundation.LibreOffice",
+      "name": "LibreOffice",
+      "category": "Productivity",
+      "description": "Free open-source office suite.",
+      "tags": [
+        "office",
+        "docs"
+      ]
+    },
+    {
+      "id": "Obsidian.Obsidian",
+      "name": "Obsidian",
+      "category": "Productivity",
+      "description": "Markdown knowledge base.",
+      "tags": [
+        "notes",
+        "markdown"
+      ]
+    },
+    {
+      "id": "Notion.Notion",
+      "name": "Notion",
+      "category": "Productivity",
+      "description": "All-in-one workspace.",
+      "tags": [
+        "notes",
+        "docs"
+      ]
+    },
+    {
+      "id": "Zoom.Zoom",
+      "name": "Zoom",
+      "category": "Productivity",
+      "description": "Video conferencing.",
+      "tags": [
+        "meeting",
+        "video"
+      ]
+    },
+    {
+      "id": "SlackTechnologies.Slack",
+      "name": "Slack",
+      "category": "Productivity",
+      "description": "Team messaging.",
+      "tags": [
+        "chat",
+        "team"
+      ]
+    },
+    {
+      "id": "Discord.Discord",
+      "name": "Discord",
+      "category": "Productivity",
+      "description": "Voice and text chat for communities.",
+      "tags": [
+        "chat",
+        "voice"
+      ]
+    },
+    {
+      "id": "Microsoft.Teams",
+      "name": "Microsoft Teams",
+      "category": "Productivity",
+      "description": "Chat, meetings and collaboration.",
+      "tags": [
+        "chat",
+        "meeting"
+      ]
+    },
+    {
+      "id": "Bitwarden.Bitwarden",
+      "name": "Bitwarden",
+      "category": "Productivity",
+      "description": "Open-source password manager.",
+      "tags": [
+        "password",
+        "security"
+      ]
+    },
+    {
+      "id": "7zip.7zip",
+      "name": "7-Zip",
+      "category": "Utilities",
+      "description": "High-ratio file archiver.",
+      "tags": [
+        "archive",
+        "compress"
+      ]
+    },
+    {
+      "id": "RARLab.WinRAR",
+      "name": "WinRAR",
+      "category": "Utilities",
+      "description": "RAR/ZIP archiver.",
+      "tags": [
+        "archive",
+        "compress"
+      ]
+    },
+    {
+      "id": "PuTTY.PuTTY",
+      "name": "PuTTY",
+      "category": "Utilities",
+      "description": "SSH and telnet client.",
+      "tags": [
+        "ssh",
+        "network"
+      ]
+    },
+    {
+      "id": "WiresharkFoundation.Wireshark",
+      "name": "Wireshark",
+      "category": "Utilities",
+      "description": "Network protocol analyzer.",
+      "tags": [
+        "network",
+        "debug"
+      ]
+    },
+    {
+      "id": "qBittorrent.qBittorrent",
+      "name": "qBittorrent",
+      "category": "Utilities",
+      "description": "Open-source BitTorrent client.",
+      "tags": [
+        "torrent",
+        "download"
+      ]
+    },
+    {
+      "id": "CPUID.CPU-Z",
+      "name": "CPU-Z",
+      "category": "Utilities",
+      "description": "CPU and system information.",
+      "tags": [
+        "hardware",
+        "diagnostics"
+      ]
+    },
+    {
+      "id": "CPUID.HWMonitor",
+      "name": "HWMonitor",
+      "category": "Utilities",
+      "description": "Hardware temperature and voltage monitor.",
+      "tags": [
+        "hardware",
+        "monitor"
+      ]
+    },
+    {
+      "id": "voidtools.Everything",
+      "name": "Everything",
+      "category": "Utilities",
+      "description": "Instant file search.",
+      "tags": [
+        "search",
+        "files"
+      ]
+    },
+    {
+      "id": "WinDirStat.WinDirStat",
+      "name": "WinDirStat",
+      "category": "Utilities",
+      "description": "Disk usage visualizer.",
+      "tags": [
+        "disk",
+        "storage"
+      ]
+    },
+    {
+      "id": "Inkscape.Inkscape",
+      "name": "Inkscape",
+      "category": "Design",
+      "description": "Open-source vector graphics editor.",
+      "tags": [
+        "vector",
+        "design"
+      ]
+    },
+    {
+      "id": "BlenderFoundation.Blender",
+      "name": "Blender",
+      "category": "Design",
+      "description": "3D modeling and animation suite.",
+      "tags": [
+        "3d",
+        "design"
+      ]
+    },
+    {
+      "id": "Figma.Figma",
+      "name": "Figma",
+      "category": "Design",
+      "description": "Collaborative UI design tool.",
+      "tags": [
+        "design",
+        "ui"
+      ]
+    },
+    {
+      "id": "Google.GoogleDrive",
+      "name": "Google Drive",
+      "category": "Cloud",
+      "description": "Cloud storage sync client.",
+      "tags": [
+        "storage",
+        "sync"
+      ]
+    },
+    {
+      "id": "Dropbox.Dropbox",
+      "name": "Dropbox",
+      "category": "Cloud",
+      "description": "File sync and cloud storage.",
+      "tags": [
+        "storage",
+        "sync"
+      ]
+    },
+    {
+      "id": "VivaldiTechnologies.Vivaldi",
+      "name": "Vivaldi",
+      "category": "Browsers",
+      "description": "Vivaldi \u2014 Vivaldi Technologies.",
+      "tags": [
+        "browsers"
+      ]
+    },
+    {
+      "id": "WinMerge.WinMerge",
+      "name": "WinMerge",
+      "category": "Dev Tools",
+      "description": "WinMerge \u2014 WinMerge Team.",
+      "tags": [
+        "dev-tools"
+      ]
+    },
+    {
+      "id": "Microsoft.PowerShell",
+      "name": "PowerShell 7",
+      "category": "Dev Tools",
+      "description": "PowerShell 7 \u2014 Microsoft.",
+      "tags": [
+        "dev-tools"
+      ]
+    },
+    {
+      "id": "Microsoft.DotNet.SDK.8",
+      "name": ".NET 8 SDK",
+      "category": "Dev Tools",
+      "description": ".NET 8 SDK \u2014 Microsoft.",
+      "tags": [
+        "dev-tools"
+      ]
+    },
+    {
+      "id": "Neovim.Neovim",
+      "name": "Neovim",
+      "category": "Dev Tools",
+      "description": "Neovim \u2014 Neovim Team.",
+      "tags": [
+        "dev-tools"
+      ]
+    },
+    {
+      "id": "mpv.net",
+      "name": "mpv.net",
+      "category": "Media",
+      "description": "mpv.net \u2014 mpv.net.",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "id": "ShareX.ShareX",
+      "name": "ShareX",
+      "category": "Media",
+      "description": "ShareX \u2014 ShareX Team.",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "id": "foobar2000.foobar2000",
+      "name": "foobar2000",
+      "category": "Media",
+      "description": "foobar2000 \u2014 Peter Pawlowski.",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "id": "Blender.Blender",
+      "name": "Blender",
+      "category": "Media",
+      "description": "Blender \u2014 Blender Foundation.",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "id": "Blackmagic.DaVinciResolve",
+      "name": "DaVinci Resolve",
+      "category": "Media",
+      "description": "DaVinci Resolve \u2014 Blackmagic Design.",
+      "tags": [
+        "media"
+      ]
+    },
+    {
+      "id": "JAMSoftware.TreeSize",
+      "name": "TreeSize Free",
+      "category": "Utilities",
+      "description": "TreeSize Free \u2014 JAM Software.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "CrystalDewWorld.CrystalDiskInfo",
+      "name": "CrystalDiskInfo",
+      "category": "Utilities",
+      "description": "CrystalDiskInfo \u2014 Crystal Dew World.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "REALiX.HWiNFO",
+      "name": "HWiNFO64",
+      "category": "Utilities",
+      "description": "HWiNFO64 \u2014 REALiX.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "TechPowerUp.GPU-Z",
+      "name": "GPU-Z",
+      "category": "Utilities",
+      "description": "GPU-Z \u2014 TechPowerUp.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "AntibodySoftware.WizTree",
+      "name": "WizTree",
+      "category": "Utilities",
+      "description": "WizTree \u2014 Antibody Software.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "BulkRenameUtility.BulkRenameUtility",
+      "name": "Bulk Rename Utility",
+      "category": "Utilities",
+      "description": "Bulk Rename Utility \u2014 TGRMN Software.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "Microsoft.PowerToys",
+      "name": "Microsoft PowerToys",
+      "category": "Utilities",
+      "description": "Microsoft PowerToys \u2014 Microsoft.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "RudyOntheGo.Rufus",
+      "name": "Rufus",
+      "category": "Utilities",
+      "description": "Rufus \u2014 Pete Batard.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "Balena.Etcher",
+      "name": "balenaEtcher",
+      "category": "Utilities",
+      "description": "balenaEtcher \u2014 Balena.",
+      "tags": [
+        "utilities"
+      ]
+    },
+    {
+      "id": "Signal.Signal",
+      "name": "Signal",
+      "category": "Comms",
+      "description": "Signal \u2014 Signal Foundation.",
+      "tags": [
+        "comms"
+      ]
+    },
+    {
+      "id": "Telegram.TelegramDesktop",
+      "name": "Telegram Desktop",
+      "category": "Comms",
+      "description": "Telegram Desktop \u2014 Telegram FZ-LLC.",
+      "tags": [
+        "comms"
+      ]
+    },
+    {
+      "id": "Malwarebytes.Malwarebytes",
+      "name": "Malwarebytes",
+      "category": "Security",
+      "description": "Malwarebytes \u2014 Malwarebytes.",
+      "tags": [
+        "security"
+      ]
+    },
+    {
+      "id": "WinSCP.WinSCP",
+      "name": "WinSCP",
+      "category": "Security",
+      "description": "WinSCP \u2014 Martin Prikryl.",
+      "tags": [
+        "security"
+      ]
+    },
+    {
+      "id": "KeePassXCTeam.KeePassXC",
+      "name": "KeePassXC",
+      "category": "Security",
+      "description": "KeePassXC \u2014 KeePassXC Team.",
+      "tags": [
+        "security"
+      ]
+    },
+    {
+      "id": "NordSecurity.NordVPN",
+      "name": "NordVPN",
+      "category": "Security",
+      "description": "NordVPN \u2014 Nord Security.",
+      "tags": [
+        "security"
+      ]
+    },
+    {
+      "id": "Valve.Steam",
+      "name": "Steam",
+      "category": "Gaming",
+      "description": "Steam \u2014 Valve Corporation.",
+      "tags": [
+        "gaming"
+      ]
+    },
+    {
+      "id": "EpicGames.EpicGamesLauncher",
+      "name": "Epic Games Launcher",
+      "category": "Gaming",
+      "description": "Epic Games Launcher \u2014 Epic Games.",
+      "tags": [
+        "gaming"
+      ]
+    },
+    {
+      "id": "GOG.Galaxy",
+      "name": "GOG Galaxy",
+      "category": "Gaming",
+      "description": "GOG Galaxy \u2014 GOG.com.",
+      "tags": [
+        "gaming"
+      ]
+    },
+    {
+      "id": "Ubisoft.Connect",
+      "name": "Ubisoft Connect",
+      "category": "Gaming",
+      "description": "Ubisoft Connect \u2014 Ubisoft.",
+      "tags": [
+        "gaming"
+      ]
+    },
+    {
+      "id": "ElectronicArts.EADesktop",
+      "name": "EA App",
+      "category": "Gaming",
+      "description": "EA App \u2014 Electronic Arts.",
+      "tags": [
+        "gaming"
+      ]
+    },
+    {
+      "id": "Playnite.Playnite",
+      "name": "Playnite",
+      "category": "Gaming",
+      "description": "Playnite \u2014 Josef Nemec.",
+      "tags": [
+        "gaming"
+      ]
+    }
+  ]
+}

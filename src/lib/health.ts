@@ -24,9 +24,9 @@ export interface SystemHealthReport {
   removedBloatCount: number;
 }
 
-/** 
+/**
  * Implements the WinForge Elite health-score algorithm against live DB state.
- * 
+ *
  * The algorithm balances penalties (bloatware, unapplied tweaks) with bonuses
  * (applied tweaks, removed bloat, privacy hardening) to give a fair score.
  */
@@ -72,7 +72,7 @@ export async function computeHealthReport(): Promise<SystemHealthReport> {
   score -= Math.min(10, pendingSecurityUpdates * 5); // Max -10 for security updates
   score -= Math.min(5, pendingOptionalUpdates * 1); // Max -5 for optional updates
   score -= telemetryEnabled ? 5 : 0; // -5 if telemetry still enabled
-  
+
   // Light penalty for high bloatware (encourages cleanup but doesn't destroy score)
   if (bloatwareCount > 50) score -= 5;
   else if (bloatwareCount > 30) score -= 3;
@@ -88,7 +88,7 @@ export async function computeHealthReport(): Promise<SystemHealthReport> {
 
   // Generate actionable quick wins
   const quickWins: string[] = [];
-  
+
   if (telemetryEnabled) {
     quickWins.push("Disable Telemetry to reduce data collection");
   }
@@ -107,7 +107,7 @@ export async function computeHealthReport(): Promise<SystemHealthReport> {
   if (appliedTweaks.length < 5) {
     quickWins.push("Apply a preset to quickly optimize your system");
   }
-  
+
   // Fill with positive messages if system is well-optimized
   if (quickWins.length === 0) {
     quickWins.push("Your system is well optimized!");

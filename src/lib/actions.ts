@@ -746,28 +746,28 @@ export async function runSfc(): Promise<ActionResult> {
 
 export async function runFullSystemCheck(): Promise<ActionResult & { log?: string[] }> {
   await maybeCreateRestorePoint("Before full system check");
-  
+
   const results: string[] = [];
-  
+
   // SFC
   results.push("Running SFC /scannow...");
   results.push("✓ Windows Resource Protection did not find any integrity violations.");
-  
+
   // DISM Scan
   results.push("Running DISM /Online /Cleanup-Image /ScanHealth...");
   results.push("✓ No component store corruption detected.");
-  
+
   // DISM RestoreHealth
   results.push("Running DISM /Online /Cleanup-Image /RestoreHealth...");
   results.push("✓ The restore operation completed successfully.");
-  
+
   // Check disk
   results.push("Running CHKDSK /F /R (scheduled for next restart)...");
   results.push("✓ Disk check scheduled.");
-  
+
   await log({ operationType: "Custom", category: "Repair", target: "Full System Check (SFC, DISM, CHKDSK)", newValue: "complete", risk: "medium", canUndo: false });
   revalidateAll();
-  
+
   return { success: true, message: "Full system check complete.", log: results };
 }
 

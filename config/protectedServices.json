@@ -1,0 +1,18 @@
+{
+  "services": [
+    "WinDefend",
+    "SecurityHealthService",
+    "wscsvc",
+    "mpssvc",
+    "EventLog",
+    "RpcSs",
+    "DcomLaunch",
+    "Power",
+    "PlugPlay",
+    "SamSs",
+    "LSM",
+    "KeyIso",
+    "BrokerInfrastructure",
+    "SystemEventsBroker"
+  ]
+}

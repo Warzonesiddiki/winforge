@@ -7,14 +7,14 @@ namespace WinForge.Elite.Models
         High = 2,
         Expert = 3
     }
-    
+
     public enum PackageStatus
     {
         Installed = 0,
         Removed = 1,
         Protected = 2
     }
-    
+
     public enum OperationType
     {
         Tweak = 0,
@@ -27,7 +27,7 @@ namespace WinForge.Elite.Models
         Service = 7,
         ScheduledTask = 8
     }
-    
+
     public enum PresetType
     {
         Standard = 0,
@@ -35,7 +35,7 @@ namespace WinForge.Elite.Models
         Privacy = 2,
         Work = 3
     }
-    
+
     // Tweaks Entity
     public class Tweak
     {
@@ -49,11 +49,12 @@ namespace WinForge.Elite.Models
         public List<string> Tags { get; set; } = new();
         public string? WarningMessage { get; set; }
         public List<string> BreaksFeatures { get; set; } = new();
-        public List<string> Operations { get; set; } = new();
-        public List<string> UndoOperations { get; set; } = new();
+        // Raw JSON arrays of operation objects; parsed by TweakService.ParseOperations.
+        public string Operations { get; set; } = "[]";
+        public string UndoOperations { get; set; } = "[]";
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Debloat Package Entity
     public class DebloatPackage
     {
@@ -68,7 +69,7 @@ namespace WinForge.Elite.Models
         public bool ProvisionedRemoved { get; set; } = false;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Privacy Rule Entity
     public class PrivacyRule
     {
@@ -79,9 +80,11 @@ namespace WinForge.Elite.Models
         public RiskLevel Risk { get; set; } = RiskLevel.Low;
         public bool DefaultEnabled { get; set; } = false;
         public bool Enabled { get; set; } = false;
+        public string Operations { get; set; } = "[]";
+        public string UndoOperations { get; set; } = "[]";
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Application Entity
     public class Application
     {
@@ -94,7 +97,7 @@ namespace WinForge.Elite.Models
         public bool Installed { get; set; } = false;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Preset Entity
     public class Preset
     {
@@ -108,7 +111,7 @@ namespace WinForge.Elite.Models
         public bool IsProtected { get; set; } = false;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Restore Point Entity
     public class RestorePoint
     {
@@ -120,7 +123,7 @@ namespace WinForge.Elite.Models
         public bool IsValid { get; set; } = true;
         public long DiskSpaceUsed { get; set; } = 0;
     }
-    
+
     // Operation History Entity
     public class OperationHistory
     {
@@ -134,7 +137,7 @@ namespace WinForge.Elite.Models
         public DateTime ExecutedAt { get; set; } = DateTime.Now;
         public int? RestorePointId { get; set; }
     }
-    
+
     // Health History Entity
     public class HealthHistory
     {
@@ -149,7 +152,7 @@ namespace WinForge.Elite.Models
         public int InfoIssues { get; set; }
         public DateTime RecordedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Windows Service Entity
     public class WindowsService
     {
@@ -165,7 +168,7 @@ namespace WinForge.Elite.Models
         public List<string> Dependencies { get; set; } = new();
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Scheduled Task Entity
     public class ScheduledTask
     {
@@ -179,7 +182,7 @@ namespace WinForge.Elite.Models
         public string? Trigger { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Startup Item Entity
     public class StartupItem
     {
@@ -192,7 +195,7 @@ namespace WinForge.Elite.Models
         public bool IsMicrosoft { get; set; } = false;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Context Menu Item Entity
     public class ContextMenuItem
     {
@@ -204,7 +207,7 @@ namespace WinForge.Elite.Models
         public RiskLevel Risk { get; set; } = RiskLevel.Low;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
     }
-    
+
     // Community Pack Entity
     public class CommunityPack
     {

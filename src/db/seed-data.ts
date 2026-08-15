@@ -672,4 +672,3 @@ export const communityPacksSeed: CommunityPackSeed[] = [
     installed: false,
   },
 ];
-

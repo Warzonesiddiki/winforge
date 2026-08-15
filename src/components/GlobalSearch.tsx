@@ -42,7 +42,6 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]);
       return;
     }
 
@@ -110,10 +109,10 @@ export function GlobalSearch() {
           )}
 
           {!pending && query && results.length === 0 && (
-            <div className="px-4 py-8 text-center text-sm text-slate-500">No results found for "{query}"</div>
+            <div className="px-4 py-8 text-center text-sm text-slate-500">No results found for &quot;{query}&quot;</div>
           )}
 
-          {!pending && results.length > 0 && (
+          {!pending && query && results.length > 0 && (
             <div className="py-2">
               {results.map((r, i) => (
                 <button
