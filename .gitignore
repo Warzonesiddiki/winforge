@@ -40,3 +40,6 @@ desktop.ini
 ```
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# WinForge hybrid native build artifacts
+native/out/

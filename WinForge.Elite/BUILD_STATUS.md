@@ -1,5 +1,14 @@
 # WinForge Elite - Production Build Status
 
+> ⚠️ **Architecture transition (2026-08-16)**: the .NET/WPF phase documented below
+> remains **archived reference work** (blocked by toolchain access, see
+> [docs/BLOCKED_ITEMS.md](../docs/BLOCKED_ITEMS.md)). The product now follows a
+> **10-language hybrid** — Zig core + Bun/TS orchestrator + PowerShell recipes +
+> Lua/WASM plugins + Python tooling + React UI — which **builds real Windows
+> executables from this sandbox today** (verified). See
+> [docs/LANGUAGE_SELECTION.md](../docs/LANGUAGE_SELECTION.md) and the
+> `native/` + `runtime/` scaffold at the repo root.
+
 > Verification so far: static analysis (C# parse, XAML parse, SQL executed against
 > a real SQLite engine including the legacy-DB migration path, Dapper parameter/column
 > cross-checks, per-view XAML binding checks, seed-catalog integrity checks).
