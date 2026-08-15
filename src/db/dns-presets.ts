@@ -1,0 +1,151 @@
+export interface DnsPreset {
+  id: string;
+  name: string;
+  description: string;
+  primary: string;
+  secondary: string;
+  primaryIPv6?: string;
+  secondaryIPv6?: string;
+  doh?: string;
+  category: "privacy" | "security" | "performance" | "family";
+}
+
+export const dnsPresets: DnsPreset[] = [
+  {
+    id: "cloudflare",
+    name: "Cloudflare",
+    description: "Fast, privacy-focused DNS with malware blocking option",
+    primary: "1.1.1.1",
+    secondary: "1.0.0.1",
+    primaryIPv6: "2606:4700:4700::1111",
+    secondaryIPv6: "2606:4700:4700::1001",
+    doh: "https://cloudflare-dns.com/dns-query",
+    category: "performance",
+  },
+  {
+    id: "cloudflare-malware",
+    name: "Cloudflare (Malware Blocking)",
+    description: "Cloudflare DNS with malware and phishing protection",
+    primary: "1.1.1.2",
+    secondary: "1.0.0.2",
+    doh: "https://security.cloudflare-dns.com/dns-query",
+    category: "security",
+  },
+  {
+    id: "cloudflare-family",
+    name: "Cloudflare (Family)",
+    description: "Cloudflare DNS with malware + adult content blocking",
+    primary: "1.1.1.3",
+    secondary: "1.0.0.3",
+    doh: "https://family.cloudflare-dns.com/dns-query",
+    category: "family",
+  },
+  {
+    id: "google",
+    name: "Google Public DNS",
+    description: "Google's reliable public DNS servers",
+    primary: "8.8.8.8",
+    secondary: "8.8.4.4",
+    primaryIPv6: "2001:4860:4860::8888",
+    secondaryIPv6: "2001:4860:4860::8844",
+    doh: "https://dns.google/dns-query",
+    category: "performance",
+  },
+  {
+    id: "quad9",
+    name: "Quad9",
+    description: "Security-focused DNS with threat blocking",
+    primary: "9.9.9.9",
+    secondary: "149.112.112.112",
+    primaryIPv6: "2620:fe::fe",
+    secondaryIPv6: "2620:fe::9",
+    doh: "https://dns.quad9.net/dns-query",
+    category: "security",
+  },
+  {
+    id: "quad9-unsecured",
+    name: "Quad9 (No Filtering)",
+    description: "Quad9 without threat blocking for maximum privacy",
+    primary: "9.9.9.10",
+    secondary: "149.112.112.10",
+    doh: "https://dns10.quad9.net/dns-query",
+    category: "privacy",
+  },
+  {
+    id: "adguard",
+    name: "AdGuard DNS",
+    description: "Ad-blocking DNS with privacy protection",
+    primary: "94.140.14.14",
+    secondary: "94.140.15.15",
+    primaryIPv6: "2a10:50c0::ad1:ff",
+    secondaryIPv6: "2a10:50c0::ad2:ff",
+    doh: "https://dns.adguard-dns.com/dns-query",
+    category: "privacy",
+  },
+  {
+    id: "adguard-family",
+    name: "AdGuard DNS (Family)",
+    description: "AdGuard with adult content blocking + safe search",
+    primary: "94.140.14.15",
+    secondary: "94.140.15.16",
+    doh: "https://family.adguard-dns.com/dns-query",
+    category: "family",
+  },
+  {
+    id: "nextdns",
+    name: "NextDNS",
+    description: "Customizable DNS with analytics and filtering",
+    primary: "45.90.28.0",
+    secondary: "45.90.30.0",
+    doh: "https://dns.nextdns.io",
+    category: "privacy",
+  },
+  {
+    id: "opendns",
+    name: "OpenDNS",
+    description: "Cisco Umbrella DNS with phishing protection",
+    primary: "208.67.222.222",
+    secondary: "208.67.220.220",
+    primaryIPv6: "2620:119:35::35",
+    secondaryIPv6: "2620:119:53::53",
+    category: "security",
+  },
+  {
+    id: "opendns-family",
+    name: "OpenDNS FamilyShield",
+    description: "OpenDNS with adult content blocking",
+    primary: "208.67.222.123",
+    secondary: "208.67.220.123",
+    category: "family",
+  },
+  {
+    id: "controld",
+    name: "Control D",
+    description: "Privacy-first DNS with ad/tracker blocking",
+    primary: "76.76.2.0",
+    secondary: "76.76.10.0",
+    doh: "https://freedns.controld.com/p0",
+    category: "privacy",
+  },
+];
+
+export const windowsFeatures = [
+  { id: "NetFx3", name: ".NET Framework 3.5", description: "Legacy .NET runtime for older applications", enabled: false, category: "Development" },
+  { id: "NetFx4-AdvSrvs", name: ".NET Framework 4.8 Advanced Services", description: "WCF and other advanced .NET services", enabled: true, category: "Development" },
+  { id: "Microsoft-Windows-Subsystem-Linux", name: "Windows Subsystem for Linux", description: "Run Linux binaries natively on Windows", enabled: false, category: "Development" },
+  { id: "VirtualMachinePlatform", name: "Virtual Machine Platform", description: "Platform support for WSL2 and Hyper-V", enabled: false, category: "Virtualization" },
+  { id: "Microsoft-Hyper-V-All", name: "Hyper-V", description: "Hardware virtualization platform", enabled: false, category: "Virtualization" },
+  { id: "Containers", name: "Containers", description: "Windows Container support", enabled: false, category: "Virtualization" },
+  { id: "Microsoft-Windows-Sandbox", name: "Windows Sandbox", description: "Isolated desktop environment for testing", enabled: false, category: "Security" },
+  { id: "IIS-WebServer", name: "Internet Information Services", description: "Web server for hosting websites", enabled: false, category: "Server" },
+  { id: "TelnetClient", name: "Telnet Client", description: "Legacy remote terminal client", enabled: false, category: "Networking" },
+  { id: "TFTP", name: "TFTP Client", description: "Trivial File Transfer Protocol client", enabled: false, category: "Networking" },
+  { id: "SMB1Protocol", name: "SMB 1.0/CIFS", description: "Legacy file sharing protocol (security risk)", enabled: false, category: "Networking" },
+  { id: "MediaPlayback", name: "Media Features", description: "Windows Media Player and codecs", enabled: true, category: "Media" },
+  { id: "WindowsMediaPlayer", name: "Windows Media Player Legacy", description: "Classic Windows Media Player", enabled: false, category: "Media" },
+  { id: "DirectPlay", name: "DirectPlay", description: "Legacy gaming API for older games", enabled: false, category: "Gaming" },
+  { id: "Printing-PrintToPDFServices-Features", name: "Microsoft Print to PDF", description: "Virtual PDF printer", enabled: true, category: "Printing" },
+  { id: "Printing-XPSServices-Features", name: "Microsoft XPS Document Writer", description: "Virtual XPS printer", enabled: true, category: "Printing" },
+  { id: "WorkFolders-Client", name: "Work Folders Client", description: "Sync files with corporate servers", enabled: false, category: "Enterprise" },
+  { id: "Client-ProjFS", name: "Windows Projected File System", description: "Virtual file system provider", enabled: false, category: "Development" },
+];

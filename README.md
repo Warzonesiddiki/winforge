@@ -1,265 +1,371 @@
-# WinForge
+# WinForge Elite — Control Center
 
-A **self-contained Windows tuning & maintenance toolkit**, shipped as a single
-static binary with a built-in web dashboard and a CLI. Zero third-party module
-dependencies, zero runtime requirements.
+> The definitive all-in-one Windows optimization, debloat, privacy hardening, repair, and power-user configuration suite.
 
-```
-winforge.exe            # double-click → opens the dashboard in your browser
-winforge serve          # run the dashboard without opening a browser
-winforge list           # list tweaks and their applied state
-winforge scan           # show the health score
-winforge apply  --id <id> [--dry-run]
-winforge undo   --id <id>
-winforge history
-winforge install --id <winget-id>
-winforge search  <query>
-winforge restore-point [--description "…"]
-winforge restore-points    # list existing restore points (WMI)
-winforge plugins           # list installed plugins
-winforge run-maintenance   # verify tweak states + upgrade apps
-winforge schedule          # register the weekly maintenance task
-winforge unschedule        # remove the weekly maintenance task
-  winforge build-iso --source <dir> --output <iso> [--label <label>] [--edition <name>]...
-  winforge build-iso --source <dir> --list-editions
-  winforge updates [--installed]       # search Windows Update
-  winforge install-updates             # download + install available updates
-  winforge reset-windows-update | repair-image | flush-dns | network-reset
-winforge set-dns --primary <ip> [--secondary <ip>] [--adapter <name>]
-winforge enable-feature  --name <feature>
-winforge disable-feature --name <feature>
-winforge version
-```
+This is a fullstack Next.js web application that models the complete WinForge Elite specification. Since this environment runs on Linux rather than Windows, all system operations are **safely simulated** against a PostgreSQL database, with full audit logging and reversibility — exactly mirroring the safety principles of the native Windows app.
 
----
+## Live Demo & Vision
 
-## Why Go, single binary, embedded web UI
+- **Current state**: Web simulation running on Linux (functional, demo-ready)
+- **Goal**: Migrate to native WPF/.NET 8 Windows utility (self-contained EXE with real Registry/WMI/Appx/DISM operations)
+- **Inspiration**: Chris Titus Tech's Windows Utility (30M+ runs, 6 years, 200+ contributors)
+- **Distribution model**: Signed EXE (`irm domain.com/win | iex`) or Inno Setup installer
 
-WinForge manipulates Windows internals (registry, services, WMI, Appx, DISM,
-Windows Update). It is not a CRUD app — its value is Windows-native glue. This
-design optimizes for the stated constraints:
+## Features Dashboard
 
-| Constraint | How it's met |
-|------------|--------------|
-| **Self-contained** | One static `.exe`; config + dashboard UI embedded via `go:embed`. |
-| **Zero dependencies** | Standard library only. Registry/Services via raw `advapi32` P/Invoke (`syscall`). No `go get`, no `vendor/`. |
-| **Cross-compilable** | `GOOS=windows GOARCH=amd64 go build` from Linux/macOS/Windows. |
-| **Hybrid engine + UI** | Native Go engine and the web dashboard live in *one* binary (no FFI, no second toolchain). |
+### Dashboard
+- Live system health score (0-100) with color-coded gauge
+- Real-time CPU/RAM/Disk/Network sparkline telemetry
+- Quick wins recommendations based on scan
+- One-click preset buttons (Standard, Gaming, Privacy, Work)
+- System information panel (simulated Windows 11 info)
+- **Quick System Scan** — live scan using real database state with deep links to fix modules
 
-### Trade-offs (accepted deliberately)
+### Debloat
+- 90+ bloatware packages across 8 categories
+- Catalog aligned with **AtlasOS** and **Chris Titus Tech (CTT)** debloat lists
+- Per-package remove/reinstall with protected package locking
+- Bulk selection and batch removal
+- Startup manager with enable/disable toggles
+- Real-time status tracking
 
-- **No native WPF/Mica chrome** — the dashboard is served on `127.0.0.1` and
-  opened in the browser. This is also a *security* choice: a system-control
-  surface must not be network-reachable.
-- **COM-heavy features are implemented as hand-rolled P/Invoke** — restore-point
-  *listing* uses raw WMI COM interop (the `SystemRestore` class), Appx
-  `PackageManager` uses raw WinRT interop (`RoActivateInstance` +
-  `RemovePackageAsync`), and Windows Update uses the `Microsoft.Update.Session`
-  COM API. Task Scheduler deliberately uses `schtasks.exe` instead.
+### Tweaks
+- 60+ granular system tweaks across 9 categories
+- Registry operations sourced from **AtlasOS**, **ReviOS**, and **CTT** tweak catalogs
+- Three-panel layout with category filtering
+- Risk-level badges (Low/Medium/High/Expert)
+- Dry-run preview mode showing exact operations + undo operations
+- "May affect" warnings listing broken features (e.g., disabling WSearch breaks search)
+- Export/Import custom `.winforge` preset files
+- Live toggle state with undo buttons
 
----
+### Privacy Hardening
+- 40+ privacy rules across 7 categories
+- Privacy score gauge (0-100)
+- One-click "Harden All" with confirmation
+- Exportable HTML privacy audit report
+- Includes AI-era rules: Copilot disable, Recall disable (aligned with ReviOS privacy posture)
 
-## Build
+### Software Installer
+- 60+ curated applications across 7 categories
+- Batch install queue with progress tracking
+- Live installation log console
+- Installed detection with status badges
 
-Requires **Go 1.22+**. From any OS:
+### System Repair
+- **Full System Check** — sequential SFC + DISM Scan + DISM Restore + CHKDSK pass
+- SFC /scannow (System File Checker)
+- Windows Update reset (stop services, rename SoftwareDistribution)
+- DISM Scan/Restore Health
+- DNS flush and network stack reset
+- Real temp file size calculation with cleanup
+- DNS preset configuration (Cloudflare, Google, Quad9, AdGuard, NextDNS, etc.)
+- Windows Features manager (enable/disable optional features)
+
+### Windows Updates
+- Available/History/Hidden tabs
+- Selective install with severity indicators
+- Hide unwanted updates
+- Pause/Resume update controls
+
+### ISO Builder
+- MicroWin-style custom image configuration
+- Bloatware removal options
+- Privacy tweaks injection
+- Edge/OneDrive/Recall removal options
+- TPM/Secure Boot bypass option
+- SHA-256 checksum display
+
+### History & Undo
+- Full audit trail of all operations
+- Per-operation undo buttons
+- Bulk "Undo All Today" feature
+- Export to CSV
+- Filter by category and status
+
+### Settings
+- Theme: Light/Dark/System
+- Backdrop: Mica/Acrylic/None
+- Language selector (5 languages)
+- Safety toggles (restore point, expert tweaks)
+- Restore point history viewer
+
+## Technology Stack
+
+- **Framework**: Next.js 16 (App Router, Server Components, Server Actions)
+- **Database**: PostgreSQL via Drizzle ORM
+- **Styling**: Tailwind CSS 4
+- **Runtime**: Node.js (real CPU/memory/disk metrics via `os` module)
+
+## Safety Principles
+
+1. **Restore Point Before Mutation**: Every system change creates a restore point first (configurable)
+2. **Full Undo Support**: Every operation logs its undo payload for complete reversibility
+3. **Risk Classification**: All tweaks have risk levels (Low/Medium/High/Expert)
+4. **Protected Resources**: Critical system components are locked and cannot be modified
+5. **Audit Trail**: Every operation is logged with timestamp, change details, and undo data
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/health` | Health check |
+| `GET /api/metrics` | Live system telemetry (real data) |
+| `GET /api/privacy/audit` | HTML privacy audit report |
+| `GET /api/history/export` | CSV operation history export |
+| `GET /api/cli` | CLI documentation |
+
+## Database Schema (11 Tables)
+
+| Table | Purpose |
+|-------|---------|
+| `tweaks` | 60+ system tweaks with operations & undo operations |
+| `debloat_packages` | 90+ bloatware packages (AtlasOS/CTT-aligned) |
+| `privacy_rules` | 40+ privacy rules |
+| `applications` | 64 installable apps |
+| `presets` | 4 preset profiles |
+| `startup_items` | 10 startup programs |
+| `windows_updates` | 10 simulated updates |
+| `operation_history` | Full audit log with undo data |
+| `restore_points` | Restore point records |
+| `iso_jobs` | ISO build jobs |
+| `app_settings` | Application settings (theme, language, safety toggles) |
+
+## Quick Start
 
 ```bash
-# Local / Windows build
-go build -o winforge.exe ./cmd/winforge
+# Install dependencies
+npm install
 
-# Cross-compile the Windows exe from Linux/macOS
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o winforge.exe ./cmd/winforge
+# Push database schema (if PostgreSQL is available)
+npx drizzle-kit push
 
-# Stamp a version
-go build -ldflags "-X winforge/internal/app.Version=1.0.0" -o winforge.exe ./cmd/winforge
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Lint code
+npm run lint
+
+# Typecheck
+npm run typecheck
 ```
 
-> The binary is static and does **not** require `CGO_ENABLED=1`. No runtime is
-> needed on the target machine.
+## Development
 
-Run tests (portable logic — orchestrator, config, audit, health):
+### Adding New Catalog Entries
 
-```bash
-go test ./...
+**Tweaks**: Edit `src/db/seed-data.ts` → add a new `t("id", ...)` entry → run `npx drizzle-kit push`
+
+**Debloat Packages**: Edit `src/db/seed-data.ts` → add to `debloatRaw` array → run seed
+
+**Privacy Rules**: Edit `src/db/seed-data.ts` → add to `privacySeed` array → run seed
+
+**Presets**: Edit `src/db/seed-data.ts` → update `presetsSeed` arrays → run seed
+
+### Health Score Algorithm
+
+The algorithm in `src/lib/health.ts` balances penalties (bloatware, unapplied tweaks) with bonuses (applied tweaks, removed bloat, privacy hardening) to give a fair score:
+
+1. Start at 50 (neutral baseline)
+2. **+ Bonuses** (max +50):
+   - Applied tweaks: `min(20, appliedTweaks.length * 2)` — up to +20
+   - Removed bloat: `min(15, removedBloatCount * 0.5)` — up to +15
+   - Privacy score: `round(privacyScore * 0.15)` — up to +15
+3. **- Penalties** (max -50):
+   - Security updates: `min(10, pendingSecurityUpdates * 5)` — max -10
+   - Optional updates: `min(5, pendingOptionalUpdates * 1)` — max -5
+   - Telemetry enabled: `-5` if still enabled
+   - Heavy bloatware: `-5` if >50 packages, `-3` if >30 packages
+4. **+ Bonus**: +5 if all default-enabled tweaks are applied
+5. **Clamp**: `max(0, min(100, round(score)))`
+
+### Catalog Data Highlights
+
+- **60+ Tweaks**: Registry operations with `operations[]` + `undoOperations[]`, `risk` levels, `breaksFeatures[]` warnings, `tags[]`
+- **90+ Debloat Packages**: Microsoft bloat, OEM apps, advertising, advertising, gaming, social, widgets, AI/Copilot, protected (never removable)
+- **40+ Privacy Rules**: Data collection, app permissions, advertising, Microsoft account, browser privacy, network privacy, extended (AtlasOS/CTT-aligned)
+- **4 Presets**: Standard (safe optimizations), Gaming (performance-focused), Privacy Hardened (aggressive lockdown), Work/Corporate (conservative changes)
+
+### Project Structure
+
 ```
+winforge/
+├── src/
+│   ├── app/              # Next.js App Router pages
+│   ├── components/       # React UI components (40+ components)
+│   ├── db/               # Drizzle ORM schema + seed data
+│   │   ├── schema.ts     # 11 database tables (tweaks, debloat, privacy, etc.)
+│   │   ├── seed-data.ts  # Catalog: 60 tweaks, 90 packages, 40 rules
+│   │   ├── seed.ts       # Idempotent seeding (INSERT ... ON CONFLICT DO NOTHING)
+│   │   └── dns-presets.ts # DNS configuration presets
+│   ├── lib/              # Business logic
+│   │   ├── health.ts     # Health score algorithm (0-100)
+│   │   └── actions.ts    # All Server Actions (tweaks, debloat, privacy, undo, ISO, repair, etc.)
+│   └── db/               # Database types + connections
+├── public/               # Static assets
+├── postcss.config.mjs    # Tailwind CSS 4 config
+├── next.config.ts        # Next.js config (minimal, default)
+├── eslint.config.mjs     # ESLint 9 config
+├── tsconfig.json         # TypeScript 5.9 config
+├── drizzle.config.json   # Drizzle ORM config
+├── package.json          # Dependencies (Next.js 16, React 19, Tailwind 4, Drizzle ORM, pg)
+└── README.md             # This file
+```
+
+## Handover for Another AI
+
+### Project Context
+
+This project began as a **Next.js simulation** of a Windows optimization suite (WinForge Elite). The catalog data (60+ tweaks, 90+ debloat packages, 40+ privacy rules) was informed by real-world projects: **AtlasOS**, **ReviOS**, and **Chris Titus Tech Windows Utility**. The safety model (restore points before mutation, full undo payloads, risk classification) is the core differentiator.
+
+The **goal** is to migrate from the web simulation to a **native Windows WPF/.NET 8 executable** that directly manipulates Windows (registry, services, appx packages, DISM, Windows Update COM, ISO building). The current app runs on Linux and simulates all operations against PostgreSQL; the target runs on Windows and calls real APIs.
+
+### Key Files for Continuing Work
+
+| File | Purpose | Lines | Priority |
+|------|---------|-------|----------|
+| `src/db/schema.ts` | 11 database table definitions | 249 | **Critical** — defines all catalog data and audit structure |
+| `src/db/seed-data.ts` | 60 tweaks + 90 packages + 40 privacy rules + 4 presets + 64 apps | 936 | **Critical** — source of truth for all catalog data |
+| `src/lib/health.ts` | Health score algorithm (0-100) | 153 | **High** — port to C# for native version |
+| `src/lib/actions.ts` | All Server Actions (20+ functions) | 1108 | **High** — model as C# services for native version |
+| `src/db/seed.ts` | Idempotent seeding logic | 129 | **Medium** — adapt for SQLite in native version |
+| `src/app/dashboard/page.tsx` | Dashboard UI with health panel + quick wins + presets | 103 | **Medium** — refactor to WPF XAML |
+| `src/components/HealthPanel.tsx` | Health gauge + bloat + applied/tweaks display | ~80 | **Medium** |
+| `src/components/PresetButtons.tsx` | 4 preset buttons (Standard/Gaming/Privacy/Work) | ~40 | **Low** |
+
+### Adding a New Tweak
+
+1. Edit `src/db/seed-data.ts` → add entry to `tweaksSeed` array:
+   ```typescript
+   t("new-tweak-id", "Name", "Description", "Category", "risk", true, ["tags"], 
+     ["registry\\path\\operation"], ["registry\\path\\undo-operation"])
+   ```
+2. Run `npx drizzle-kit push` (if using PostgreSQL) or manually update SQLite
+3. The tweak auto-appears in the UI via the preset system
+
+### Preset System
+
+4 presets defined in `src/db/seed-data.ts` `presetsSeed`:
+
+- **Standard**: `tweaksSeed.filter(x => x.defaultEnabled)` + low-risk debloat (first 20) + default-enabled privacy rules
+- **Gaming**: Performance/Gaming/Power tweaks (excluding expert) + advertising/widgets debloat (first 15) + no privacy rules
+- **Privacy Hardened**: Telemetry/privacy tweaks (excluding expert) + advertising/AI/Copilot/widgets debloat + high/expert-risk privacy excluded
+- **Work/Corporate**: Low-risk tweaks only (Telemetry/Explorer/UI categories) + Microsoft Bloat/Advertising/Social debloat (low risk) + Data Collection/Advertising privacy rules
+
+Each preset has: `id`, `name`, `description`, `tweakIds[]`, `debloatPackages[]`, `privacyRuleIds[]`.
+
+### Health Score Porting
+
+The C# version in the native app should replicate `computeHealthReport()` from `src/lib/health.ts`. Key formulas:
+
+```csharp
+// Baseline
+int score = 50;
+
+// Tweak bonus: up to +20
+int tweakBonus = Math.Min(20, appliedTweaks.Count * 2);
+
+// Debloat bonus: up to +15  
+int debloatBonus = Math.Min(15, removedBloatCount * 5 / 10); // 0.5 per package → integer math
+
+// Privacy bonus: up to +15
+int enabledPrivacy = privacyRules.Count(p => p.Enabled);
+int privacyScore = privacyRules.Count == 0 ? 100 : (int)Math.Round((double)enabledPrivacy / privacyRules.Count * 100);
+int privacyBonus = (int)Math.Round(privacyScore * 0.15);
+
+// Apply bonuses
+score += tweakBonus + debloatBonus + privacyBonus;
+
+// Penalties
+int pendingSecurity = updates.Where(u => u.Severity == "Critical" || u.Severity == "Important").Count();
+int pendingOptional = updates.Where(u => u.Severity == "Optional" || u.Severity == "Feature").Count();
+score -= Math.Min(10, pendingSecurity * 5);      // max -10
+score -= Math.Min(5, pendingOptional * 1);      // max -5
+score -= telemetryEnabled ? 5 : 0;              // -5 if telemetry enabled
+
+// Heavy bloatware penalty
+if (bloatwareCount > 50) score -= 5;
+else if (bloatwareCount > 30) score -= 3;
+
+// Default-enabled tweak bonus
+int defaultApplied = allTweaks.Count(t => t.DefaultEnabled && t.Applied);
+if (defaultEnabledTweaks.Count > 0 && defaultApplied == defaultEnabledTweaks.Count)
+    score += 5;
+
+// Clamp
+score = Math.Max(0, Math.Min(100, (int)Math.Round(score)));
+```
+
+### Migration Path to Native WPF
+
+**Phase 1 (Foundation)**: 
+- Scaffold `dotnet new wpf -n WinForge.Wpf`
+- Migrate `seed-data.ts` → C# models + embedded JSON resources
+- Implement `AdminChecker.cs` (auto-elevate via `process.StartInfo.Verb = "runas"`)
+- Build `RegistryService.cs` (HKLM/HKCU read/write)
+- Build `RestorePointService.cs` (WMI `SRSetRestorePoint`)
+- Load embedded JSON and display 60 tweaks in ListBox
+
+**Phase 2 (Core Operations)**:
+- Implement `TweakEngine.Apply()` + `Undo()` pipeline (snapshot → execute → audit → log)
+- Debloat engine: `Get-AppxPackage` / `Remove-AppxPackage -AllUsers`
+- Privacy rules: registry policy toggles under `HKLM\SOFTWARE\Policies\Microsoft\Windows\`
+- SQLite audit DB: `OperationHistory(Id, Timestamp, Kind, Target, PreviousValue, NewValue, Risk, CanUndo, Undone, UndoData JSON)`
+- "Undo All Today" functionality
+
+**Phase 3 (Advanced)**:
+- DISM `Microsoft.Dism` NuGet: ScanHealth, RestoreHealth
+- SFC: `Process.Start("sfc", "/scannow")` with output capture
+- Windows Update COM: `IUpdateSession` search/download/install/hide
+- DNS: `Set-DnsClientServerAddress` or `netsh interface ip set dns`
+- ISO Builder: Mount WIM → modify Appx packages → inject registry hive → unmount → `Oscdimg` → SHA-256
+
+**Phase 4 (Polish)**:
+- EV code signing + SmartScreen "Verified Publisher"
+- Inno Setup installer (Start Menu, desktop shortcuts, uninstall)
+- Auto-update: check GitHub Releases API, download newer EXE
+- Safety disclaimer on first run
+- 5-language localization (en-US, es-ES, fr-FR, de-DE, zh-CN) via XAML `Language` binding + `.resx` resource files
+
+### Code Style Conventions (Next.js portion)
+
+- **TypeScript**: `strict: true` in `tsconfig.json` — no `any` types unless absolutely necessary
+- **ESLint**: Next.js core rules + import sorting + no `console.log` in production
+- **Tailwind CSS 4**: Utility-first, `dark:` variants for themes, `safari:` vendor prefixes disabled
+- **Next.js**: App Router, `dynamic "force-fynamic"` where data fetching must be fresh, `export const metadata` for OG tags
+- **Drizzle ORM**: `sql` tag for raw SQL, `pgEnum` for enums, `onConflictDoNothing()` for idempotent seeding
+- **Server Actions**: `"use server"` at top, `export async function` returning `{ success: boolean; message: string }`
+
+### Testing
+
+Currently no test suite exists. To add:
+
+- **Unit tests**: `vitest` or `jest` for `health.ts` algorithm, `seed-data.ts` parsing, API route handlers
+- **Integration**: Test Server Actions via `supertest` against `localhost:3000/api/...`
+- **Snapshot tests**: UI component rendering (HealthPanel, PresetButtons, Health gauge)
+
+Run: `npm test` (would need to add test script to `package.json`)
+
+### Known Issues / TODOs
+
+1. **No test suite** — add `vitest`/`jest` for health algorithm and Server Actions
+2. **Locale strings hardcoded** — extract to `.json` or `.mdx` for 5-language support
+3. **PostgreSQL dependency** — migrate to SQLite for native WPF version (no server needed)
+4. **SmartScreen compatibility** — not applicable until code-signed EXE built
+5. **ISO Builder** — requires Windows ADK installed; simulate with mock data until ADK available
+6. **PowerThrottling tweak** (`game-disable-powerthrottling`) has undefined undo operations — needs attention
+7. **LargeSystemCache tweak** (`perf-large-system-cache`) has undefined undo operations — needs attention
+8. **VerboseStatus tweak** (`perf-verbose-status`) has undefined undo operations — needs attention
+
+### Getting Help
+
+- **Issue tracker**: GitHub Issues
+- **Roadmap**: See `PROJECT_ROADMAP.md` and `PROJECT_BLUEPRINT.md` in repo root
+- **Catalog data**: Edit `src/db/seed-data.ts` — all 60 tweaks, 90 packages, 40 rules, 4 presets, 64 apps
+- **Safety model**: Review `src/lib/actions.ts` — every mutating function follows: `maybeCreateRestorePoint()` → `db.update()` → `log()` → `revalidateAll()`
 
 ---
-
-## Architecture
-
-```
-cmd/winforge/              entrypoint (thin)
-embed.go                   embeds web/ and config/ into the binary
-web/                       dashboard (zero-dependency HTML/CSS/JS)
-config/                    default tweaks, applications, DNS, protected services
-internal/
-  app/                     composition root (wires everything, shared by CLI+HTTP)
-  config/                  config models + loader (embedded → user override)
-  plugin/                  plugin discovery + merge (manifest.json + tweaks.json)
-  registry/                stdlib-only advapi32 registry client (windows + stub)
-  service/                 Service Control Manager: start type, start/stop
-  platform/                elevation check + OS identity (build-tagged)
-  tweak/                   orchestrator: apply, dry-run, undo, health score
-  audit/                   append-only JSONL operation log
-  engine/                  concrete Executor (registry+service+scheduler+appx)
-  appmanager/              winget.exe wrapper (streamed progress)
-  restorepoint/            System Restore points via SRSetRestorePointW P/Invoke
-  scheduler/               Task Scheduler control via schtasks.exe
-  bloatware/               bloatware detection (registry uninstall keys + rules)
-  isobuilder/              ISO builder (dism edition export + oscdimg)
-  updater/                 Windows Update search/install (COM Microsoft.Update.Session)
-  maintenance/             one-click fixes + DNS + Windows features via DISM/netsh
-  httpapi/                 dashboard server + JSON API + async jobs
-  cli/                     command-line interface
-```
-
-### Platform partitioning
-
-Windows-specific code lives in `*_windows.go` files; non-Windows equivalents in
-`*_other.go`. Everything above that seam (config, orchestration, audit, health,
-HTTP API, CLI) is portable and unit-tested, so the logic is verifiable on any
-OS while the mutation layer targets Windows.
-
-### Safety model
-
-- At standard privilege, tweak operations, restore points, package installs,
-  and maintenance passes are **logged** (JSONL under
-  `%LOCALAPPDATA%\WinForge\logs\`). Elevated processes perform no audit I/O in
-  that user-writable directory; junctions, hard links, and directory races make
-  it unsuitable as an administrator write boundary.
-- Registry operations record their **previous value**, enabling **per-row undo**
-  from the History view while WinForge runs at standard privilege. Per-row undo
-  is disabled in elevated processes because audit files in the user profile are
-  not a trustworthy source of administrator-level mutation targets or values.
-- Reversible tweaks carry an explicit **revert list**; this validated catalog
-  action remains available for elevated undo.
-- A **system restore point** is created (best-effort, throttled to once/hour)
-  before the first mutation — the safety-first policy. Disable with the
-  `WINFORGE_NO_RESTORE_POINT` env var.
-- A **protected-services** list blocks start-mode, start, and stop mutations for
-  critical services (e.g. `WinDefend`).
-- Elevated command tweaks may invoke only WinForge's allowlisted Windows inbox
-  tools, resolved beneath the trusted system directory. Standard-user plugins
-  retain their ability to invoke additional commands without an administrator
-  token.
-- **Dry-run** (`--dry-run`, or the API's `dryRun` flag) reports what *would*
-  change without mutating anything.
-- The dashboard binds to `127.0.0.1` only.
-
-### Health score
-
-```
-100 - (unapplied_low × 2) - (unapplied_medium × 5) - (unapplied_high × 10) - (bloatware × 3)
-```
-
-clamped to `[0, 100]`.
-
-### Scheduled maintenance
-
-`winforge schedule` registers a weekly Task Scheduler task that runs
-`winforge run-maintenance`. The task deliberately runs at the user's standard
-privilege: WinForge is portable and may live in a user-writable directory, so
-silently elevating that path would create an unsafe persistence boundary.
-User-level tweaks and outdated winget apps (`winget upgrade --all`) are handled
-by the scheduled pass; system-wide tweaks that require elevation can be
-re-applied by running maintenance interactively as administrator. Elevated
-WinForge deliberately disables WinGet because its executable is discovered
-through user-controlled registration/PATH state; restart normally for package
-search, install, and upgrades. Standard-user passes are recorded in the audit
-log, and a restore point is taken (throttled) before any mutation.
-
-### Bloatware detection
-
-The dashboard scans the registry uninstall keys (HKLM 32/64-bit and HKCU) and
-matches display names against a curated bloatware list (exact names plus
-family signatures). When more than 5 bloatware apps are found, the dashboard
-shows a recommendation banner and the count is folded into the health score.
-
-### ISO builder
-
-`winforge build-iso` builds a bootable Windows ISO from an extracted (or
-mounted) installation source. It optionally slims the image by exporting only
-the chosen editions (`dism /Export-Image`) and rebuilds a BIOS/UEFI-bootable
-ISO with `oscdimg.exe` from the Windows ADK Deployment Tools. The user's source
-directory is never modified — edition slimming happens in a scratch copy.
-Because ADK's `oscdimg.exe` is discovered through `PATH`, ISO creation is
-available only at standard privilege; elevated WinForge refuses it rather than
-launching a user-selected executable with an administrator token. Edition
-listing also stays disabled while elevated, avoiding administrator-level parsing
-of a user-selected image even though it uses the trusted System32 `dism.exe`.
-
-### Windows Update
-
-`winforge updates` searches for available (or installed) updates and
-`winforge install-updates` downloads and installs them. Both use the Windows
-Update Agent COM API (`Microsoft.Update.Session`) via raw ole32/oleaut32
-P/Invoke — no PowerShell, no `wuauclt` shell-outs.
-
----
-
-## Configuration
-
-Defaults are embedded; drop overrides into `%LOCALAPPDATA%\WinForge\config\`
-(or set `WINFORGE_DATA_DIR`):
-
-| File | Purpose |
-|------|---------|
-| `tweaks.json` | Declarative tweaks: ordered operations + required explicit revert lists for reversible tweaks. |
-| `applications.json` | winget app catalog (52 apps across categories); IDs are validated at startup. |
-| `dns.json` | DNS presets (Cloudflare, Google, Quad9, OpenDNS); profiles and addresses are validated at startup. |
-| `protectedServices.json` | Services that must not be modified. |
-
-Configuration decoding rejects unknown fields, trailing JSON values, symbolic
-links, special files, and files larger than 8 MiB, so malformed or hostile
-inputs cannot silently become zero values or exhaust the process. Because these
-overrides are user-writable, an elevated WinForge process ignores them and uses
-the embedded catalogs.
-
-### Plugins
-
-Drop a plugin into `%LOCALAPPDATA%\WinForge\plugins\<name>\` (or
-`<dataDir>\plugins\<name>\`) to extend WinForge without recompiling. A plugin
-directory contains:
-
-| File | Purpose |
-|------|---------|
-| `manifest.json` | `{"name","version","description","author"}` metadata. |
-| `tweaks.json` | Extra tweaks, same schema as the built-in `tweaks.json`. |
-
-Plugins are scanned at startup and their tweaks are merged into the
-configuration. On id collisions, the base (embedded or user-override) catalog
-wins. Malformed plugins are skipped (best-effort), and plugin files and
-directory enumeration are bounded. Elevated WinForge processes ignore plugins:
-a standard user can write this extension directory, so consuming it as
-Administrator would cross the UAC security boundary.
-
-### Operation types
-
-`registry_set_dword`, `registry_set_qword`, `registry_set_string`,
-`registry_delete`, `service_start_mode`, `service_start`, `service_stop`,
-`task_disable`, `task_enable`, `task_delete`, `appx_remove`, `power_scheme`,
-and `command`.
-
----
-
-## Roadmap (later phases)
-
-- [x] System Restore points (`SRSetRestorePointW` P/Invoke — no WMI/COM)
-- [x] Task Scheduler enable/disable/delete (`schtasks.exe`)
-- [x] Windows features via `dism.exe` (native, no PowerShell)
-- [x] One-click fixes (reset Windows Update, repair image, network reset, flush DNS)
-- [x] DNS per-adapter configuration (`netsh`, `net.Interfaces` discovery)
-- [x] Provisioned Appx removal via `dism.exe`
-- [x] List existing restore points (WMI `SystemRestore` class)
-- [x] Per-user Appx removal (`PackageManager` WinRT interop via `RoActivateInstance`)
-- [x] ISO builder (MicroWin-style: edition slim via dism + bootable ISO via oscdimg)
-- [x] Plugin system (`%LOCALAPPDATA%\WinForge\plugins\`)
-- [x] Scheduled maintenance task registration + `run-maintenance`
-- [x] Smart bloatware detection + recommendations
-- [x] Windows Update search/install (COM `Microsoft.Update.Session`)
-
-## Security note
-
-WinForge modifies system state. It should be run **as Administrator** (the
-dashboard shows elevation status), and its dashboard must remain bound to
-localhost. Always review tweaks before applying.
+*This README is generated from the WinForge Elite project. For the full migration blueprint, see PROJECT_BLUEPRINT.md. For the phased roadmap, see PROJECT_ROADMAP.md.*
