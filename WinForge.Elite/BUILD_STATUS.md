@@ -1,7 +1,11 @@
 # WinForge Elite - Production Build Status
 
-> Verified by CI (`dotnet build -c Release` on windows-latest, .NET 8).
-> Every item marked ✅ compiles; nothing here is aspirational.
+> Verification so far: static analysis (C# parse, XAML parse, SQL executed against
+> a real SQLite engine, Dapper parameter/column cross-checks, XAML binding checks).
+> A real `dotnet build` (windows-latest, .NET 8) is wired up in `ci.yml.fixed` but
+> not yet runnable: the GitHub App used by the sandbox lacks the `workflows`
+> permission, and the current `.github/workflows/ci.yml` is a stale Go-based
+> workflow that fails on every run. Nothing here is aspirational.
 
 ## Current Progress: Phase 1 — Foundation (in progress)
 
@@ -55,13 +59,13 @@
 17. **PresetsViewModel** — preset loading and application
 
 ### 📊 File Count (current)
-- C# Files: 10 (App, Entities, DbConnectionFactory, SeedData, AdminHelper, PathHelper, Logger, BaseViewModel, RelayCommand, MainViewModel)
+- C# Files: 11 (App, MainWindow, Entities, DbConnectionFactory, SeedData, AdminHelper, PathHelper, Logger, BaseViewModel, RelayCommand, MainViewModel)
 - XAML Files: 2 (App.xaml, MainWindow.xaml)
 
 ### 🔜 Phase 1 Completion Criteria
 - [x] Database schema created (11 tables)
 - [x] Seed data populated (8 tweaks, 20 packages, 8 rules, 9 apps, 4 presets)
-- [x] CI builds the WPF project on windows-latest
+- [ ] CI builds the WPF project on windows-latest (blocked: GitHub App lacks `workflows` permission; drop-in `ci.yml.fixed` ready)
 - [x] Admin elevation detection (runtime behavior verified on Windows)
 - [x] Main window with navigation shell
 - [ ] Registry service with undo support
