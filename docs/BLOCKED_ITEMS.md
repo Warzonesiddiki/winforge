@@ -7,8 +7,8 @@
 
 | ID | Blocked item | Severity | Status | Resolved by |
 |---|---|---|---|---|
-| BLK-1 | Microsoft/.NET toolchain hosts unreachable | High | Blocked | Hybrid architecture (Zig core) |
-| BLK-2 | Go toolchain + module proxy unreachable | Medium | Blocked | Go engine held as reserve bench |
+| BLK-1 | Microsoft/.NET toolchain hosts unreachable | High | Blocked | WPF archived; superseded by Go-primary hybrid |
+| BLK-2 | Go toolchain + module proxy unreachable | Medium | ✅ **RESOLVED** | Toolchain bootstrapped from source in-sandbox (see below) |
 | BLK-3 | GitHub App lacks `workflows` permission | High | Blocked | Repo owner grants permission |
 | BLK-4 | Electron runtime binaries unreachable | Low | Blocked | Electron dropped from options |
 | BLK-5 | nodejs.org blocked (official Node download) | Low | Worked around | npm `node-win-x64` + `postject` |
@@ -26,13 +26,17 @@
 
 **Resolution**: Hybrid architecture (see [LANGUAGE_SELECTION.md](./LANGUAGE_SELECTION.md)) — native core in Zig, which cross-compiles Windows artifacts locally. WPF code remains in `WinForge.Elite/` as a dormant alternate UI.
 
-## BLK-2 — Go toolchain + module proxy unreachable
+## BLK-2 — Go toolchain + module proxy unreachable → ✅ RESOLVED (2026-08-16)
 
-**What fails**: `go.dev`, `dl.google.com`, `proxy.golang.org` unreachable; no system Go.
+**What failed**: `go.dev`, `dl.google.com`, `proxy.golang.org` unreachable; no system Go.
 
-**Impact**: The substantial prior-art Go engine (~15,800 lines, 77 files, stdlib-only, hardened syscall registry, engine, debloat, maintenance, ISO builder, HTTP API, full tests) on `origin/go-impl` cannot be compiled or its tests run here.
+**Resolution**: Bootstrapped a full Go 1.22.12 toolchain **from source inside the sandbox** —
+`codeload.github.com` (the golang/go mirror) is reachable, so the chain was:
+Go 1.4.3 (C-based, compiled with gcc via a `-fcommon -no-pie` wrapper) → Go 1.17.13 → Go 1.20.14 → Go 1.22.12 (cgo enabled). ~7 minutes total. Module proxy is irrelevant: the engine is **stdlib-only** (`GOPROXY=off`).
 
-**Workarounds**: None local. The engine remains on branch `origin/go-impl` as a **reserve core**; if any machine/CI with Go becomes available it can be revived as the core (it is fully self-contained: `go.mod` declares zero dependencies, builds offline).
+**Verification after resolution**: `go build ./...` ✅ · `go vet ./...` ✅ · 18/18 test packages ✅ incl. `-race` ✅ · `GOOS=windows GOARCH=amd64 go build` → **`winforge.exe` (6.24 MB, valid PE)** ✅ · windows `go vet ./...` ✅. One test-harness fix required for Linux parity (`isolate()` used `t.TempDir()` with 300-char subtest names → NAME_MAX; now uses a short fixed-prefix dir).
+
+Procedure documented in [GO_TOOLCHAIN_BOOTSTRAP.md](./GO_TOOLCHAIN_BOOTSTRAP.md).
 
 ## BLK-3 — GitHub App lacks `workflows` permission
 

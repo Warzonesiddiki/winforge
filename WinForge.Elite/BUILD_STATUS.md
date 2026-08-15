@@ -1,13 +1,14 @@
 # WinForge Elite - Production Build Status
 
-> ⚠️ **Architecture transition (2026-08-16)**: the .NET/WPF phase documented below
+> ⚠️ **Architecture transition (2026-08-16, v3)**: the .NET/WPF phase documented below
 > remains **archived reference work** (blocked by toolchain access, see
-> [docs/BLOCKED_ITEMS.md](../docs/BLOCKED_ITEMS.md)). The product now follows a
-> **10-language hybrid** — Zig core + Bun/TS orchestrator + PowerShell recipes +
-> Lua/WASM plugins + Python tooling + React UI — which **builds real Windows
-> executables from this sandbox today** (verified). See
-> [docs/LANGUAGE_SELECTION.md](../docs/LANGUAGE_SELECTION.md) and the
-> `native/` + `runtime/` scaffold at the repo root.
+> [docs/BLOCKED_ITEMS.md](../docs/BLOCKED_ITEMS.md)). The product is now a
+> **Go-primary 10-language hybrid** — the 15.8k-line native Go engine was merged
+> into the mainline, its toolchain **bootstrapped from source in-sandbox**, and it
+> now **builds, vets, tests (18/18 incl. race), and cross-compiles to a 6.24 MB
+> `winforge.exe` locally**. See [docs/LANGUAGE_SELECTION.md](../docs/LANGUAGE_SELECTION.md),
+> [docs/GO_TOOLCHAIN_BOOTSTRAP.md](../docs/GO_TOOLCHAIN_BOOTSTRAP.md), and the
+> `cmd/`, `internal/`, `config/`, `web/` engine tree.
 
 > Verification so far: static analysis (C# parse, XAML parse, SQL executed against
 > a real SQLite engine including the legacy-DB migration path, Dapper parameter/column

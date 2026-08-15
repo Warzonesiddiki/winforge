@@ -2,7 +2,34 @@
 
 > The definitive all-in-one Windows optimization, debloat, privacy hardening, repair, and power-user configuration suite.
 
-This is a fullstack Next.js web application that models the complete WinForge Elite specification. Since this environment runs on Linux rather than Windows, all system operations are **safely simulated** against a PostgreSQL database, with full audit logging and reversibility — exactly mirroring the safety principles of the native Windows app.
+## The Native Engine (Go) 🆕
+
+The **native Windows utility** now lives in this repository as a self-contained Go
+program (`cmd/winforge`, `internal/*`, `config/*`, `web/*`): 15,800 lines,
+**stdlib-only** (zero third-party modules), builds a **6.24 MB static `winforge.exe`**.
+
+- Full CLI: `winforge apply --id <tweak>`, `undo`, `scan`, `list`, `history`,
+  `restore-point`, `install --id <winget-id>`, `build-iso`, `updates`, `set-dns`,
+  `enable-feature`, `run-maintenance`, `plugins`, plus a **dashboard server**
+  (`winforge serve`) with a bundled web UI on `localhost:8696`.
+- Hardened native Win32: registry via raw syscalls with bounded reads, system
+  restore points, Appx debloat engine, winget app manager, DISM/ISO builder,
+  Windows Update, DNS, audit + undo, plugin system, weekly maintenance scheduler.
+- Verified in CI-less sandboxes too: **builds, vets, and tests (18/18 packages,
+  incl. race detector) on Linux, and cross-compiles to Windows** — see
+  [docs/GO_TOOLCHAIN_BOOTSTRAP.md](docs/GO_TOOLCHAIN_BOOTSTRAP.md).
+- Language strategy: Go-primary 10-language hybrid —
+  [docs/LANGUAGE_SELECTION.md](docs/LANGUAGE_SELECTION.md);
+  engine README: [docs/GO_ENGINE_README.md](docs/GO_ENGINE_README.md);
+  open blockers: [docs/BLOCKED_ITEMS.md](docs/BLOCKED_ITEMS.md).
+
+## The Web Control Center (Next.js)
+
+This repo also hosts a fullstack Next.js web application that models the complete
+WinForge Elite specification. Since this environment runs on Linux rather than
+Windows, all system operations are **safely simulated** against a PostgreSQL
+database, with full audit logging and reversibility — exactly mirroring the safety
+principles of the native app.
 
 ## Live Demo & Vision
 

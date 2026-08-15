@@ -1,0 +1,251 @@
+{
+  "entries": [
+    {
+      "family": "Clipchamp.Clipchamp",
+      "name": "Clipchamp",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Provides a user-friendly video editor with built-in templates, effects, and timeline editing tools."
+    },
+    {
+      "family": "Disney.37853FC22B2CE",
+      "name": "Disney.37853FC22B2CE",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Ink.Handwriting.Main.Store.en-US1.0",
+      "name": "Ink.Handwriting.Main.Store.en-US1.0",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "MSTeams",
+      "name": "Microsoft Teams",
+      "category": "Microsoft Apps",
+      "description": "Facilitates instant messaging, video conferencing, file sharing, and workspace collaboration."
+    },
+    {
+      "family": "Microsoft.BingNews",
+      "name": "News",
+      "category": "Bing \u0026 Web Services",
+      "description": "Aggregates breaking news headlines, personalized article feeds, and world current events."
+    },
+    {
+      "family": "Microsoft.BingSearch",
+      "name": "Bing Search",
+      "category": "Bing \u0026 Web Services",
+      "description": "Integrates Microsoft Bing search capabilities and web services directly into the operating system."
+    },
+    {
+      "family": "Microsoft.BingWeather",
+      "name": "Weather",
+      "category": "Bing \u0026 Web Services",
+      "description": "Displays local real-time weather tracking, radar maps, and historical meteorological forecasts."
+    },
+    {
+      "family": "Microsoft.Copilot",
+      "name": "Copilot",
+      "category": "Bing \u0026 Web Services",
+      "description": "Launches the Microsoft AI companion for contextual answers, creative writing assistance, and intelligent web search."
+    },
+    {
+      "family": "Microsoft.GamingApp",
+      "name": "Xbox App",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Serves as the primary gaming library manager, social community interface, and PC Game Pass dashboard."
+    },
+    {
+      "family": "Microsoft.GetHelp",
+      "name": "Get Help",
+      "category": "Microsoft Apps",
+      "description": "Provides access to automated troubleshooting guides, support documentation, and direct Microsoft customer assistance."
+    },
+    {
+      "family": "Microsoft.Microsoft3DViewer",
+      "name": "Microsoft.Microsoft3DViewer",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.MicrosoftOfficeHub",
+      "name": "Microsoft 365",
+      "category": "Microsoft Apps",
+      "description": "Serves as a centralized launcher and dashboard for accessing cloud-based Microsoft 365 apps and recent documents."
+    },
+    {
+      "family": "Microsoft.MicrosoftSolitaireCollection",
+      "name": "Solitaire Collection",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Bundles built-in card game modes including Klondike, Spider, FreeCell, Pyramid, and TriPeaks alongside daily challenges."
+    },
+    {
+      "family": "Microsoft.MicrosoftStickyNotes",
+      "name": "Sticky Notes",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Creates quick, floating text notes on the desktop that automatically sync across devices."
+    },
+    {
+      "family": "Microsoft.MixedReality.Portal",
+      "name": "Microsoft.MixedReality.Portal",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.Office.OneNote",
+      "name": "Microsoft.Office.OneNote",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.OutlookForWindows",
+      "name": "Outlook for Windows",
+      "category": "Microsoft Apps",
+      "description": "Provides modern email management, calendar scheduling, and contact organization features."
+    },
+    {
+      "family": "Microsoft.Paint",
+      "name": "Paint",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Provides built-in digital sketching, basic image editing, and pixel-level graphic manipulation tools."
+    },
+    {
+      "family": "Microsoft.People",
+      "name": "Microsoft.People",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.PowerAutomateDesktop",
+      "name": "Power Automate",
+      "category": "Developer Tools",
+      "description": "Automates repetitive workflows and desktop tasks using low-code visual scripting."
+    },
+    {
+      "family": "Microsoft.ScreenSketch",
+      "name": "Snipping Tool",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Captures screenshots or screen recordings with built-in markup, image cropping, and optical character recognition (OCR)."
+    },
+    {
+      "family": "Microsoft.SkypeApp",
+      "name": "Microsoft.SkypeApp",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.StartExperiencesApp",
+      "name": "Start Experiences App",
+      "category": "Bing \u0026 Web Services",
+      "description": "Powers the Windows Widgets board, delivering a personalized feed of news, weather, sports, and finance content."
+    },
+    {
+      "family": "Microsoft.Todos",
+      "name": "To Do",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Creates, tracks, and synchronizes personal tasks, smart lists, and daily reminders."
+    },
+    {
+      "family": "Microsoft.Windows.DevHome",
+      "name": "Dev Home",
+      "category": "Developer Tools",
+      "description": "Provides a specialized dashboard for software developer environment setups, repository syncing, and hardware widgets."
+    },
+    {
+      "family": "Microsoft.Windows.Photos",
+      "name": "Photos",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Organizes, views, and crops local images with basic color adjustment and album creation tools."
+    },
+    {
+      "family": "Microsoft.WindowsAlarms",
+      "name": "Clock",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Features world clocks, alarms, countdown timers, stopwatches, and dedicated focus session tracking."
+    },
+    {
+      "family": "Microsoft.WindowsCalculator",
+      "name": "Calculator",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Performs standard arithmetic, scientific operations, programming calculations, and unit conversions."
+    },
+    {
+      "family": "Microsoft.WindowsCamera",
+      "name": "Camera",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Captures photographs and records video files via connected webcams or imaging hardware."
+    },
+    {
+      "family": "Microsoft.WindowsFeedbackHub",
+      "name": "Feedback Hub",
+      "category": "Microsoft Apps",
+      "description": "Allows users to submit bug reports, feature suggestions, and diagnostic data directly to Microsoft."
+    },
+    {
+      "family": "Microsoft.WindowsMaps",
+      "name": "Microsoft.WindowsMaps",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "Microsoft.WindowsNotepad",
+      "name": "Notepad",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Provides a lightweight text editor with multi-tab support for plain text files and code snippets."
+    },
+    {
+      "family": "Microsoft.WindowsSoundRecorder",
+      "name": "Sound Recorder",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Records and trims live audio inputs with simple microphone adjustment controls."
+    },
+    {
+      "family": "Microsoft.Xbox.TCUI",
+      "name": "Xbox TCUI",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Provides core account connection UI modules for single sign-on flows within game titles. Warning: removing this may break Microsoft account authentication in games and apps that do not otherwise require the Xbox app."
+    },
+    {
+      "family": "Microsoft.XboxGamingOverlay",
+      "name": "Xbox Game Bar",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Provides customizable in-game status widgets, audio balancing sliders, system monitoring tools, and gameplay recording."
+    },
+    {
+      "family": "Microsoft.XboxIdentityProvider",
+      "name": "Xbox Identity Provider",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Manages Xbox network user authentication and background account validation for connected titles. Warning: removing this may break Microsoft account sign-in for non-Xbox games and apps that rely on this authentication pipeline."
+    },
+    {
+      "family": "Microsoft.XboxSpeechToTextOverlay",
+      "name": "Xbox Speech To Text Overlay",
+      "category": "Xbox \u0026 Gaming",
+      "description": "Provides system-level live accessibility captions and voice-to-text translation for gaming chat networks."
+    },
+    {
+      "family": "Microsoft.YourPhone",
+      "name": "Phone Link",
+      "category": "Microsoft Ecosystem",
+      "description": "Synchronizes text messages, phone notifications, photos, and calls from a mobile device to the desktop."
+    },
+    {
+      "family": "Microsoft.ZuneMusic",
+      "name": "Media Player",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Plays local audio and video files with modern playlist management and casting capabilities."
+    },
+    {
+      "family": "MicrosoftCorporationII.MicrosoftFamily",
+      "name": "MicrosoftCorporationII.MicrosoftFamily",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "MicrosoftCorporationII.QuickAssist",
+      "name": "Quick Assist",
+      "category": "Utilities \u0026 Productivity",
+      "description": "Enables secure remote technical support and screen sharing over an internet connection."
+    },
+    {
+      "family": "MicrosoftTeams",
+      "name": "MicrosoftTeams",
+      "category": "Atlas OS"
+    },
+    {
+      "family": "SpotifyAB.SpotifyMusic",
+      "name": "SpotifyAB.SpotifyMusic",
+      "category": "Atlas OS"
+    }
+  ]
+}

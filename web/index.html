@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WinForge</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">WF</div>
+        <div>
+          <div class="brand-name">WinForge</div>
+          <div class="brand-sub">System Toolkit</div>
+        </div>
+      </div>
+      <nav>
+        <a href="#" data-view="dashboard" class="active">Dashboard</a>
+        <a href="#" data-view="tweaks">Tweaks</a>
+        <a href="#" data-view="apps">Apps</a>
+        <a href="#" data-view="maintenance">Maintenance</a>
+        <a href="#" data-view="history">History</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="elevation" class="pill">checking…</div>
+        <div class="version" id="version">v—</div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section id="view-dashboard" class="view active">
+        <h1>Dashboard</h1>
+        <div id="bloat-banner" class="banner hidden">
+          <strong>Bloatware detected</strong>
+          <span><span id="bloat-count">0</span> preinstalled app(s) found. Review them in the Apps view.</span>
+        </div>
+        <div class="cards">
+          <div class="card health-card">
+            <div class="label">Health Score</div>
+            <div class="score" id="health-score">—</div>
+            <div class="meter"><div id="health-meter" class="meter-fill"></div></div>
+          </div>
+          <div class="card">
+            <div class="label">Tweaks Applied</div>
+            <div class="score small" id="tweaks-applied">—</div>
+          </div>
+          <div class="card">
+            <div class="label">OS</div>
+            <div class="score small" id="os-name">—</div>
+          </div>
+        </div>
+        <h2>Breakdown</h2>
+        <div class="card breakdown" id="health-breakdown"></div>
+
+        <div class="card hidden" id="bloat-card">
+          <div class="label">Detected Bloatware</div>
+          <p class="muted">Preinstalled apps WinForge can help you review and remove.</p>
+          <ul id="bloat-list" class="bloat-list"></ul>
+        </div>
+      </section>
+
+      <section id="view-tweaks" class="view">
+        <h1>Tweaks</h1>
+        <p class="muted">Toggle a tweak to apply or undo it. Changes are logged and reversible where noted.</p>
+        <div id="tweaks-list"></div>
+      </section>
+
+      <section id="view-apps" class="view">
+        <h1>Apps</h1>
+        <div class="toolbar">
+          <input id="app-search" type="search" placeholder="Search apps…" />
+          <button id="app-install-selected" class="primary" disabled>Install Selected</button>
+        </div>
+        <div id="app-categories" class="chips"></div>
+        <div id="apps-list" class="apps-grid"></div>
+        <div id="install-log" class="log hidden"></div>
+      </section>
+
+      <section id="view-maintenance" class="view">
+        <h1>Maintenance</h1>
+        <div class="cards">
+          <div class="card">
+            <div class="label">Restore Point</div>
+            <p class="muted">Snapshot the system before making changes.</p>
+            <button id="btn-restore" class="primary">Create Restore Point</button>
+          </div>
+          <div class="card">
+            <div class="label">Windows Update</div>
+            <p class="muted">Reset the update cache and services.</p>
+            <button id="btn-reset-wu">Reset Windows Update</button>
+          </div>
+          <div class="card">
+            <div class="label">System Image</div>
+            <p class="muted">Repair component store with DISM.</p>
+            <button id="btn-repair">Repair Image</button>
+          </div>
+          <div class="card">
+            <div class="label">Network</div>
+            <p class="muted">Flush DNS cache, or fully reset the stack.</p>
+            <button id="btn-flush">Flush DNS</button>
+            <button id="btn-netreset">Network Reset</button>
+          </div>
+        </div>
+
+        <h2>Scheduled Maintenance</h2>
+        <div class="card">
+          <p class="muted">Re-apply any missing tweaks and upgrade outdated apps now, or register a weekly Task Scheduler job.</p>
+          <div class="toolbar">
+            <button id="btn-run-maintenance" class="primary">Run Maintenance</button>
+            <button id="btn-schedule">Schedule Weekly</button>
+            <button id="btn-unschedule">Remove Schedule</button>
+          </div>
+        </div>
+
+        <h2>DNS Presets</h2>
+        <div class="card">
+          <div class="toolbar">
+            <select id="dns-preset"></select>
+            <button id="btn-dns" class="primary">Apply DNS</button>
+          </div>
+        </div>
+
+        <h2>Windows Features</h2>
+        <div class="card">
+          <div class="toolbar">
+            <input id="feature-name" placeholder="Feature name (e.g. Microsoft-Hyper-V-All)" />
+            <button id="btn-enable-feature" class="primary">Enable</button>
+            <button id="btn-disable-feature">Disable</button>
+          </div>
+        </div>
+
+        <h2>Windows Update</h2>
+        <div class="card">
+          <p class="muted">Search for and install updates via the Windows Update Agent (Microsoft.Update.Session).</p>
+          <div class="toolbar">
+            <button id="btn-updates-search" class="primary">Search for Updates</button>
+            <button id="btn-updates-install">Install All</button>
+          </div>
+          <ul id="updates-list" class="bloat-list"></ul>
+        </div>
+
+        <h2>ISO Builder</h2>
+        <div class="card">
+          <p class="muted">Build a bootable Windows ISO from an extracted installation source. Requires the Windows ADK's <code>oscdimg.exe</code>.</p>
+          <div class="toolbar">
+            <input id="iso-source" placeholder="Source dir (contains sources\install.wim)" />
+            <input id="iso-output" placeholder="Output .iso path" />
+            <input id="iso-editions" placeholder="Editions to keep (comma-separated, optional)" />
+            <button id="btn-build-iso" class="primary">Build ISO</button>
+          </div>
+        </div>
+
+        <div id="maintenance-log" class="log hidden"></div>
+      </section>
+
+      <section id="view-history" class="view">
+        <h1>History</h1>
+        <div class="card table-wrap">
+          <table>
+            <thead>
+              <tr><th>Time</th><th>Operation</th><th>Target</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
