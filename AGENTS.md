@@ -118,12 +118,20 @@ git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
 
 ## 7. Catalog pipeline (Python tooling role)
 
-- `src/db/seed-data.ts` is the **catalog of record** (64 tweaks, ~95 debloat, 64 apps, 41 privacy rules, presets).
+- `src/db/seed-data.ts` is the **catalog of record** (64 tweaks, ~95 debloat, 64 apps, 40 privacy rules, presets). Note: the seed has **40** `priv-*` rules, not 41 as an earlier handover claimed — verified by regex over the file.
 - `tools/web_catalog_to_engine.py --apply` — merges web tweaks into
   `config/tweaks.json` as native ops (idempotent; removes stale merges).
 - `tools/catalog_parity.py --fix` — backfills atlas-* metadata by op-signature
   match; syncs `config/debloat.json` + `config/applications.json`; `--write-report`
-  regenerates `docs/CATALOG_PARITY.md`.
+  regenerates `docs/CATALOG_PARITY.md`. Also diffs the 40 web `privacySeed`
+  rules against the engine catalog via curated triage tables (`PRIVACY_MAP` /
+  `PRIVACY_GAPS`, each entry grounded in real engine ops): 20 equivalent,
+  2 partial, 18 documented gaps; untriaged rules or dangling mappings exit 1.
+- `tools/atlas_metadata.py --atlas-src <Atlas clone> [--apply]` — backfills
+  atlas-* names/descriptions verbatim from the AtlasOS repo
+  (`src/playbook/Configuration/tweaks/**/<slug>.yml` ↔ id `atlas-<slug>`).
+  Guards on 100% apply-side op-signature overlap before writing (129/129
+  matched 2026-08-15, dry-run exits 1 if anything is unverified).
 - **Security boundary (do not violate)**: the elevated executor only runs
   allowlisted system executables (dism, w32tm, lodctr, winmgmt, rundll32,
   wevtutil, fsutil, setx, bcdedit, netsh). PowerShell/powercfg/wmic are
@@ -157,19 +165,26 @@ Done:
   `executor_unix_test.go`); repo-wide trailing-whitespace cleanup for CI.
 - CI expected fully green; PR merged to main.
 
+Done (2026-08-15, arena/01a0075d-winforge):
+- Metadata pass complete: **all 129 atlas-* tweaks named** from the AtlasOS
+  repo via new `tools/atlas_metadata.py` (100% apply-side op-overlap guard;
+  0 suspects, 0 missing). Parity tool now reports "needing metadata: 0".
+- Privacy parity added to `tools/catalog_parity.py`: 40 web `privacySeed`
+  rules triaged → 20 equivalent, 2 partial, 18 documented gaps; 18 engine-only
+  Privacy extras reported as info. `docs/CATALOG_PARITY.md` regenerated.
+- Full verification battery re-run green on fresh sandbox (Go 1.22.12 source
+  bootstrap, npm reinstall).
+
 Next (prioritized):
-1. Metadata pass for the ~129 unnamed atlas-* tweaks (names/descriptions from
-   the AtlasOS repo via GitHub — no fabrication).
-2. Privacy-rule parity: web `privacySeed` (41 rules) vs engine atlas privacy
-   tweaks (33) — extend catalog_parity.py with a privacy section.
-3. Windows runtime smoke checklist (BLK-6) on a real machine.
-4. CI modernization when `workflows` permission lands (ci.yml.fixed / adapt
+1. Windows runtime smoke checklist (BLK-6) on a real machine.
+2. CI modernization when `workflows` permission lands (ci.yml.fixed / adapt
    ci/github-actions-ci.yml).
-5. Native ops to retire 4 exclusions: power_hibernate, power_processor_state
+3. Native ops to retire exclusions: power_hibernate, power_processor_state
    (SetProcessorState exists), registry `(Default)`-value writes, native WMI
-   SetTcpipNetbios.
-6. Lua plugin integration (DLL build verified) + WASM sandbox (Phase 4).
-7. Next.js UI ↔ engine HTTP API bridge (localhost:8696).
+   SetTcpipNetbios; then ConsentStore coverage for the 7 priv-perm-* gaps +
+   the other 11 documented privacy gaps (mdns/ncsi/wcn/recall/edge/etc.).
+4. Lua plugin integration (DLL build verified) + WASM sandbox (Phase 4).
+5. Next.js UI ↔ engine HTTP API bridge (localhost:8696).
 
 ## 10. Gotchas & lessons (each cost time once)
 

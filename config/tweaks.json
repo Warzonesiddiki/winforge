@@ -2,9 +2,9 @@
   "tweaks": [
     {
       "id": "atlas-config-content-delivery",
-      "name": "",
+      "name": "Configure Content Delivery Manager",
       "category": "Debloat",
-      "description": "",
+      "description": "Configures Content Delivery Manager not to download applications like Candy Crush Soda and turns off suggested content (tips/tricks/facts/suggestions/ads) for QoL and privacy.",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -398,9 +398,9 @@
     },
     {
       "id": "atlas-disable-reserved-storage",
-      "name": "",
+      "name": "Disable Reserved Storage",
       "category": "Debloat",
-      "description": "",
+      "description": "Disables reserved storage for Windows Updates to have more storage space",
       "risk": "medium",
       "reversible": false,
       "operations": [
@@ -417,9 +417,9 @@
     },
     {
       "id": "atlas-disable-scheduled-tasks",
-      "name": "",
+      "name": "Disable Scheduled Tasks",
       "category": "Debloat",
-      "description": "",
+      "description": "Disables scheduled tasks to prevent automatic tasks from running at startup, consuming resources and collecting user data",
       "risk": "medium",
       "reversible": false,
       "operations": [
@@ -483,9 +483,9 @@
     },
     {
       "id": "atlas-hide-unused-security-pages",
-      "name": "",
+      "name": "Hide Unused Windows Security Pages",
       "category": "Debloat",
-      "description": "",
+      "description": "Hides Windows Security pages that are not commonly needed/used to have a more clean UI",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -534,9 +534,9 @@
     },
     {
       "id": "atlas-config-time",
-      "name": "",
+      "name": "Configure Time Servers",
       "category": "Miscellaneous",
-      "description": "",
+      "description": "Configures time servers to be more reliable and accurate than the defaults",
       "risk": "low",
       "reversible": false,
       "operations": [
@@ -578,9 +578,9 @@
     },
     {
       "id": "atlas-rebuild-perf-counters",
-      "name": "",
+      "name": "Rebuild Performance Counters",
       "category": "Miscellaneous",
-      "description": "",
+      "description": "Manually rebuilds performance counters to ensure that there is no issues with them",
       "risk": "low",
       "reversible": false,
       "operations": [
@@ -634,9 +634,9 @@
     },
     {
       "id": "atlas-disable-smb-bandwidth-throttling",
-      "name": "",
+      "name": "Disable SMB Bandwidth Throttling",
       "category": "Networking",
-      "description": "",
+      "description": "Disables SMB bandwidth throttling for improved performance",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -659,9 +659,9 @@
     },
     {
       "id": "atlas-restrict-anonymous-access",
-      "name": "",
+      "name": "Restrict Anonymous Access",
       "category": "Networking",
-      "description": "",
+      "description": "Restricts anonymous access to named pipes and shares to prevent unauthorized system access",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -684,9 +684,9 @@
     },
     {
       "id": "atlas-restrict-anonymous-enumeration",
-      "name": "",
+      "name": "Restrict Anonymous Enumeration of Shares",
       "category": "Networking",
-      "description": "",
+      "description": "Restricts anonymous enumeration of shares",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -709,9 +709,9 @@
     },
     {
       "id": "atlas-config-automatic-maintenance",
-      "name": "",
+      "name": "Configure Automatic Maintenance",
       "category": "Performance",
-      "description": "",
+      "description": "Configure the 'Automatic Maintenance' feature in Windows",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -734,9 +734,9 @@
     },
     {
       "id": "atlas-config-mmcss",
-      "name": "",
+      "name": "Configure the Multimedia Class Scheduler Service",
       "category": "Performance",
-      "description": "",
+      "description": "Configures MMCSS for the best performance",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -759,9 +759,9 @@
     },
     {
       "id": "atlas-disable-background-apps",
-      "name": "",
+      "name": "Disable Background Apps",
       "category": "Performance",
-      "description": "",
+      "description": "Disables background apps so there's minimal resources used in the background",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -797,9 +797,9 @@
     },
     {
       "id": "atlas-disable-fth",
-      "name": "",
+      "name": "Disable Fault Tolerant Heap (FTH)",
       "category": "Performance",
-      "description": "",
+      "description": "FTH is a feature in Windows 7+ that applies mitigations (non-CPU related) to applications that repeatedly crash to prevent further crashes, but when the FTH is active for a certain application, there's a performance hit.",
       "risk": "medium",
       "reversible": false,
       "operations": [
@@ -937,9 +937,9 @@
     },
     {
       "id": "atlas-disable-sleep-study",
-      "name": "",
+      "name": "Disable Modern Standby SleepStudy",
       "category": "Performance",
-      "description": "",
+      "description": "Disables Modern Standby's SleepStudy feature, as it's unnecessary logging that isn't needed on boot",
       "risk": "medium",
       "reversible": false,
       "operations": [
@@ -978,9 +978,9 @@
     },
     {
       "id": "atlas-respect-power-modes-search",
-      "name": "",
+      "name": "Respect Power Modes Windows Search Indexing",
       "category": "Performance",
-      "description": "",
+      "description": "Respects current power mode for indexing to prevent battery drainage",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1003,9 +1003,9 @@
     },
     {
       "id": "atlas-disable-paging",
-      "name": "",
+      "name": "Disable Paging Settings",
       "category": "Performance",
-      "description": "",
+      "description": "Disables memory paging settings for the best performance",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1070,9 +1070,9 @@
     },
     {
       "id": "atlas-win32-priority-separation",
-      "name": "",
+      "name": "Prioritize Foreground Applications",
       "category": "Performance",
-      "description": "",
+      "description": "Prioritizes foreground applications for process scheduling by setting Win32PrioritySeparation to 26 hex, meaning a short quantum, variable, high foreground boost",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1095,9 +1095,9 @@
     },
     {
       "id": "atlas-disable-advertising-info",
-      "name": "",
+      "name": "Disable Advertising ID",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Advertising ID for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1133,9 +1133,9 @@
     },
     {
       "id": "atlas-disable-sync-provider-notifs",
-      "name": "",
+      "name": "Disable Sync Provider Notifications",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables notifications within File Explorer from OneDrive or other sync providers to avoid advertisements",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1158,9 +1158,9 @@
     },
     {
       "id": "atlas-disable-nvidia-telemetry",
-      "name": "",
+      "name": "Disable NVIDIA Control Panel Telemetry",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables NVIDIA Control Panel telemetry for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1183,9 +1183,9 @@
     },
     {
       "id": "atlas-disable-office-telemetry",
-      "name": "",
+      "name": "Disable Office Telemetry",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Microsoft Office telemetry for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1234,9 +1234,9 @@
     },
     {
       "id": "atlas-disable-setting-sync",
-      "name": "",
+      "name": "Disable Settings Sync",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Settings Sync (labeled as 'Windows Backup' in Windows 10) for QoL and privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1376,9 +1376,9 @@
     },
     {
       "id": "atlas-disable-suggest-ways-to-finish-setup",
-      "name": "",
+      "name": "Disable Suggested Ways to Finish Setting Up Your Device",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables suggested ways to finish setting up your device, as it will mostly anony you to use cloud features",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1401,9 +1401,9 @@
     },
     {
       "id": "atlas-disallow-message-cloud-sync",
-      "name": "",
+      "name": "Disallow Message Service Cloud Sync",
       "category": "Privacy",
-      "description": "",
+      "description": "Disallows the Message service (which should be disabled anyways) from syncing with the cloud, as that potentially harms privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1426,9 +1426,9 @@
     },
     {
       "id": "atlas-config-app-permissions",
-      "name": "",
+      "name": "Configure App Permissions",
       "category": "Privacy",
-      "description": "",
+      "description": "Configures default app permissions in Settings for the optimal privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1477,9 +1477,9 @@
     },
     {
       "id": "atlas-config-windows-media-player",
-      "name": "",
+      "name": "Configure Windows Media Player",
       "category": "Privacy",
-      "description": "",
+      "description": "Configures Windows Media Player for the optimal privacy, security and usability. As a note, WMP is old, and you probably shouldn't use it.",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1528,9 +1528,9 @@
     },
     {
       "id": "atlas-disable-activity-feed",
-      "name": "",
+      "name": "Disable Activity Feed",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Activity Feed in Task View for privacy and QoL",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1553,9 +1553,9 @@
     },
     {
       "id": "atlas-disable-app-launch-tracking",
-      "name": "",
+      "name": "Disable App Launch Tracking",
       "category": "Privacy",
-      "description": "",
+      "description": "Prevents Windows from automatically tracking applications you use the most for improved privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1578,9 +1578,9 @@
     },
     {
       "id": "atlas-disable-device-monitoring",
-      "name": "",
+      "name": "Disable Device Health Attestation Monitoring and Reporting",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Device Health Attestation Monitoring and Reporting on startup for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1603,9 +1603,9 @@
     },
     {
       "id": "atlas-disable-experimentation",
-      "name": "",
+      "name": "Disable Experimentation",
       "category": "Privacy",
-      "description": "",
+      "description": "Disallows Microsoft from using your computer as a test for certain features for privacy and stability",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1628,9 +1628,9 @@
     },
     {
       "id": "atlas-disable-lockscreen-camera",
-      "name": "",
+      "name": "Disable Lockscreen Camera",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables camera access on the lockscreen",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1653,9 +1653,9 @@
     },
     {
       "id": "atlas-disable-online-speech-recognition",
-      "name": "",
+      "name": "Disable Online Speech Recognition",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables online speech recognition for privacy purposes",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1678,9 +1678,9 @@
     },
     {
       "id": "atlas-disable-pca",
-      "name": "",
+      "name": "Disable Program Compatibility Assistant (PCA)",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables PCA for QoL and privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1768,9 +1768,9 @@
     },
     {
       "id": "atlas-disable-perf-track",
-      "name": "",
+      "name": "Disable Performance Track",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables tracking of responsiveness events for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1793,9 +1793,9 @@
     },
     {
       "id": "atlas-disable-privacy-experience",
-      "name": "",
+      "name": "Disable OOBE Privacy Experience",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables the OOBE (Out of Box Experience) privacy configuration that you might see on updates not to override current settings",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1818,9 +1818,9 @@
     },
     {
       "id": "atlas-disable-rsop-logging",
-      "name": "",
+      "name": "Disable Resultant Set of Policy (RSoP) Logging",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables logging of Group Policy settings (RSoP) for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1843,9 +1843,9 @@
     },
     {
       "id": "atlas-disable-speech-auto-updates",
-      "name": "",
+      "name": "Disable Automatic Updates Of Speech Data",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables auto-updates of speech data, as it is not commonly used, and it is a potential privacy concern or an overall annoyance",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1868,9 +1868,9 @@
     },
     {
       "id": "atlas-disable-tailored-experiences",
-      "name": "",
+      "name": "Do Not Use Diagnostic Data For Tailored Experiences",
       "category": "Privacy",
-      "description": "",
+      "description": "Prevents Windows from using diagnostic data for tailored experiences for privacy, also labeled as \"Let Microsoft provide more tailored experiences with relevant tips and recommendations by using your diagnostic data\"",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1906,9 +1906,9 @@
     },
     {
       "id": "atlas-disable-user-tracking",
-      "name": "",
+      "name": "Disable Most Frequently Used Applications",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables the most frequently used applications in the start menu for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1931,9 +1931,9 @@
     },
     {
       "id": "atlas-disable-web-lang-list-access",
-      "name": "",
+      "name": "Disable Website Access to Language List",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables websites accessing the Windows language list for the best privacy, as it is a common fingerprinting technique to identify a user by their languages",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -1956,9 +1956,9 @@
     },
     {
       "id": "atlas-disable-win-error-reporting",
-      "name": "",
+      "name": "Disable Windows Error Reporting",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables Windows Error Reporting for privacy and QoL",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2098,9 +2098,9 @@
     },
     {
       "id": "atlas-disallow-ms-accounts",
-      "name": "",
+      "name": "Disallow Users to Be Non-local",
       "category": "Privacy",
-      "description": "",
+      "description": "For privacy and QoL, users are prevented from adding Microsoft accounts as user accounts instead of local accounts",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2123,9 +2123,9 @@
     },
     {
       "id": "atlas-disallow-user-activity-upload",
-      "name": "",
+      "name": "Disallow Upload and Publish of User Activities",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables the upload and publish of user activities for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2316,9 +2316,9 @@
     },
     {
       "id": "atlas-disable-activation-telemetry",
-      "name": "",
+      "name": "Disable Key Management System Telemetry",
       "category": "Privacy",
-      "description": "",
+      "description": "Turns off KMS client online AVS validation, which prevents from sending data to Microsoft regardless of its activation state, for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2379,9 +2379,9 @@
     },
     {
       "id": "atlas-disable-diagnostic-tracing",
-      "name": "",
+      "name": "Disable Diagnostic Tracing",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables diagnostic tracing (system activities, events or errors) for privacy reasons",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2404,9 +2404,9 @@
     },
     {
       "id": "atlas-disable-dotnet-cli-telemetry",
-      "name": "",
+      "name": "Disable .NET CLI Telemetry",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables .NET CLI telemetry for privacy",
       "risk": "medium",
       "reversible": false,
       "operations": [
@@ -2422,9 +2422,9 @@
     },
     {
       "id": "atlas-disable-input-telemetry",
-      "name": "",
+      "name": "Disable Input Telemetry",
       "category": "Privacy",
-      "description": "",
+      "description": "Disables text, ink and handwriting telemetry for privacy",
       "risk": "medium",
       "reversible": true,
       "operations": [
@@ -2726,9 +2726,9 @@
     },
     {
       "id": "atlas-blue-tooltips",
-      "name": "",
+      "name": "Change the Tooltip Color to Blue",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Changes the tooltip color to blue",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2751,9 +2751,9 @@
     },
     {
       "id": "atlas-disallow-theme-changes",
-      "name": "",
+      "name": "Disallow Themes to Change Certain Personalized Features",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disallows themes to change certain personalized features, as most of the time people only really apply themes for wallpapers or Windows style skins (custom themes)",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2816,9 +2816,9 @@
     },
     {
       "id": "atlas-best-wallpaper-quality",
-      "name": "",
+      "name": "Disable Wallpaper Compression",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables wallpaper compression so that your wallpaper is always in its full quality",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2841,9 +2841,9 @@
     },
     {
       "id": "atlas-config-powershell",
-      "name": "",
+      "name": "Configure PowerShell",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures PowerShell for the optimal privacy and usability",
       "risk": "low",
       "reversible": false,
       "operations": [
@@ -2866,9 +2866,9 @@
     },
     {
       "id": "atlas-config-start-menu",
-      "name": "",
+      "name": "Configure Start Menu",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures the Start Menu's settings for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2943,9 +2943,9 @@
     },
     {
       "id": "atlas-config-windows-ink-workspace",
-      "name": "",
+      "name": "Configure Windows Ink Workspace",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures the Windows Ink Workspace to not be in the way, and have the best usability and privacy",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2968,9 +2968,9 @@
     },
     {
       "id": "atlas-disable-dynamic-lighting",
-      "name": "",
+      "name": "Disable Dynamic Lighting",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Dynamic Lighting by default",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -2993,9 +2993,9 @@
     },
     {
       "id": "atlas-disable-mouse-accel",
-      "name": "",
+      "name": "Disable Mouse Acceleration",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables mouse acceleration (also called 'Enhance Pointer Precision') for 1:1 mouse movement, which is what most gamers would want",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3044,9 +3044,9 @@
     },
     {
       "id": "atlas-disable-resume",
-      "name": "",
+      "name": "Disable Cross Device Resume",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the CrossDeviceResume process",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3082,9 +3082,9 @@
     },
     {
       "id": "atlas-disable-screen-capture-hotkey",
-      "name": "",
+      "name": "Disable Screen Capture Hotkey",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables using the print screen key to open Screen Capture when Snipping Tool is removed",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3107,9 +3107,9 @@
     },
     {
       "id": "atlas-disable-settings-tips",
-      "name": "",
+      "name": "Disable Settings Tips",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Settings tips for QoL, as most of the time, they only get in the way",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3145,9 +3145,9 @@
     },
     {
       "id": "atlas-disable-spell-checking",
-      "name": "",
+      "name": "Disable Spell Checking",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables spell checking for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3222,9 +3222,9 @@
     },
     {
       "id": "atlas-disable-store-auto-updates",
-      "name": "",
+      "name": "Disable Automatic Updates for Apps in Store",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables automatic updates for apps in Store so that the user has more control",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3272,9 +3272,9 @@
     },
     {
       "id": "atlas-disable-touch-keyboard-features",
-      "name": "",
+      "name": "Disable Unnecessary Touch Keyboard Settings",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disable unnecessary touch keyboard settings for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3310,9 +3310,9 @@
     },
     {
       "id": "atlas-disable-touch-visual-feedback",
-      "name": "",
+      "name": "Disable Touch Visual Feedback",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables touch visual feedback for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3348,9 +3348,9 @@
     },
     {
       "id": "atlas-disable-usb-issues-notifications",
-      "name": "",
+      "name": "Disable 'Notify About USB Issues'",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables 'Notify me if there are issues connecting to USB devices' as this is prone to false positives, for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3386,9 +3386,9 @@
     },
     {
       "id": "atlas-disable-win11-settings-banner",
-      "name": "",
+      "name": "Disable Windows 11 Settings Banner",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the Windows 11 Settings banner (ValueBanner), which normally displays 'advertisements' such as Microsoft 365 on non-Enterprise editions",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3449,9 +3449,9 @@
     },
     {
       "id": "atlas-disable-windows-spotlight",
-      "name": "",
+      "name": "Disable Windows Spotlight",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Windows Spotlight provides lockscreen messages like 'Like what you see?', and are disabled for QoL and privacy",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3539,9 +3539,9 @@
     },
     {
       "id": "atlas-do-not-reduce-sounds",
-      "name": "",
+      "name": "Do Not Reduce Sounds While in a Call",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Makes it so that Windows does not reduce sounds in a call for QoL, as people generally wouldn't want this behavior",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3564,9 +3564,9 @@
     },
     {
       "id": "atlas-disable-always-read-section",
-      "name": "",
+      "name": "Disable 'Always Read and Scan This Section'",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables 'Always Read and Scan This Section' in Control Panel for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3602,9 +3602,9 @@
     },
     {
       "id": "atlas-disable-annoying-features-shortcuts",
-      "name": "",
+      "name": "Disable Commonly Annoying Features and Shortcuts",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables commonly annoying features such as pressing shift 5 times for sticky keys.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3731,9 +3731,9 @@
     },
     {
       "id": "atlas-disable-making-touch-easier",
-      "name": "",
+      "name": "Disable Accessibility Tool Shortcut",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the accessibility tool shortcut that launches with Win+Vol, which is also labeled as making touch and tablets easier to use, for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3756,9 +3756,9 @@
     },
     {
       "id": "atlas-disable-warning-sounds",
-      "name": "",
+      "name": "Disable Ease of Access Sounds",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disable Ease Of Access sounds on activation or sound warnings, like the infamous sticky keys sound, for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3807,9 +3807,9 @@
     },
     {
       "id": "atlas-always-more-details-transfer",
-      "name": "",
+      "name": "Show More Details by Default on Transfers",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Shows more details by default on file transfers such as exact speed of files copying, moving, deleting, etc.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3832,9 +3832,9 @@
     },
     {
       "id": "atlas-classic-search",
-      "name": "",
+      "name": "Revert to Classic Search",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Reverts to the much faster and stable old search box in File Explorer",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3877,9 +3877,9 @@
     },
     {
       "id": "atlas-disable-check-boxes",
-      "name": "",
+      "name": "Disable Use Check Boxes to Select Items",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables check boxes in File Explorer to select items for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -3902,9 +3902,9 @@
     },
     {
       "id": "atlas-disable-folders-this-pc",
-      "name": "",
+      "name": "Hide Folders from This PC",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Hides folders from 'This PC' as they are also in Quick Access to reduce clutter and QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4096,9 +4096,9 @@
     },
     {
       "id": "atlas-disable-invalid-shortcuts-search",
-      "name": "",
+      "name": "Disable Searching for Invalid Shortcuts",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables searching drives or using NTFS file system tracking for shortcuts that have invalid/non-existent paths for responsiveness",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4134,9 +4134,9 @@
     },
     {
       "id": "atlas-dont-show-office-files",
-      "name": "",
+      "name": "Don't Show Office Files",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Don't show Office files in Quick Access (Home)",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4159,9 +4159,9 @@
     },
     {
       "id": "atlas-enable-long-paths",
-      "name": "",
+      "name": "Enable Long Paths",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the default path length limit.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4184,9 +4184,9 @@
     },
     {
       "id": "atlas-extend-cache",
-      "name": "",
+      "name": "Extend Icon Cache",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Extends the icon cache to 4MB for better explorer responsiveness",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4209,9 +4209,9 @@
     },
     {
       "id": "atlas-full-context-on-more-than-15-items",
-      "name": "",
+      "name": "Always Show the Full Context Menu On Items",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Fixes context menu items missing when more than 15 files are selected, this sets it to 100 items instead of 15, where some context menu items disappear",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4234,9 +4234,9 @@
     },
     {
       "id": "atlas-hide-frequently-used-items",
-      "name": "",
+      "name": "Hide Recent Items",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Hide recent items in Quick Access and other places for privacy and QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4324,9 +4324,9 @@
     },
     {
       "id": "atlas-minimize-mouse-hover-time",
-      "name": "",
+      "name": "Minimize Mouse Hover Time for Item Info",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Minimizes mouse hover time (from 400 ms to 20 ms) for hovering over files or folders mostly in File Explorer, so that you can instantly see information for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4349,9 +4349,9 @@
     },
     {
       "id": "atlas-no-internet-open-with",
-      "name": "",
+      "name": "Disable Internet File Association Service",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Makes it so that Windows does not ask you if you want to get results from the web for an unknown file extension",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4374,9 +4374,9 @@
     },
     {
       "id": "atlas-open-to-this-pc",
-      "name": "",
+      "name": "Open File Explorer to This PC",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures File Explorer to open to This PC instead of Quick Access for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4399,9 +4399,9 @@
     },
     {
       "id": "atlas-cast-to-device",
-      "name": "",
+      "name": "Remove 'Cast to device' from Context Menu",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Removes 'Cast to device' from Context Menu",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4424,9 +4424,9 @@
     },
     {
       "id": "atlas-troubleshooting-compat",
-      "name": "",
+      "name": "Remove 'Troubleshooting Compatibility' from Context Menu",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Removes 'Troubleshooting Compatibility' from context menu",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4462,9 +4462,9 @@
     },
     {
       "id": "atlas-remove-previous-versions",
-      "name": "",
+      "name": "Remove Previous Versions from Explorer",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Removes previous versions from context menu and file's properties, for QoL",
       "risk": "low",
       "reversible": false,
       "operations": [
@@ -4484,9 +4484,9 @@
     },
     {
       "id": "atlas-remove-shortcut-text",
-      "name": "",
+      "name": "Remove Shortcut Text",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Removes '- Shortcut' text appended onto the end of shortcuts for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4509,9 +4509,9 @@
     },
     {
       "id": "atlas-show-files",
-      "name": "",
+      "name": "Configure Explorer to Show All Files with File Extensions",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures Explorer to show all files with file extensions such as system files, hidden files, etc. This is for QoL and also security.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4547,9 +4547,9 @@
     },
     {
       "id": "atlas-use-compact-mode",
-      "name": "",
+      "name": "Use Compact Mode",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Sets compact mode in File Explorer",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4572,9 +4572,9 @@
     },
     {
       "id": "atlas-hide-disabled-disconnected-sounds",
-      "name": "",
+      "name": "Hide Disabled and Disconnected Devices in Sounds Panel",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Hides disabled and disconnected devices in the sounds panel (mmsys.cpl) for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4610,9 +4610,9 @@
     },
     {
       "id": "atlas-disable-uac-secure-desktop",
-      "name": "",
+      "name": "Disable UAC Secure Desktop",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables switching to the Secure Desktop when prompting for elevation. An application would need admin privileges to control the mouse and keyboard to accept the UAC prompt anyways. As a note, UAC is not designed to save you from malware, UAC can easily be bypassed on admin accounts (e.g. check GitHub)",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4635,9 +4635,9 @@
     },
     {
       "id": "atlas-set-hidden-settings-pages",
-      "name": "",
+      "name": "Set Hidden Pages",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Hides Settings pages that are either broken or unused",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4660,9 +4660,9 @@
     },
     {
       "id": "atlas-alt-tab-open-windows",
-      "name": "",
+      "name": "Do Not Show Edge Tabs in Alt-Tab",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Sets the 'Alt + Tab shows' option to 'Open windows only', meaning that individual Edge tabs won't be displayed, which would clutter the alt-tab interface",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4685,9 +4685,9 @@
     },
     {
       "id": "atlas-config-autorun",
-      "name": "",
+      "name": "Disable AutoRun",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables AutoRun, also known as AutoPlay, for optimal QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4710,9 +4710,9 @@
     },
     {
       "id": "atlas-disable-aero-shake",
-      "name": "",
+      "name": "Disable Aero Shake",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Aero Shake, which is where you shake a window and all other Windows minimise, as most of the time it is accidentally triggered",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4735,9 +4735,9 @@
     },
     {
       "id": "atlas-disable-low-disk-warning",
-      "name": "",
+      "name": "Disable Low Disk Space Checks",
       "category": "Quality of Life",
-      "description": "",
+      "description": "DIsables low disk space checks, meaning that there will not be a low disk space warning for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4760,9 +4760,9 @@
     },
     {
       "id": "atlas-disable-menu-delay",
-      "name": "",
+      "name": "Disable Menu Hover Delay",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Makes hovering over sub-menus in menus instant, instead of having a slight delay on hover",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4785,9 +4785,9 @@
     },
     {
       "id": "atlas-disable-nearby-sharing",
-      "name": "",
+      "name": "Disable Shared Experiences",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables 'Shared Experiences', which is a way of sharing items between devices for privacy and QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4836,9 +4836,9 @@
     },
     {
       "id": "atlas-no-recommendations-start-menu",
-      "name": "",
+      "name": "Disable Recommendations in the Start Menu",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Do not show recommendations for tips, shortcuts, new apps, and more in the Start Menu",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4874,9 +4874,9 @@
     },
     {
       "id": "atlas-restore-old-context-menu",
-      "name": "",
+      "name": "Restore Old Context Menu",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Restores the old context menu in Windows 11",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4897,9 +4897,9 @@
     },
     {
       "id": "atlas-set-unpinned-notification-items",
-      "name": "",
+      "name": "Set Unpinned Control Center Items",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables unused control center items by default for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4922,9 +4922,9 @@
     },
     {
       "id": "atlas-show-more-pins",
-      "name": "",
+      "name": "Show More Pins in Start",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Shows more pins in the Start Menu, meaning less recommendations",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4947,9 +4947,9 @@
     },
     {
       "id": "atlas-show-all-tasks-control-panel",
-      "name": "",
+      "name": "Show All Tasks in Control Panel",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Shows 'All Tasks' in Control Panel (God Mode), so that people can easily access all settings for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -4970,9 +4970,9 @@
     },
     {
       "id": "atlas-decrease-shutdown-time",
-      "name": "",
+      "name": "Decrease Shutdown Time",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Makes it so that Windows is less tolerable to hung apps, and tries to kill them as fast as possible on shutdown",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5021,9 +5021,9 @@
     },
     {
       "id": "atlas-disable-startup-delay",
-      "name": "",
+      "name": "Disable Startup Delay",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the startup delay of startup applications",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5071,9 +5071,9 @@
     },
     {
       "id": "atlas-force-end-shutdown-apps",
-      "name": "",
+      "name": "Force Close Applications On Session End",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Forcefully closes all applications on restart, shut down, or sign out of Windows, instead of prompting the user to save everything first",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5096,9 +5096,9 @@
     },
     {
       "id": "atlas-crash-control-qol",
-      "name": "",
+      "name": "Configure Crash Control",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures the BSoD for having the most useful information and not leaving behind dumps (which most people will not look into anyways)",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5173,9 +5173,9 @@
     },
     {
       "id": "atlas-disable-wpbt",
-      "name": "",
+      "name": "Disable Windows Platform Binary Table Execution (WPBT)",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables WPBT with an undocumented Registry value, which is an ACPI table in your firmware to execute a program each boot of Windows such as unwanted OEM bloatware.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5198,9 +5198,9 @@
     },
     {
       "id": "atlas-cmd-win-x",
-      "name": "",
+      "name": "Show Command Prompt on Win+X",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Shows Command Prompt instead of PowerShell on Windows + X, as it is what most users are familiar with",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5223,9 +5223,9 @@
     },
     {
       "id": "atlas-config-pins",
-      "name": "",
+      "name": "Configure Taskbar Pins",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures taskbar pins for QoL, puts the browser first (if there is one) and Explorer next",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5274,9 +5274,9 @@
     },
     {
       "id": "atlas-disable-cloud-optimized-content",
-      "name": "",
+      "name": "Disable Cloud Optimized Content on Taskbar",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables cloud optimized content in the taskbar for QoL, which pins items dependent on things like having linked phone or Xbox Live - seems to break Windows Spotlight",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5299,9 +5299,9 @@
     },
     {
       "id": "atlas-disable-copilot",
-      "name": "",
+      "name": "Disable Microsoft Copilot",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Microsoft Copilot as it depends on Edge, as well it collecting data and not being used by most users",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5324,9 +5324,9 @@
     },
     {
       "id": "atlas-disable-desktop-peek",
-      "name": "",
+      "name": "Disable Show Desktop Peek on Taskbar",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the 'Show Desktop' peek feature on the taskbar, as most of the time people accidentally trigger it, so it is disabled here for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5387,9 +5387,9 @@
     },
     {
       "id": "atlas-disable-tablet-mode",
-      "name": "",
+      "name": "Never Use Tablet Mode",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Makes Windows never use tablet mode for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5412,9 +5412,9 @@
     },
     {
       "id": "atlas-disable-windows-chat",
-      "name": "",
+      "name": "Disable Windows Chat",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Windows Chat as it's not commonly used",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5450,9 +5450,9 @@
     },
     {
       "id": "atlas-end-task",
-      "name": "",
+      "name": "Add 'End task' to the taskbar",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Adds 'End task' as a right-click option on taskbar for QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5475,9 +5475,9 @@
     },
     {
       "id": "atlas-hide-meet-now",
-      "name": "",
+      "name": "Hide 'Meet Now' on Taskbar",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Hides 'Meet Now' on the taskbar for QoL and privacy (as it is an online feature)",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5500,9 +5500,9 @@
     },
     {
       "id": "atlas-hide-task-view",
-      "name": "",
+      "name": "Disable Task View on Taskbar",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables the Task View button on the taskbar for QoL, as it can be accessed with Win + Tab anyways",
       "risk": "low",
       "reversible": false,
       "operations": [
@@ -5523,9 +5523,9 @@
     },
     {
       "id": "atlas-set-to-left",
-      "name": "",
+      "name": "Set Taskbar to Align Left",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Sets taskbar to align left instead of centered",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5548,9 +5548,9 @@
     },
     {
       "id": "atlas-visual-effects",
-      "name": "",
+      "name": "Configure Visual Effects",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Configures the visual effects in Windows for the optimal responsiveness, performance and QoL",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5690,9 +5690,9 @@
     },
     {
       "id": "atlas-disable-auto-reboot",
-      "name": "",
+      "name": "Disable WU Auto-Reboot",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Windows Update from automatically restarting your computer when there's pending updates.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5728,9 +5728,9 @@
     },
     {
       "id": "atlas-disable-auto-updates",
-      "name": "",
+      "name": "Disable WU Auto-Updates",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Windows Update from automatically updating Windows for QoL, at the cost of security.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5766,9 +5766,9 @@
     },
     {
       "id": "atlas-disable-delivery-optimization",
-      "name": "",
+      "name": "Disable Delivery Optimization",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Delivery Optimization to make sure that no bandwidth is used in the background for peer-to-peer Windows Updates",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5791,9 +5791,9 @@
     },
     {
       "id": "atlas-disable-feature-updates",
-      "name": "",
+      "name": "Disable Feature Updates",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables feature updates as they might reset tweaks, bring back bloatware and potentially break the system.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5816,9 +5816,9 @@
     },
     {
       "id": "atlas-disable-insider",
-      "name": "",
+      "name": "Restrict Windows Insider",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Forcefully restricts Windows Insider from being enabled to prevent extra data collection, tweaks being reverted and general instability.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5906,9 +5906,9 @@
     },
     {
       "id": "atlas-disable-msrt-telemetry",
-      "name": "",
+      "name": "Disable MSRT telemetry",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables MSRT's (Malicious Software Removal Tool) telemetry features",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -5944,9 +5944,9 @@
     },
     {
       "id": "atlas-disable-nagging",
-      "name": "",
+      "name": "Disable WU Nagging",
       "category": "Quality of Life",
-      "description": "",
+      "description": "Disables Windows Update from nagging you in any way possible, e.g. about restarting your computer.",
       "risk": "low",
       "reversible": true,
       "operations": [
@@ -6015,9 +6015,9 @@
     },
     {
       "id": "atlas-block-anonymous-enum-sam",
-      "name": "",
+      "name": "Blocks Anonymous Enumeration of SAM Accounts",
       "category": "Security",
-      "description": "",
+      "description": "Blocks the anonymous enumeration of SAM accounts to prevent the ability to list the potential points of attack to the system",
       "risk": "high",
       "reversible": true,
       "operations": [
@@ -6040,9 +6040,9 @@
     },
     {
       "id": "atlas-disable-remote-assistance",
-      "name": "",
+      "name": "Disable Remote Assistance",
       "category": "Security",
-      "description": "",
+      "description": "As Remote Assistance is an unused and a potential vulnerable feature, it is disabled",
       "risk": "high",
       "reversible": false,
       "operations": [

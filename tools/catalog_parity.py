@@ -8,10 +8,22 @@ native Go engine's embedded configs (config/*.json) and reports:
      (name/description backfill candidates);
   2. web tweaks with no engine equivalent (engine catalog gaps);
   3. debloat package gaps (web families missing from config/debloat.json);
-  4. application gaps (web winget ids missing from config/applications.json).
+  4. application gaps (web winget ids missing from config/applications.json);
+  5. privacy rule coverage (web `privacySeed` vs engine Privacy tweaks).
+
+Privacy rules carry no operations in the web seed (the web app is a
+simulation), so coverage is expressed via PRIVACY_MAP — a curated, reviewed
+mapping from web rule id to engine tweak id(s), each entry verified against
+the engine tweak's actual operations (see notes inline). Rules without an
+engine equivalent are listed in PRIVACY_GAPS with a written reason; every
+web privacy rule MUST be triaged into exactly one of those two tables —
+an untriaged rule, or a mapping to a nonexistent engine tweak, is an error
+and fails the run.
 
 Usage: python3 tools/catalog_parity.py [--fix] [--write-report docs/CATALOG_PARITY.md]
-Exit code 0 when no gaps, 1 when gaps exist (CI-friendly).
+Exit code 0 when no gaps, 1 when gaps exist (CI-friendly). Privacy GAPs are
+documented, reported, and tolerated (exit-neutral, mirroring the 7 tweak
+exclusions); untriaged rules or dangling mappings exit 1.
 """
 import argparse
 import json
@@ -88,6 +100,104 @@ def parse_web_catalog():
             }
         )
     return tweaks
+
+
+# ------------------------------------------------------------- privacy rules
+#
+# Curated web privacySeed rule -> engine tweak mapping. Every entry was
+# verified by reading the engine tweak's operations in config/tweaks.json
+# (the web seed has no ops to diff mechanically). Notes record the grounding.
+
+PRIVACY_MAP = {
+    # web rule id: (engine tweak ids, grounding note)
+    "priv-telemetry-security": (
+        ["atlas-disallow-data-collection"],
+        "AllowTelemetry=0 + MaxTelemetryAllowed=0 (policy + WOW6432Node), DiagTrack service disabled",
+    ),
+    "priv-ceip": (["atlas-disable-ceip"], "AppV+SQMClient CEIPEnable=0"),
+    "priv-wer": (["atlas-disable-win-error-reporting"], "Windows Error Reporting Disabled/DontShowUI/DoReport=0"),
+    "priv-inking-typing": (["atlas-disable-input-telemetry"], "InputPersonalization RestrictImplicitInk/TextCollection=1"),
+    "priv-speech": (["atlas-disable-online-speech-recognition"], "OnlineSpeechPrivacy HasAccepted=0"),
+    "priv-activity-history": (
+        ["atlas-disable-activity-feed", "atlas-disallow-user-activity-upload"],
+        "EnableActivityFeed=0 + UploadUserActivities/PublishUserActivities=0",
+    ),
+    "priv-perm-location": (["atlas-config-app-permissions"], "ConsentStore\\location Value=Deny"),
+    "priv-perm-messages": (
+        ["atlas-disallow-message-cloud-sync"],
+        "PARTIAL — AllowMessageSync=0 covers message cloud sync; engine has no ConsentStore\\chat consent op",
+    ),
+    "priv-perm-account": (["atlas-config-app-permissions"], "ConsentStore\\userAccountInformation Value=Deny"),
+    "priv-perm-background": (["atlas-disable-background-apps"], "GlobalUserDisabled=1 + BackgroundAppGlobalToggle=0"),
+    "priv-ad-id": (["atlas-disable-advertising-info"], "AdvertisingInfo Enabled=0 + DisabledByGroupPolicy=1"),
+    "priv-suggested-content": (["atlas-config-content-delivery"], "ContentDeliveryManager SubscribedContent-338393Enabled=0 (Settings suggestions)"),
+    "priv-tailored-experiences": (["atlas-disable-tailored-experiences"], "TailoredExperiencesWithDiagnosticDataEnabled=0 + CloudContent policy"),
+    "priv-start-suggestions": (
+        ["atlas-no-recommendations-start-menu", "atlas-config-content-delivery"],
+        "Start_IrisRecommendations=0 + ContentDeliveryManager SilentInstalledApps/SoftLanding=0",
+    ),
+    "priv-local-account": (
+        ["atlas-disallow-ms-accounts"],
+        "engine is stricter than the web narrative: NoConnectedUser=3 disallows MS accounts instead of only flagging",
+    ),
+    "priv-signin-sync": (["atlas-disable-setting-sync"], "SettingSync Groups\\Credentials Enabled=0 + DisableSettingSync policies"),
+    "priv-net-llmnr": (["atlas-disable-llmnr", "net-disable-llmnr"], "DNSClient EnableMulticast=0 (both tweaks write the same policy)"),
+    "priv-wifi-sense": (["net-disable-wifisense"], "WcmSvc\\wifinetworkmanager\\config AutoConnectAllowedOEM=0"),
+    "priv-bing-search": (
+        ["atlas-search-settings", "tel-disable-web-search", "ui-disable-bing-search"],
+        "BingSearchEnabled=0 / DisableWebSearch=1 / DisableSearchBoxSuggestions=1",
+    ),
+    "priv-explorer-ads": (
+        ["atlas-disable-sync-provider-notifs", "exp-disable-ads"],
+        "Explorer\\Advanced ShowSyncProviderNotifications=0 (both tweaks write the same value)",
+    ),
+    "priv-copilot": (
+        ["atlas-disable-copilot", "ui-disable-copilot"],
+        "Policies\\...\\WindowsCopilot TurnOffWindowsCopilot=1 (both tweaks write the same policy)",
+    ),
+    "priv-diagnostic-data-viewer": (
+        ["atlas-disallow-data-collection"],
+        "PARTIAL — DiagTrack EventTranscriptKey EnableEventTranscript=0 stops DDV recording; "
+        "engine lacks the DataCollection\\EnableDiagnosticDataViewer policy op",
+    ),
+}
+
+PRIVACY_GAPS = {
+    # web rule id: reason there is no engine coverage (verified against config/tweaks.json)
+    "priv-perm-camera": "engine ConsentStore ops cover only appDiagnostics/location/userAccountInformation; no ConsentStore\\webcam op",
+    "priv-perm-mic": "no ConsentStore\\microphone op in the engine catalog",
+    "priv-perm-contacts": "no ConsentStore\\contacts op in the engine catalog",
+    "priv-perm-calendar": "no ConsentStore\\appointments op in the engine catalog",
+    "priv-perm-callhistory": "no ConsentStore\\phoneCallHistory op in the engine catalog",
+    "priv-perm-email": "no ConsentStore\\email op in the engine catalog",
+    "priv-perm-notifications": "no ConsentStore op for notification access in the engine catalog",
+    "priv-cloud-clipboard": "no Clipboard/cloud-sync registry op anywhere in the engine catalog",
+    "priv-edge-telemetry": "no Policies\\Microsoft\\Edge op in the engine catalog",
+    "priv-smartscreen": "no SmartScreen (Explorer/Edge policy) op in the engine catalog",
+    "priv-dnt": "web rule is browser-level (Do Not Track header), not an OS registry state — out of engine scope today",
+    "priv-net-netbios": "same documented exclusion as net-disable-netbios: SetTcpipNetbios is WMI-only; native op pending (see CATALOG_PARITY.md)",
+    "priv-net-mdns": "no mDNS disable op in the engine catalog",
+    "priv-net-ncsi": "no NCSI EnableActiveProbing op in the engine catalog",
+    "priv-net-wcn": "no Windows Connect Now op in the engine catalog",
+    "priv-device-metadata": "no PreventDeviceMetadataFromNetwork/DeviceSetupManager op in the engine catalog",
+    "priv-recall": "no Recall/DisableAIDataAnalysis op in the engine catalog",
+    "priv-microsoft-store-ads": "no personalized-ads-in-Store op in the engine catalog (store auto-updates/retail demo are unrelated)",
+}
+
+
+def parse_web_privacy_rules():
+    src = (ROOT / "src/db/seed-data.ts").read_text()
+    block = src[src.index("export const privacySeed") :]
+    block = block[: block.index("];")]
+    rules = []
+    for m in re.finditer(
+        r'\{ id: "(?P<id>priv-[a-z0-9-]+)", name: "(?P<name>(?:[^"\\]|\\.)*)", '
+        r'description: "(?P<desc>(?:[^"\\]|\\.)*)", category: "(?P<cat>[^"]+)", '
+        r'risk: "(?P<risk>[a-z]+)", defaultEnabled: (?P<def>true|false)',
+        block,
+    ):
+        rules.append({"id": m["id"], "name": m["name"], "category": m["cat"], "risk": m["risk"]})
+    return rules
 
 
 # ---------------------------------------------------------------- engine configs
@@ -257,6 +367,49 @@ def main():
         for app_id, name, cat in missing_apps:
             report.append(f"- ❌ APP GAP — {app_id} ({name}, {cat}) not in config/applications.json")
 
+    # ---------------------------------------------------------- privacy diff
+    web_priv = parse_web_privacy_rules()
+    priv_report = ["\n## Privacy rules (web privacySeed vs engine catalog)\n"]
+    triaged, priv_gaps, priv_partials, priv_errors = set(), 0, 0, []
+    covered_engine = set()
+    for rule in web_priv:
+        rid, rname = rule["id"], rule["name"]
+        mapped, known_gap = rid in PRIVACY_MAP, rid in PRIVACY_GAPS
+        if mapped and known_gap:
+            priv_errors.append(f"rule `{rid}` is in BOTH PRIVACY_MAP and PRIVACY_GAPS")
+            known_gap = False
+        if not mapped and not known_gap:
+            priv_errors.append(f"rule `{rid}` ({rname}) is untriaged — add it to PRIVACY_MAP or PRIVACY_GAPS")
+        if mapped:
+            triaged.add(rid)
+            ids, note = PRIVACY_MAP[rid]
+            missing_ids = [e for e in ids if e not in eng_ids]
+            if missing_ids:
+                priv_errors.append(f"rule `{rid}` maps to nonexistent engine tweak(s): {', '.join(missing_ids)}")
+                continue
+            covered_engine.update(ids)
+            if note.startswith("PARTIAL — "):
+                priv_partials += 1
+                priv_report.append(f"- ⚠️ PARTIAL — web rule `{rid}` ({rname}): {note[10:]}; engine tweak(s) "
+                                   + ", ".join(f"`{e}`" for e in ids))
+            else:
+                priv_report.append(f"- ✅ EQUIVALENT — web rule `{rid}` ({rname}): {note}; engine tweak(s) "
+                                   + ", ".join(f"`{e}`" for e in ids))
+        elif known_gap:
+            triaged.add(rid)
+            priv_gaps += 1
+            priv_report.append(f"- ❌ GAP — web rule `{rid}` ({rname}): {PRIVACY_GAPS[rid]}")
+
+    engine_priv_extras = sorted(
+        t["id"] for t in eng if t.get("category") == "Privacy" and t["id"] not in covered_engine
+    )
+    if engine_priv_extras:
+        priv_report.append(
+            f"\n- ℹ️ {len(engine_priv_extras)} engine Privacy-category tweak(s) have no web seed rule "
+            "(engine-only extras, not gaps):\n  "
+            + ", ".join(f"`{i}`" for i in engine_priv_extras)
+        )
+
     counts = (
         "\n## Summary\n\n"
         f"- Web tweaks: {len(web_tweaks)} · Engine tweaks: {len(eng)}\n"
@@ -264,8 +417,13 @@ def main():
         f"- Backfilled this run: {fixed}\n"
         f"- Debloat {('added' if args.fix else 'gaps')}: {len(missing_debloat)} · "
         f"App {('added' if args.fix else 'gaps')}: {len(missing_apps)}\n"
+        f"- Privacy rules: {len(web_priv)} web · equivalent {len(triaged) - priv_gaps - priv_partials} · "
+        f"partial {priv_partials} · gaps {priv_gaps} · triage errors {len(priv_errors)}\n"
     )
     report.insert(0, counts)
+    report.extend(priv_report)
+    for e in priv_errors:
+        report.append(f"- 🔥 TRIAGE ERROR — {e}")
 
     out = "\n".join(report)
     if args.write_report:
@@ -275,7 +433,7 @@ def main():
             "# WinForge Catalog Parity Report\n\nGenerated by tools/catalog_parity.py\n\n" + out + "\n"
         )
     print(out)
-    sys.exit(1 if (not args.fix and (missing_debloat or missing_apps)) else 0)
+    sys.exit(1 if (priv_errors or (not args.fix and (missing_debloat or missing_apps))) else 0)
 
 
 if __name__ == "__main__":
