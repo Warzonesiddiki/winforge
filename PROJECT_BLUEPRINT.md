@@ -156,7 +156,7 @@ if (!File.Exists(localStatePath "catalog_seeded.txt")) {
 
 ---
 
-## ROADMAP — 4 Phases
+## ROADMAP — 5 Phases (+ Phase 2.5)
 
 ### Phase 1 — Foundation (3 weeks)
 **Goal**: Admin elevation + Registry service + Restore points + Basic UI shell
