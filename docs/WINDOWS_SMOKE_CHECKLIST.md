@@ -162,11 +162,45 @@ with a `manifest.json` declaring `"type":"lua"` and a `pack.lua`.
       decoy `lua54.dll` in the CWD) that WinForge loads lua54.dll ONLY from
       next to the exe / the data directory, never PATH or the CWD.
 
-## 12. ISO builder (needs real Windows media; else N/A)
+## 12. HTTP control plane — session-token auth (added 2026-08-16, ADR-002)
 
-- [ ] 11.1 `winforge.exe build-iso --source <mounted-iso-dir> --list-editions`
+Run `winforge.exe serve` and use the browser devtools console on
+http://localhost:8696 (same origin) for these. "Mutation" = POST/PUT/PATCH/DELETE.
+
+- [ ] 12.1 **Token endpoint**: `GET /api/session-token` returns
+      `{"token":"<43-char base64url>"}`. Restarting the engine returns a
+      **different** token (per-instance, crypto/rand).
+- [ ] 12.2 **Mutation without token is refused**: in the console run
+      `fetch("/api/tweaks/apply",{method:"POST",body:JSON.stringify({id:"<some-id>"})})`
+      → **401**, and the tweak is NOT applied (verify via `GET /api/tweaks`
+      and the audit log — there must be no new entry).
+- [ ] 12.3 **Mutation with wrong token is refused**: same request with
+      `X-WinForge-Token: aaaa…` → **401**, no state change.
+- [ ] 12.4 **Mutation with the correct token succeeds**: fetch the token from
+      12.1, resend with `X-WinForge-Token` → 200 and the tweak applies; undo
+      via `POST /api/tweaks/undo` with the token reverts it.
+- [ ] 12.5 **Reads stay open**: `GET /api/status`, `/api/health`, `/api/tweaks`,
+      `/api/history` all succeed with **no** token header.
+- [ ] 12.6 **Bundled dashboard still works end-to-end**: toggling a tweak in
+      the engine's own web UI applies/undoes correctly (proves `web/app.js`
+      fetches and sends the token), and the audit log records it.
+- [ ] 12.7 **Next.js UI (if running `npm run dev` alongside)**: the dashboard's
+      engine card shows "connected", and the apply/undo buttons on the tweaks
+      page work through the `/engine/*` proxy. Confirm in the Network tab that
+      each POST carries `X-WinForge-Token`.
+- [ ] 12.8 **Cross-origin still refused**: from a page on a *different* origin,
+      a mutation to `http://localhost:8696/api/tweaks/apply` is rejected even
+      if a valid token is supplied (same-origin + loopback-Host checks run
+      before the token check).
+- [ ] 12.9 **Token rotation invalidates**: note a token, restart the engine,
+      reuse the old token on a mutation → **401**. The Next client must
+      recover automatically (it drops its cache on 401 and re-fetches).
+
+## 13. ISO builder (needs real Windows media; else N/A)
+
+- [ ] 13.1 `winforge.exe build-iso --source <mounted-iso-dir> --list-editions`
       lists editions via dism.
-- [ ] 11.2 A slim build completes and the output ISO boots in a VM.
+- [ ] 13.2 A slim build completes and the output ISO boots in a VM.
 
 ## Sign-off
 

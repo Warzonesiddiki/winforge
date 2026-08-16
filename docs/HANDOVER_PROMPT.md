@@ -74,13 +74,44 @@ plus Python catalog tooling in `tools/`, plus Zig (`native/`) and Bun
   BLK-6 (new `docs/WINDOWS_SMOKE_CHECKLIST.md` §11). Elevated processes still
   ignore all plugins. See `docs/LUA_PLUGIN_PLAN.md`.
 
+**Update (2026-08-16 — W3 DONE, both phases):**
+- **Phase 1 — engine mutation auth (ADR-002).** Every mutation
+  (POST/PUT/PATCH/DELETE) requires an `X-WinForge-Token` header carrying a
+  per-instance 32-byte crypto/rand base64url session token (constant-time
+  compare). GETs stay open. New `GET /api/session-token`. Enforced in
+  `internal/httpapi/server.go` **after** the loopback-Host + same-origin
+  checks and **before** body decode; helpers in `internal/httpapi/auth.go`.
+- **Phase 2 — Next UI wired.** `src/lib/engine-client.ts` (token fetch +
+  cache + 401 invalidation) now backs `src/components/EngineTweaks.tsx`, a
+  live tweak panel (search / category / applied-only filters, apply + undo)
+  mounted on the dashboard under `EngineStatusCard`. It renders nothing when
+  the engine is offline, so the simulation is unaffected.
+- Verified against a running engine on Linux: 240 tweaks over the `/engine/*`
+  proxy; mutation without a token → **401**; with the token → reaches the
+  executor; wrong/stale token → 401; token rotates on restart; cross-origin
+  with a valid token → **403**; GET status/health/tweaks/history → 200 with
+  no token. Windows runtime verification is checklist **§12**.
+
+**Update (2026-08-16 — W2 re-scoped, W6 closed):**
+- **W2 WASM is NOT shipped**, deliberately. `docs/WASM_REALSCOPE_2026-08-16.md`
+  records the measurement: wasmtime 47's C API is ~980 symbols / ~28 MB, a
+  minimal host subset is ~30–35 functions with manual handle ownership and
+  C→Go callbacks, there is no cgo-free Linux path to execute it, and BLK-6
+  means no Windows runtime to verify a security-boundary binding. Do not ship
+  an unverified binding; Lua is the first scriptable tier.
+- **W6 `perf-memcompression` research CLOSED** — exclusion stands with
+  evidence in `docs/CATALOG_PARITY.md` (only PowerShell `Disable-MMAgent
+  -MemoryCompression` is documented; no registry backing exists; the NT path
+  is undocumented). Do not reopen without a citable Microsoft source.
+
 **Next steps, in priority order:**
 1. Windows smoke checklist execution (BLK-6, needs real hardware) — now
-   includes the Lua runtime (§11).
+   includes the Lua runtime (§11) and session-token auth (§12).
 2. `ci.yml.fixed` → `.github/workflows/ci.yml` the moment BLK-3 clears.
-3. WASM plugin tier implementation (`docs/WASM_PLUGIN_SANDBOX.md`, Phase 4).
-4. UI↔engine bridge phase 2 (POSTs through /engine/*; requires an engine
-   CSRF/auth design first — write ADR-002 before coding; see ADR-001).
+3. WASM plugin tier: implement on a Windows-capable runner per the two WASM
+   docs, or formally accept Lua-only and close W2 with explicit evidence.
+4. W6 housekeeping: watch for a documented `priv-microsoft-store-ads` policy
+   (never fabricate); WPF archive governance proposal needs owner approval.
 
 **Hard rules (from the project owner):**
 - ZERO fabrication: verify every claim by executing build/test/parse before

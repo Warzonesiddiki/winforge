@@ -127,8 +127,39 @@ backing for the Store app's personalized-experiences toggle — adding an op wou
 | Web tweak | Reason it is NOT in the engine catalog |
 |---|---|
 | `perf-pagefile` | `PagingFiles` is a REG_MULTI_SZ value; a string/dword write would corrupt the pagefile configuration. |
-| `perf-memcompression` | MMAgent cmdlets are PowerShell-only, and the engine's elevated executor **never invokes PowerShell** (allowlist security boundary — see `TestRunCommandElevationBoundary`). Needs a native winapi op (the backing NT API for memory compression is undocumented). |
+| `perf-memcompression` | MMAgent cmdlets are PowerShell-only, and the engine's elevated executor **never invokes PowerShell** (allowlist security boundary — see `TestRunCommandElevationBoundary`). Research CLOSED 2026-08-16 — no documented Win32/registry backing exists; see the evidence section below. |
 | `exp-classic-paint` | The web op is narrative text; Appx lifecycle is handled natively by the engine's bloatware catalog. |
+
+### `perf-memcompression` — research CLOSED 2026-08-16 (exclusion stands, with evidence)
+
+W6 asked whether memory compression could be implemented as a **native** engine op,
+so the exclusion would no longer be needed. The answer is **no**, and this section
+records the evidence so the question is not silently reopened by a future session.
+
+**Question**: is there a documented Win32 API or registry value that toggles
+memory compression, which the engine could drive without PowerShell?
+
+**What was checked**
+
+| Candidate mechanism | Finding | Verdict |
+|---|---|---|
+| PowerShell `Disable-MMAgent -MemoryCompression` / `Enable-MMAgent -MemoryCompression` | The **only** mechanism Microsoft documents. `Disable-MMAgent` (MMAgent module, Windows Server 2025 docset) lists `-MemoryCompression` (alias `-mc`) as a switch parameter. Every third-party guide surveyed (woshub, XDA, Microsoft Q&A answer 4338197, Super User 1383484) prescribes exactly this cmdlet and no other route. | **REFUSED by the security boundary** — `powershell`/`pwsh` are deliberately not on the elevated-executor allowlist (`TestRunCommandElevationBoundary`). Adding them would breach security invariant #1. |
+| A registry value under `…\Session Manager\Memory Management` (or `PrefetchParameters`) | No Microsoft-documented value toggles memory compression. Searches surface `EnableSuperfetch`/`EnablePrefetcher` (SysMain, a *different* feature) and pagefile settings, never a compression switch. MMAgent state is **not** a plain registry-backed policy: it is applied through the SysMain service and the memory manager. | **Does not exist** — writing a guessed value would be fabrication (invariant #7). |
+| `NtSetSystemInformation(SystemMemoryCompressionInformation)` | This is the actual kernel path the cmdlet ultimately reaches, but the information class and its struct layout are **undocumented** (not in the Windows SDK or the official NT API surface) and vary by build. | **Rejected** — an undocumented, build-varying kernel call in a *privileged* mutation path with no Windows runtime to test it against (BLK-6) is exactly the kind of unverified code this project refuses to ship. |
+| WMI / CIM class | `Get-MMAgent`'s CIM backing (`MSFT_MMAgent`, ROOT/Microsoft/Windows/MemoryDiagnostic) is a provider surface for the same cmdlets, not an independently documented, stable configuration API. | **Not pursued** — no documented write contract; would still be an undocumented-behavior bet. |
+
+**Conclusion**: the exclusion is **permanent until Microsoft documents a
+non-PowerShell mechanism**. All three of the possible routes are blocked by a
+standing project invariant: PowerShell by the executor allowlist, the registry
+route by non-existence, and the NT route by being undocumented *and* unverifiable
+(BLK-6). Note that `perf-memcompression` is a *performance* tweak whose benefit is
+contested (it trades RAM for CPU, and helps mainly on high-RAM machines), so the
+cost/benefit of an undocumented kernel call is especially poor.
+
+**Do not reopen** without a citable Microsoft source for a new mechanism. If one
+appears, implement it as a native winapi op — never as an allowlist addition.
+
+Primary source: [Disable-MMAgent (MMAgent module)](https://learn.microsoft.com/en-us/powershell/module/mmagent/disable-mmagent).
 
 ### AtlasOS metadata backfill (tools/atlas_metadata.py)
 

@@ -9,6 +9,7 @@ import { SystemInfo } from "@/components/SystemInfo";
 import { QuickScan } from "@/components/QuickScan";
 import { HealthPanel } from "@/components/HealthPanel";
 import { EngineStatusCard } from "@/components/EngineStatusCard";
+import { EngineTweaks } from "@/components/EngineTweaks";
 import { Banner } from "@/components/ui";
 import { PresetButtons } from "./PresetButtons";
 import { PageHeader } from "@/components/PageHeader";
@@ -54,6 +55,10 @@ export default async function DashboardPage() {
 
       <div className="mt-6">
         <EngineStatusCard />
+      </div>
+
+      <div className="mt-6">
+        <EngineTweaks />
       </div>
 
       <div className="mt-6 space-y-2">
