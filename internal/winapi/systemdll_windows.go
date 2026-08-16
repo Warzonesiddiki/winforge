@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -25,9 +24,8 @@ var (
 )
 
 func systemPath(name string) string {
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name ||
-		filepath.VolumeName(name) != "" || strings.ContainsAny(name, ":\x00") {
-		panic(fmt.Sprintf("invalid system file name %q", name))
+	if err := validateSystemFileName(name); err != nil {
+		panic(err)
 	}
 
 	systemDirectoryOnce.Do(func() {

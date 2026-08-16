@@ -46,7 +46,10 @@ const (
 	maxRequestBodyBytes = 1 << 20
 )
 
-var errJobQueueFull = errors.New("job queue is full")
+var (
+	errJobQueueFull    = errors.New("job queue is full")
+	errTooManyRequests = errors.New("too many requests; slow down and retry shortly")
+)
 
 // job tracks an in-flight async operation (winget install, maintenance fix,
 // DISM feature change) for progress polling.
@@ -64,14 +67,15 @@ type job struct {
 
 // Server implements http.Handler for the dashboard and API.
 type Server struct {
-	App          *app.App
-	mux          *http.ServeMux
-	elevated     bool
-	sessionToken string
-	mu           sync.Mutex
-	mutationMu   sync.Mutex
-	jobs         map[string]*job
-	seq          int
+	App             *app.App
+	mux             *http.ServeMux
+	elevated        bool
+	sessionToken    string
+	mu              sync.Mutex
+	mutationMu      sync.Mutex
+	jobs            map[string]*job
+	seq             int
+	mutationLimiter *rateLimiter
 }
 
 // New creates the HTTP server.
@@ -85,7 +89,13 @@ func newServer(a *app.App, elevated bool) *Server {
 	if err != nil {
 		panic("httpapi: cannot generate session token: " + err.Error())
 	}
-	s := &Server{App: a, elevated: elevated, sessionToken: token, jobs: map[string]*job{}}
+	s := &Server{
+		App:             a,
+		elevated:        elevated,
+		sessionToken:    token,
+		jobs:            map[string]*job{},
+		mutationLimiter: newRateLimiter(defaultMutationRate, defaultMutationBurst),
+	}
 	s.mux = s.routes()
 	return s
 }
@@ -168,6 +178,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if provided == "" ||
 			subtle.ConstantTimeCompare([]byte(provided), []byte(s.sessionToken)) != 1 {
 			writeErr(w, http.StatusUnauthorized, errInvalidToken)
+			return
+		}
+		// Defense-in-depth: throttle a flood of authenticated mutations.
+		if !s.limitMutation(w, r) {
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
