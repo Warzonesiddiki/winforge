@@ -57,13 +57,30 @@ plus Python catalog tooling in `tools/`, plus Zig (`native/`) and Bun
   `.github/workflows/*`; copy `ci.yml.fixed` when it clears), BLK-6 (no
   Windows runtime; run `docs/WINDOWS_SMOKE_CHECKLIST.md` on a real machine).
 
+**Update (2026-08-16, session arena/01a00a47-winforge — W1 DONE):**
+- The **Lua in-engine binding has LANDED**. `internal/plugin/lua.go` (platform-
+  independent whitelisted API + strict validation + op whitelist),
+  `lua_windows.go` (cgo-free `syscall.LoadDLL`/`NewCallback` host binding a
+  bundled `lua54.dll` next to the exe / data dir — never PATH; dangerous
+  globals removed; `LUA_MASKCOUNT` runaway hook budget 10M), and
+  `lua_other.go` (non-Windows `ErrLuaUnavailable`). Manifest gains
+  `"type":"lua"` + `"script":"pack.lua"`. Scripts propose via
+  `winforge.registry.set/delete`, `winforge.service.set_start_mode`,
+  `winforge.log`, `winforge.tweak{...}:commit()`, `winforge.revert`; every op
+  is validated through `config.ValidateOperationForPlugin`, and command/appx/
+  task/power/netbios/delete-key are forbidden. Sample:
+  `examples/plugins/example-lua-pack/`. 24 plugin tests pass on Linux;
+  windows `go vet`+`go test -c`+6.74 MB PE clean. Windows runtime behavior is
+  BLK-6 (new `docs/WINDOWS_SMOKE_CHECKLIST.md` §11). Elevated processes still
+  ignore all plugins. See `docs/LUA_PLUGIN_PLAN.md`.
+
 **Next steps, in priority order:**
-1. Windows smoke checklist execution (BLK-6, needs real hardware).
+1. Windows smoke checklist execution (BLK-6, needs real hardware) — now
+   includes the Lua runtime (§11).
 2. `ci.yml.fixed` → `.github/workflows/ci.yml` the moment BLK-3 clears.
-3. Lua in-engine binding (Windows LazyDLL path, `docs/LUA_PLUGIN_PLAN.md`).
-4. WASM plugin tier implementation (`docs/WASM_PLUGIN_SANDBOX.md`).
-5. UI↔engine bridge phase 2 (POSTs through /engine/*; requires engine
-   CSRF/auth design first — ADR-001).
+3. WASM plugin tier implementation (`docs/WASM_PLUGIN_SANDBOX.md`, Phase 4).
+4. UI↔engine bridge phase 2 (POSTs through /engine/*; requires an engine
+   CSRF/auth design first — write ADR-002 before coding; see ADR-001).
 
 **Hard rules (from the project owner):**
 - ZERO fabrication: verify every claim by executing build/test/parse before

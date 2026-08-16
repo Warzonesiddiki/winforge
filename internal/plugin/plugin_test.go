@@ -244,6 +244,136 @@ func TestDiscoverPluginWithoutTweaks(t *testing.T) {
 	}
 }
 
+// TestDiscoverUnknownManifestType verifies a manifest with an unrecognized
+// "type" is skipped rather than silently treated as JSON.
+func TestDiscoverUnknownManifestType(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "bad-type", "manifest.json"), `{"name":"bad","type":"python"}`)
+
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 0 {
+		t.Fatalf("want 0 plugins for unknown type, got %d", len(plugins))
+	}
+}
+
+// TestDiscoverLuaPluginUnavailable verifies that, when no Lua host is
+// available, a Lua plugin is skipped best-effort (it does not abort the rest
+// of discovery).
+func TestDiscoverLuaPluginUnavailable(t *testing.T) {
+	prev := newScriptHost
+	defer func() { newScriptHost = prev }()
+	newScriptHost = func([]string) (ScriptHost, error) { return nil, ErrLuaUnavailable }
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "json-pack", "manifest.json"), `{"name":"json"}`)
+	writeFile(t, filepath.Join(root, "json-pack", "tweaks.json"),
+		`{"tweaks":[{"id":"j","risk":"low","operations":[{"type":"registry_delete","hive":"HKCU","path":"A","name":"B"}]}]}`)
+	writeFile(t, filepath.Join(root, "lua-pack", "manifest.json"), `{"name":"lua","type":"lua"}`)
+	writeFile(t, filepath.Join(root, "lua-pack", "pack.lua"), `print("hi")`)
+
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 1 || plugins[0].ID != "json-pack" {
+		t.Fatalf("want only the json plugin, got %+v", plugins)
+	}
+}
+
+// TestDiscoverLuaPluginWithFakeHost exercises the full Lua discovery path
+// (manifest "type":"lua" → script read → host.Run → validation → merge) with
+// a fake host so the logic is tested on Linux without the Windows DLL.
+func TestDiscoverLuaPluginWithFakeHost(t *testing.T) {
+	prev := newScriptHost
+	defer func() { newScriptHost = prev }()
+	newScriptHost = func([]string) (ScriptHost, error) {
+		return &scriptedHost{tweaks: []config.Tweak{{
+			ID:         "lua-1",
+			Name:       "Lua One",
+			Category:   "Privacy",
+			Risk:       config.RiskLow,
+			Reversible: false,
+			Operations: []config.Operation{{Type: config.OpRegistrySetDword, Hive: "HKCU", Path: "K", Name: "N", Value: []byte("1")}},
+		}}, logs: []string{"loaded"}}, nil
+	}
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "lua-pack", "manifest.json"),
+		`{"name":"Lua Pack","type":"lua","script":"custom.lua"}`)
+	writeFile(t, filepath.Join(root, "lua-pack", "custom.lua"), `-- a script`)
+
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 1 || plugins[0].ID != "lua-pack" || plugins[0].Type != "lua" {
+		t.Fatalf("unexpected plugins: %+v", plugins)
+	}
+	if len(plugins[0].Tweaks) != 1 || plugins[0].Tweaks[0].ID != "lua-1" {
+		t.Fatalf("tweaks not loaded: %+v", plugins[0].Tweaks)
+	}
+	if len(plugins[0].ScriptLogs) != 1 || plugins[0].ScriptLogs[0] != "loaded" {
+		t.Fatalf("logs not captured: %+v", plugins[0].ScriptLogs)
+	}
+}
+
+// TestDiscoverLuaPluginRejectsPathTraversal ensures the manifest "script"
+// field must be a bare file name, not a path that escapes the plugin dir.
+func TestDiscoverLuaPluginRejectsPathTraversal(t *testing.T) {
+	prev := newScriptHost
+	defer func() { newScriptHost = prev }()
+	newScriptHost = func([]string) (ScriptHost, error) { return &scriptedHost{}, nil }
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "evil", "manifest.json"),
+		`{"name":"evil","type":"lua","script":"../../etc/passwd"}`)
+
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 0 {
+		t.Fatalf("expected path-traversal script to be rejected, got %+v", plugins)
+	}
+}
+
+// TestDiscoverLuaPluginRejectsInvalidTweaks ensures tweaks proposed by a
+// script run through the strict loader (a tweak with no operations is
+// rejected, so the plugin is skipped).
+func TestDiscoverLuaPluginRejectsInvalidTweaks(t *testing.T) {
+	prev := newScriptHost
+	defer func() { newScriptHost = prev }()
+	newScriptHost = func([]string) (ScriptHost, error) {
+		return &scriptedHost{tweaks: []config.Tweak{{ID: "bad", Risk: config.RiskLow}}}, nil
+	}
+
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "bad", "manifest.json"), `{"name":"bad","type":"lua"}`)
+	writeFile(t, filepath.Join(root, "bad", "pack.lua"), ``)
+
+	plugins, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(plugins) != 0 {
+		t.Fatalf("expected invalid lua tweaks to be rejected, got %+v", plugins)
+	}
+}
+
+// scriptedHost is a ScriptHost returning preprogrammed results.
+type scriptedHost struct {
+	tweaks []config.Tweak
+	logs   []string
+	err    error
+}
+
+func (h *scriptedHost) Run(string) ([]config.Tweak, []string, error) {
+	return h.tweaks, h.logs, h.err
+}
+
 func TestMergeTweaks(t *testing.T) {
 	mkTweak := func(id string) config.Tweak {
 		return config.Tweak{ID: id, Name: id}

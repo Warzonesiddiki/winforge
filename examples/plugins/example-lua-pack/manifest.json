@@ -1,0 +1,8 @@
+{
+  "name": "Example Lua Pack",
+  "version": "1.0.0",
+  "description": "Demonstrates the whitelisted winforge.* Lua API. Not applied automatically.",
+  "author": "WinForge",
+  "type": "lua",
+  "script": "pack.lua"
+}

@@ -142,9 +142,22 @@ func newApp(dataDir string, elevated bool) (*App, error) {
 	// their tweaks after the built-in/user-override tweaks. Embedded definitions
 	// win on id collisions. Elevated processes deliberately ignore this
 	// user-writable extension point (see the security boundary above).
+	//
+	// Lua packs are supported only when a lua54.dll is bundled next to the
+	// executable (the shipping location) or in the data directory (a developer
+	// override). The DLL is loaded by absolute path, never the DLL search path.
 	var plugins []plugin.Plugin
 	if !elevated {
-		plugins, err = plugin.Discover(filepath.Join(dataDir, "plugins"))
+		var dllDirs []string
+		if exePath, exeErr := os.Executable(); exeErr == nil {
+			if exeDir, absErr := filepath.Abs(filepath.Dir(exePath)); absErr == nil {
+				dllDirs = append(dllDirs, exeDir)
+			}
+		}
+		if dataAbs, absErr := filepath.Abs(dataDir); absErr == nil {
+			dllDirs = append(dllDirs, dataAbs)
+		}
+		plugins, err = plugin.DiscoverWithOptions(filepath.Join(dataDir, "plugins"), plugin.Options{LuaDLLDirs: dllDirs})
 		if err != nil {
 			return nil, err
 		}

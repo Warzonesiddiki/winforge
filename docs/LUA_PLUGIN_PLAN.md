@@ -1,64 +1,108 @@
-# WinForge — Lua Plugin Integration (verified artifacts + honest plan)
+# WinForge — Lua Plugin Integration (binding LANDED 2026-08-16)
 
-- **Status:** runtime artifacts built and executed (2026-08-16); the in-engine
-  Go binding is designed but deliberately not yet landed — see "The cgo
-  tension" below for the reason.
+- **Status:** The in-engine Go binding is implemented and sandbox-verified
+  (Linux unit tests + GOOS=windows `go vet`/`go test -c` + valid 6.74 MB
+  winforge.exe). Runtime behavior on Windows remains pending on BLK-6 (see
+  `docs/WINDOWS_SMOKE_CHECKLIST.md` §11). The pre-built artifacts from
+  `native/build-lua.sh` (liblua54.so executed 6*7=42; lua54.dll is a valid
+  PE) remain the prerequisite for the Windows runtime.
 
-## Verified today (all by execution, in-sandbox)
+## What shipped
 
-1. **`native/build-lua.sh`** builds Lua 5.4.7 from the github.com/lua/lua
-   `v5.4.7` tag with `zig cc`:
-   - `native/out/liblua54.so` — Linux ELF shared object (1.3 MB)
-   - `native/out/lua54.dll` — Windows PE32+ DLL (456 KB, `MZ` verified,
-     built with `-DLUA_BUILD_AS_DLL -target x86_64-windows-gnu`)
-   Artifacts are gitignored (`native/out/`); the script is the committed,
-   reproducible artifact.
-2. **The `.so` actually runs Lua**: loaded via ctypes,
-   `luaL_newstate → luaL_openlibs → luaL_loadstring("return 6*7") →
-   lua_pcallk → lua_tonumberx` returned **42**. The C ABI surface WinForge
-   needs (state, load, pcall, tonumber/tostring, push*) is confirmed present
-   and working in our build.
+### Files
 
-## The cgo tension (why the Go binding is not landed yet)
+- `internal/plugin/lua.go` — platform-independent core: the whitelisted
+  proposal API (`luaAPI`), strict operation construction through
+  `config.ValidateOperationForPlugin`, a closed plugin op-type whitelist
+  (registry dword/string/qword set, registry value delete, service
+  start-mode), and the `ScriptHost` interface.
+- `internal/plugin/lua_windows.go` — `//go:build windows` host: cgo-free
+  binding to `lua54.dll` via `syscall.LoadDLL` + `syscall.NewCallback`,
+  absolute-path DLL lookup (exe dir then data dir), the `winforge.*`
+  function table, removal of `os`/`io`/`debug`/`package`/`loadfile`/
+  `load`/`loadstring`/`require`/`dofile`, `print` redirected to the bounded
+  log, and an instruction-count hook (`lua_sethook LUA_MASKCOUNT`, budget
+  10,000,000) that aborts runaway scripts.
+- `internal/plugin/lua_other.go` — non-Windows stub returning
+  `ErrLuaUnavailable` (the platform-independent logic is still tested on
+  Linux via a fake `ScriptHost`).
+- `internal/plugin/plugin.go` — manifest gains `"type":"lua"` +
+  `"script":"pack.lua"` (default `pack.lua`, must be a bare file name);
+  `DiscoverWithOptions` carries `LuaDLLDirs`; Lua plugins route through
+  `loadLuaPlugin` → host.Run → strict `TweakConfig.Validate()`.
+- `internal/app/app.go` — passes the exe directory and data directory as the
+  two Lua DLL search locations; elevated processes still ignore the whole
+  plugins dir (UAC boundary).
+- `internal/config/models.go` — exports
+  `ValidateOperationForPlugin` (the strict-loader per-op validator).
+- `examples/plugins/example-lua-pack/` — documented sample pack
+  (`manifest.json` + `pack.lua`).
+- Tests: `internal/plugin/lua_test.go` (proposal builders + every hostile
+  case) and `internal/plugin/plugin_test.go` (manifest type routing,
+  unavailable/hostile/fake-host discovery).
 
-The engine ships as a **stdlib-only, CGO_ENABLED=0** static binary — that is
-a core architectural guarantee (BLK-2 resolution depends on it; the toolchain
-bootstrap and CI assume it).
+### The Lua API
 
-- **Windows:** binding `lua54.dll` needs **no cgo** — `syscall.NewLazyDLL` +
-  `NewProc` call C ABI functions directly (the same pattern as
-  `internal/registry` and `internal/winapi`). This is the shipping path.
-- **Linux:** there is no stdlib `dlopen`; loading `liblua54.so` from Go
-  requires cgo (or a third-party purego dependency, which violates
-  stdlib-only). So the handover's "tests run on Linux against the .so"
-  cannot be satisfied *inside* `go test` without breaking either
-  CGO_ENABLED=0 shipping or the no-third-party-modules rule.
+```lua
+local t = winforge.tweak{
+  id          = "my-tweak",
+  name        = "My Tweak",
+  category    = "Privacy",
+  description = "...",
+  risk        = "low",          -- low|medium|high
+  reversible  = true,
+}
+local set = winforge.registry.set("HKCU", "Software\\MyKey", "Value",
+                                  "dword", 1)   -- kind: dword|qword|string
+local del = winforge.registry.delete("HKCU", "Software\\MyKey", "Value")
+local svc = winforge.service.set_start_mode("Fax", "disabled")
+winforge.revert(del)            -- add an op handle to the tweak's revert list
+winforge.log("proposed")        -- bounded; print() is aliased to this
+t:commit()
+```
 
-**Decision:** do not compromise the stdlib-only guarantee.
+Every proposed operation is built into a `config.Operation` and run through
+the strict loader's `validateOperation` — bad hives, shallow
+`registry_delete_key` paths, oversized strings, DWORD/QWORD range, unknown
+service modes, and unknown op types are rejected at proposal time. A
+separate plugin op-type whitelist forbids `command`, `appx_remove`,
+`task_*`, `power_*`, `netbios`, and `registry_delete_key`: scripts can only
+propose the safe subset. Protected-service and malformed-name enforcement
+happens at apply time through the same engine guard used by catalog tweaks.
 
-## Landing plan (next session; Windows-first, sandbox-verifiable pieces first)
+## The cgo tension (respected, not relitigated)
 
-1. `internal/plugin/lua_windows.go` (build tag `windows`): LazyDLL binding to
-   `lua54.dll` looked up ONLY next to the executable or in the WinForge data
-   dir (never the DLL search path). Sandbox verification: `GOOS=windows go
-   vet` + `go test -c` compile it; behavioral verification goes on the
-   Windows smoke checklist (docs/WINDOWS_SMOKE_CHECKLIST.md).
-2. Whitelisted API surface exposed to scripts (identical to the WASM tier's
-   philosophy — scripts propose, the engine validates and executes):
-   - `winforge.registry.set(hive, path, name, kind, value)`
-   - `winforge.registry.delete(hive, path, name)`
-   - `winforge.service.set_start_mode(name, mode)`
-   - `winforge.log(message)`
-   Every call builds a `config.Operation` and passes through
-   `validateOperation` + the orchestrator (audit, undo, protected services,
-   elevation rules). Lua NEVER reaches the elevated command executor.
-3. Manifest extension: `manifest.json` `"type": "lua"`, `"script":
-   "pack.lua"`. Elevated processes ignore Lua plugins (same UAC rule as
-   JSON plugins today).
-4. Linux-side logic tests without cgo: the *API surface* (operation
-   construction, validation, bounds, hostile-input rejection) is plain Go and
-   fully testable with a fake script host; only the thin LazyDLL layer is
-   Windows-only, mirroring how `internal/registry` is tested today.
-5. Hostile-script tests (Windows checklist + compiled tests): bad hive,
-   oversized strings, protected service, disallowed API name, infinite loop
-   (instruction-count hook `lua_sethook(LUA_MASKCOUNT)` → abort).
+The engine ships **stdlib-only, CGO_ENABLED=0**. On Windows,
+`syscall.NewLazyDLL`/`syscall.LoadDLL` + `syscall.NewCallback` call the C
+ABI directly — no cgo. On Linux there is no stdlib `dlopen`, so loading
+`liblua54.so` would require cgo (or a third-party purego dependency), which
+violates the stdlib-only guarantee. Therefore:
+
+- The **platform-independent logic** (API surface, operation construction,
+  validation, bounds, hostile-input rejection, manifest routing) is plain Go
+  and fully unit-tested on Linux with a fake `ScriptHost`.
+- The **thin Windows binding** is verified by `GOOS=windows go vet` +
+  `go test -c`; behavioral items are in `docs/WINDOWS_SMOKE_CHECKLIST.md`
+  §11.
+
+## Longjmp note (Windows)
+
+`lua_error` performs a `longjmp` to the protected-call frame inside
+lua54.dll. When invoked from a Go `syscall.NewCallback`, the Go frame is
+unwound without running its defers. This is safe here because the callbacks
+hold no Go locks or heap resources across the raise (`stateMu` is released
+before returning into Lua), and `Run` locks the goroutine to one OS thread
+so any abandoned stack stays within that thread; after `pcall` returns,
+normal Go control flow resumes and `lua_close` runs. This is explicitly
+exercised on the Windows smoke checklist (item 11.8), including a
+post-abort stability check.
+
+## Verified in-sandbox (2026-08-16)
+
+- `gofmt -l .` clean · `go vet ./...` clean (linux + windows) · all 18
+  test packages green incl. `-race` (24 plugin tests).
+- `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build` → `winforge.exe`
+  6,738,944 bytes, valid `MZ` PE.
+- `GOOS=windows GOARCH=amd64 go test -c ./internal/plugin` compiles.
+- The example pack's Lua is validated by the same `TweakConfig.Validate()`
+  path used for JSON plugins (covered by the fake-host discovery test).
