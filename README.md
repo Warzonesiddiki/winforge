@@ -1,35 +1,70 @@
-# WinForge Elite — Control Center
+# WinForge — Windows Optimization Suite
 
-> The definitive all-in-one Windows optimization, debloat, privacy hardening, repair, and power-user configuration suite.
+> The all-in-one Windows optimization, debloat, privacy hardening, repair, and power-user configuration suite.
 
-## The Native Engine (Go) 🆕
+WinForge ships as a single self-contained **`winforge.exe`** (~6.5 MB, no runtime
+required) with a full CLI and a local web dashboard. The engine is written in Go
+(stdlib-only — zero third-party modules), with 240 tweaks, 102 debloat items,
+83 installable apps, 40 privacy rules, a Lua/WASM plugin system, and a complete
+audit-and-undo trail.
 
-The **native Windows utility** now lives in this repository as a self-contained Go
-program (`cmd/winforge`, `internal/*`, `config/*`, `web/*`): 15,800 lines,
-**stdlib-only** (zero third-party modules), builds a **6.24 MB static `winforge.exe`**.
+## Quick Start
 
-- Full CLI: `winforge apply --id <tweak>`, `undo`, `scan`, `list`, `history`,
-  `restore-point`, `install --id <winget-id>`, `build-iso`, `updates`, `set-dns`,
-  `enable-feature`, `run-maintenance`, `plugins`, plus a **dashboard server**
-  (`winforge serve`) with a bundled web UI on `localhost:8696`.
-- Hardened native Win32: registry via raw syscalls with bounded reads, system
-  restore points, Appx debloat engine, winget app manager, DISM/ISO builder,
-  Windows Update, DNS, audit + undo, plugin system, weekly maintenance scheduler.
-- Verified in CI-less sandboxes too: **builds, vets, and tests (18/18 packages,
-  incl. race detector) on Linux, and cross-compiles to Windows** — see
+Download the latest `winforge.exe` from the
+[Releases page](https://github.com/Warzonesiddiki/winforge/releases), then:
+
+```powershell
+# Double-click, or run the dashboard server:
+.\winforge.exe
+# → opens http://127.0.0.1:8696
+
+# Or use the CLI:
+.\winforge.exe scan                                        # health score
+.\winforge.exe list                                        # all tweaks
+.\winforge.exe apply --id tel-disable-telemetry --dry-run  # preview
+.\winforge.exe apply --id tel-disable-telemetry            # apply
+.\winforge.exe undo  --id tel-disable-telemetry            # revert
+.\winforge.exe install --id Mozilla.Firefox                # winget
+.\winforge.exe help                                        # all commands
+```
+
+See [QUICKSTART.md](QUICKSTART.md) for details, including the SmartScreen warning
+on first run (the project is unsigned by design — see [SECURITY.md](SECURITY.md)).
+Common problems are documented in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+## The Go Engine (the product)
+
+The native engine lives in `cmd/winforge/`, `internal/`, `config/`, and `web/`:
+~20,700 lines of Go, **stdlib-only**, building a **~6.5 MB static `winforge.exe`**.
+
+- **CLI**: `apply`, `undo`, `scan`, `list`, `history`, `restore-point`,
+  `install`, `search`, `build-iso`, `updates`, `set-dns`, `enable-feature`,
+  `run-maintenance`, `schedule`, `plugins`, and more.
+- **Dashboard server**: `winforge serve` — loopback-only HTTP server with a
+  zero-dependency web UI on `127.0.0.1:8696`. Mutations require a per-session
+  token (defense against DNS-rebinding and cross-origin attacks).
+- **Hardened Win32**: registry via raw syscalls with bounded reads, system
+  restore points before every mutation, Appx debloat, winget app manager,
+  DISM/ISO builder, Windows Update, DNS, audit + undo, Lua/WASM plugin tiers,
+  and a weekly maintenance scheduler.
+- **Verified**: 18/18 Go packages pass tests with the race detector on Linux;
+  cross-compiles to Windows (PE32+ verified). See
+  [docs/GO_ENGINE_README.md](docs/GO_ENGINE_README.md) and
   [docs/GO_TOOLCHAIN_BOOTSTRAP.md](docs/GO_TOOLCHAIN_BOOTSTRAP.md).
-- Language strategy: Go-primary 10-language hybrid —
-  [docs/LANGUAGE_SELECTION.md](docs/LANGUAGE_SELECTION.md);
-  engine README: [docs/GO_ENGINE_README.md](docs/GO_ENGINE_README.md);
-  open blockers: [docs/BLOCKED_ITEMS.md](docs/BLOCKED_ITEMS.md).
 
 ## The Web Control Center (Next.js)
 
-This repo also hosts a fullstack Next.js web application that models the complete
-WinForge Elite specification. Since this environment runs on Linux rather than
-Windows, all system operations are **safely simulated** against a PostgreSQL
-database, with full audit logging and reversibility — exactly mirroring the safety
-principles of the native app.
+This repo also hosts a Next.js web application that models the full WinForge
+specification with a rich UI. On Linux (where Windows APIs are unavailable) all
+system operations are **safely simulated** against a PostgreSQL database, with
+full audit logging and reversibility. When running alongside the Go engine on
+Windows, the Next.js dashboard can proxy to the engine's real API under
+`/engine/*` (see `next.config.ts` and `src/components/EngineTweaks.tsx`).
+
+The web app is also the **catalog of record** for the web-side seed data; a
+Python converter (`tools/web_catalog_to_engine.py`) merges web tweaks into
+`config/tweaks.json`, and `tools/catalog_parity.py` verifies the two stay
+consistent.
 
 ## Live Demo & Vision
 
@@ -119,10 +154,13 @@ principles of the native app.
 
 ## Technology Stack
 
-- **Framework**: Next.js 16 (App Router, Server Components, Server Actions)
-- **Database**: PostgreSQL via Drizzle ORM
+- **Go engine**: Go 1.22, stdlib-only, builds a ~6.5 MB static `winforge.exe`
+- **Web control center**: Next.js 16 (App Router, Server Components, Server Actions), React 19, TypeScript strict mode
+- **Database (web app)**: PostgreSQL via Drizzle ORM (18 tables)
 - **Styling**: Tailwind CSS 4
-- **Runtime**: Node.js (real CPU/memory/disk metrics via `os` module)
+- **Testing**: Go `testing` (race detector, ~300 tests across 18 packages) + Vitest (web)
+- **Runtime metrics**: Node.js `os`/`fs` modules for real CPU/memory/disk telemetry
+- **License**: MIT (see [LICENSE](LICENSE))
 
 ## Safety Principles
 
@@ -142,7 +180,7 @@ principles of the native app.
 | `GET /api/history/export` | CSV operation history export |
 | `GET /api/cli` | CLI documentation |
 
-## Database Schema (11 Tables)
+## Database Schema (18 Tables)
 
 | Table | Purpose |
 |-------|---------|
@@ -163,6 +201,7 @@ principles of the native app.
 ```bash
 # Install dependencies
 npm install
+cp .env.example .env       # set DATABASE_URL
 
 # Push database schema (if PostgreSQL is available)
 npx drizzle-kit push
@@ -170,14 +209,27 @@ npx drizzle-kit push
 # Run development server
 npm run dev
 
-# Build for production
+# Build for production (works without DATABASE_URL — lazy DB pool)
 npm run build
 
-# Lint code
+# Lint / typecheck / test
 npm run lint
-
-# Typecheck
 npm run typecheck
+npm test
+```
+
+## Building the Go engine
+
+```bash
+# Requires Go 1.22+. The engine is stdlib-only (GOPROXY=off works).
+go build -o winforge.exe ./cmd/winforge
+
+# Cross-compile for Windows from Linux/macOS:
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o winforge.exe ./cmd/winforge
+
+# Run the full verification battery (Go tests + race detector + cross-compile +
+# catalog parity + npm typecheck/lint/test/build):
+make verify
 ```
 
 ## Development
@@ -368,24 +420,21 @@ score = Math.Max(0, Math.Min(100, (int)Math.Round(score)));
 
 ### Testing
 
-Currently no test suite exists. To add:
+- **Go engine**: `go test ./cmd/... ./internal/... .` (18 packages, ~300 tests, race-clean). The Makefile scopes packages to `cmd/` and `internal/` explicitly so `node_modules/` is never scanned.
+- **Web app**: `npm test` (Vitest) — currently covers the health-score algorithm. Run `npm run typecheck` and `npm run lint` alongside.
+- **Full battery**: `make verify` runs gofmt, vet, tests, race detector, Windows cross-compile, catalog parity, npm typecheck/lint/test/build, and syntax checks.
 
-- **Unit tests**: `vitest` or `jest` for `health.ts` algorithm, `seed-data.ts` parsing, API route handlers
-- **Integration**: Test Server Actions via `supertest` against `localhost:3000/api/...`
-- **Snapshot tests**: UI component rendering (HealthPanel, PresetButtons, Health gauge)
+### Contributing
 
-Run: `npm test` (would need to add test script to `package.json`)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, the verification bar, and how to add tweaks safely. Security issues should be reported privately — see [SECURITY.md](SECURITY.md).
 
 ### Known Issues / TODOs
 
-1. **No test suite** — add `vitest`/`jest` for health algorithm and Server Actions
-2. **Locale strings hardcoded** — extract to `.json` or `.mdx` for 5-language support
-3. **PostgreSQL dependency** — migrate to SQLite for native WPF version (no server needed)
-4. **SmartScreen compatibility** — not applicable until code-signed EXE built
-5. **ISO Builder** — requires Windows ADK installed; simulate with mock data until ADK available
-6. **PowerThrottling tweak** (`game-disable-powerthrottling`) has undefined undo operations — needs attention
-7. **LargeSystemCache tweak** (`perf-large-system-cache`) has undefined undo operations — needs attention
-8. **VerboseStatus tweak** (`perf-verbose-status`) has undefined undo operations — needs attention
+1. **Locale strings incomplete** — the i18n scaffolding covers 56 UI keys in 5 languages; tweak names/descriptions are English-only by design (see `src/lib/i18n.ts`)
+2. **SmartScreen warning on first run** — WinForge is unsigned by design (EV certificates are cost-prohibitive for a free OSS project); click "More info → Run anyway" and verify the SHA-256 checksum from Releases
+3. **ISO Builder** — requires Windows ADK on real Windows; the Go engine models the Autounattend XML and WIM config without it
+4. **WASM Windows host** — the WASM plugin tier's platform-independent validation is implemented and tested, but the production Windows C binding (wasmtime) is deferred until a Windows-native contributor can verify it; Lua is the shipped scripting tier
+5. **Windows runtime verification** — the engine cross-compiles and passes all tests on Linux, but the full smoke checklist in `docs/WINDOWS_SMOKE_CHECKLIST.md` has not yet been executed on real Windows hardware
 
 ### Getting Help
 

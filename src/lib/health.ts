@@ -25,10 +25,17 @@ export interface SystemHealthReport {
 }
 
 /**
- * Implements the WinForge Elite health-score algorithm against live DB state.
+ * Implements the WEB CONTROL CENTER health-score algorithm against live DB state.
  *
  * The algorithm balances penalties (bloatware, unapplied tweaks) with bonuses
  * (applied tweaks, removed bloat, privacy hardening) to give a fair score.
+ *
+ * NOTE: This is intentionally different from the Go engine's formula in
+ * internal/tweak/health.go (baseline 100, linear per-risk penalties). The two
+ * surfaces score different inputs — the web app reads a simulated PostgreSQL
+ * catalog, the engine reads real registry/service state — so they are not
+ * expected to produce identical numbers. Each has tests pinning its behavior.
+ * Do not "align" them without updating both implementations together.
  */
 export async function computeHealthReport(): Promise<SystemHealthReport> {
   const allTweaks = await db.select().from(tweaks);

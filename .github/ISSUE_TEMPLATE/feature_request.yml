@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest an enhancement or new tweak
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      description: What problem does this solve? What would you like WinForge to do?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, UI, or tweak you'd like.
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - New tweak / privacy rule
+        - Go engine feature
+        - Web UI
+        - Plugin system
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to Microsoft docs, AtlasOS/ReviOS playbooks, or other sources supporting the change.

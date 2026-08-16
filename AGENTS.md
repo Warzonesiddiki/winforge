@@ -28,18 +28,17 @@ back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 | **Go 1.22** | PRIMARY core: engine, CLI, HTTP API, audit/undo, scheduler, updater, plugins | ✅ merged + CI-green |
 | React/TS | UI (Next.js app + engine's bundled `web/` dashboard) | ✅ in-repo |
 | PowerShell | Windows recipes (Appx/winget/DISM/schtasks/DNS) — engine models natively | recipes documented, engine-native where possible |
-| Zig 0.16 | Companion: compile C deps (Lua, wasm3), Lite CLI fallback | scaffold in `native/` |
-| C via zig cc | Vendored libs | verified capable |
+| Zig 0.16 | Companion: compile C deps (Lua) via `native/build-lua.sh` | `native/build-lua.sh` in use; the abandoned `core.zig`/Bun scaffold is archived |
+| C via zig cc | Vendored libs (Lua 5.4.7) | verified capable; builds `lua54.dll` |
 | Lua 5.4 | Community-pack plugins | DLL build verified; **in-engine binding LANDED 2026-08-16** (Windows LazyDLL host; platform-independent logic tested on Linux via a fake host) |
 | WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified; **platform-independent tier LANDED 2026-08-16** (`wasm.go` + fake host, 24 wasm tests; Windows C binding deferred per `WASM_REALSCOPE_2026-08-16.md`, DLL-search stub in `wasm_windows.go`) |
 | Python | Catalog tooling (`tools/`), build/test automation | ✅ in use |
-| Bun/TS | UI dev server, packaging fallback | scaffold in `runtime/` |
-| Node SEA | Packaging fallback | verified available |
-| SQL (Drizzle) | Audit/history + Next.js catalog DB | ✅ in-repo — 11 tables, drizzle-kit |
+| Node SEA / Bun | Packaging fallback (abandoned) | scaffold archived in `archive/runtime/` |
+| SQL (Drizzle) | Audit/history + Next.js catalog DB | ✅ in-repo — 18 tables, drizzle-kit |
 | YAML/JSON | Playbooks & catalog source (Atlas) | ✅ 129/129 Atlas YAML verified |
 | Inno Setup | Installer & signing flow | ✅ Phase 4 — isobuilder models it |
 
-**Archived**: WPF Phase 1 (`WinForge.Elite/`) — dormant due to BLK-1/7.
+**Archived**: WPF Phase 1 (`archive/WinForge.Elite/`), Bun/Zig core scaffold (`archive/runtime/`, `archive/native/`), stale CI staging copy (`archive/ci/`). See `archive/README.md`.
 **Excluded with evidence**: Rust, Deno, Flutter, Java, FPC, Nim, Tcl, Electron (BLK-8).
 
 ## 3. Directory map
@@ -50,20 +49,24 @@ internal/              Go engine (app, appmanager, audit, bloatware, cli, config
                        engine, httpapi, isobuilder, maintenance, platform, plugin,
                        power, procout, registry, restorepoint, scheduler, service,
                        tweak, updater, winapi)
-config/*.json          embedded catalogs: tweaks (219), debloat (102), apps (83),
+config/*.json          embedded catalogs: tweaks (240), debloat (102), apps (83),
                        playbooks, dns, protectedServices
 web/                   engine dashboard (index.html, app.js, style.css)
 src/                   Next.js app (catalog of record: src/db/seed-data.ts)
-WinForge.Elite/        ARCHIVED WPF Phase 1 (reference only)
-native/                Zig core scaffold + build.sh (secondary)
-runtime/               Bun FFI bridge scaffold + test_core.ts (secondary)
+native/                build-lua.sh only (builds lua54.dll for Lua plugins)
 tools/                 Python: catalog_parity.py, web_catalog_to_engine.py
 docs/                  LANGUAGE_SELECTION.md, BLOCKED_ITEMS.md,
                        GO_TOOLCHAIN_BOOTSTRAP.md, CATALOG_PARITY.md,
                        GO_ENGINE_README.md, HANDOVER_PROMPT.md
-ci.yml.fixed           drop-in CI (needs workflows permission)
-ci/github-actions-ci.yml  the Go CI from the go-impl era (reference)
+examples/plugins/      example-lua-pack, example-wasm-pack
+archive/               dormant reference code (WPF scaffold, Bun/Zig core, stale CI)
+ci.yml.fixed           drop-in CI (needs workflows permission); adds npm build+test
 ```
+
+> **Go package scope**: always use `./cmd/... ./internal/... .` rather than `./...`.
+> The latter walks `node_modules/`, where npm deps (e.g. `flatted`) ship `.go`
+> files that are not part of this module and would break the build. The Makefile
+> and `ci.yml.fixed` already scope correctly.
 
 ## 4. Environment constraints (verified 2026-08-16 — re-probe if something fails)
 
@@ -108,16 +111,21 @@ Full rationale: `docs/GO_TOOLCHAIN_BOOTSTRAP.md`.
 ```bash
 cd /home/user/winforge
 export PATH=/tmp/gobootstrap/go1.22/bin:$PATH GOPROXY=off GOFLAGS=-mod=mod
-gofmt -l .                          # must print nothing
-go vet ./...                        # OK
-go test ./...                       # 18/18 ok
-go test -race ./...                 # 18/18 ok
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" \
+# Go packages are scoped to avoid node_modules/ (see §3).
+gofmt -l cmd internal embed.go     # must print nothing
+go vet ./cmd/... ./internal/... .  # OK
+go test ./cmd/... ./internal/... . # 18/18 ok
+go test -race ./cmd/... ./internal/... .  # 18/18 ok
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath \
+    -ldflags="-s -w -X winforge/internal/app.Version=$(git describe --tags --always --dirty)" \
     -o /tmp/wf.exe ./cmd/winforge && head -c 2 /tmp/wf.exe   # "MZ"
-npm install --no-audit --no-fund && npm run typecheck && npm run lint
+npm install --no-audit --no-fund && npm run typecheck && npm run lint && npm test
+DATABASE_URL= npm run build          # production build must work with no DB
 python3 tools/catalog_parity.py     # exit 0 = no gaps
-git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
+git diff --check                    # no whitespace errors in your changes
 ```
+
+Or simply `make verify` (runs all of the above).
 
 ## 7. Catalog pipeline (Python tooling role)
 
@@ -151,7 +159,10 @@ git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
   netbios (NetBT\Parameters\Interfaces NetbiosOptions). Registry ops with an
   empty name address the key's default value (documented RegSetValueExW
   semantics).
-- Engine risk tiers: low/medium/high (no "expert" — maps to high).
+- Engine risk tiers: low/medium/high. The loader accepts `"expert"` in
+  `tweaks.json` and normalizes it to `high` (the web catalog uses four tiers;
+  the engine collapses the top two). See `ValidateRisk` in
+  `internal/config/models.go`.
 - **Plugins** (`internal/plugin`): JSON plugins (`tweaks.json`) and, as of
   2026-08-16, **Lua packs** (`manifest.json` \"type\":\"lua\"`, `pack.lua`) and
   **WASM packs** (`manifest.json` \"type\":\"wasm\"`, `pack.wasm`). Lua is
@@ -320,6 +331,37 @@ Done (2026-08-16, W2 platform-independent tier — arena/01a00ac0-winforge):
   + 6.5 MB PE clean. No unverified C binding ships — the security-boundary
   binding remains gated on Windows hardware.
 
+Done (2026-08-16, arena/01a00b24-winforge — project analysis & fixes):
+- **Fixed `npm run build`** — `src/db/index.ts` now constructs the pg Pool and
+  drizzle instance lazily (via a transparent Proxy) so Next.js build-time page
+  collection no longer requires `DATABASE_URL`. Production build passes with
+  `DATABASE_URL=""`.
+- **Excluded `node_modules/` from Go tooling** — Makefile, `ci.yml.fixed`, and
+  AGENTS.md scope all Go commands to `./cmd/... ./internal/... .`; `gofmt`
+  targets `cmd internal embed.go`. The `flatted` npm package ships `.go`
+  files that `./...` would otherwise compile.
+- **Added MIT LICENSE**, `CONTRIBUTING.md`, `SECURITY.md`, `QUICKSTART.md`,
+  `.env.example`.
+- **Fixed `package.json`** name (`nextjs-postgresql-template` → `winforge-web`);
+  added version, description, license, `test`/`test:watch` scripts, vitest.
+- **Removed `tsconfig.tsbuildinfo` from git**; expanded `.gitignore`
+  (`*.tsbuildinfo`, `.next/`, `out/`, `next-env.d.ts`, Go build artifacts).
+- **Graceful shutdown** for `winforge serve` — SIGINT/SIGTERM triggers
+  `srv.Shutdown` with a 10s drain, preserving the `listenAndServe` test seam.
+- **Risk "expert" accepted** by `ValidateRisk` and normalized to high (with test).
+- **First web test suite**: 11 Vitest tests for `src/lib/health.ts` with `@/db`
+  mocked; `npm test` runs in Makefile + CI.
+- **Version stamping** via `-ldflags "-X winforge/internal/app.Version=..."`.
+- **Documented** the intentionally-different Go vs web health algorithms.
+- **Archived dead code**: `WinForge.Elite/`, `runtime/`, `native/core.zig`,
+  `native/build.sh`, and `ci/` moved to `archive/` (with `archive/README.md`).
+  `native/build-lua.sh` stays — it builds `lua54.dll`.
+- **README rewritten** to lead with the Go engine, correct counts (18 tables),
+  and document build/test/verify commands.
+- Full battery re-verified green: fmt, vet (linux+windows), test+race (18 pkgs),
+  PE cross-compile (6.6 MB), parity, converter idempotence, locales, npm
+  typecheck/lint/test/build.
+
 Next (prioritized):
 1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
    covers the four new native ops, the 17 new privacy tweaks, the Lua
@@ -330,7 +372,22 @@ Next (prioritized):
    Windows-capable runner per the two WASM docs, execute the §13 checklist,
    or formally accept Lua-only and close W2 with explicit evidence.
 4. W6 housekeeping: watch for a documented `priv-microsoft-store-ads` policy
-   (do NOT fabricate); WPF archive governance proposal needs user approval.
+   (do NOT fabricate).
+5. Add tests for `internal/winapi` (now done — validate.go extracted and tested).
+6. ~~Replace `alert()` in `web/app.js` with inline toast/notification UI~~ DONE.
+
+Done (2026-08-16, continuation):
+- **HTTP API rate limiting** — token-bucket limiter on mutating requests
+  (5 req/s sustained, burst 15, 429 + Retry-After). GETs unlimited.
+  Defense-in-depth behind session token / same-origin / loopback checks.
+- **winapi tests** — extracted `validateSystemFileName` into a platform-
+  independent file; 8 cross-platform test cases + Windows-only backslash test.
+- **platform & scheduler tests** — both previously zero-test packages now
+  have 3 and 8 tests respectively; `validateRegister` extracted from the
+  Windows-only scheduler file.
+- **Toast notifications** — replaced all `window.alert()` calls in
+  `web/app.js` with a non-blocking toast system (#toasts container, CSS
+  animations, click-to-dismiss, error/success/info variants).
 
 ## 10. Gotchas & lessons (each cost time once)
 

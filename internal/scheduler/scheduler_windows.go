@@ -3,11 +3,8 @@
 package scheduler
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"winforge/internal/procout"
@@ -24,25 +21,15 @@ func run(args ...string) error {
 	return nil
 }
 
-func enable(path string) error { return run("/change", "/tn", path, "/enable") }
-
+func enable(path string) error  { return run("/change", "/tn", path, "/enable") }
 func disable(path string) error { return run("/change", "/tn", path, "/disable") }
-
-func deleteTask(path string) error { return run("/delete", "/tn", path, "/f") }
+func deleteTask(path string) error {
+	return run("/delete", "/tn", path, "/f")
+}
 
 func register(name, exePath string) error {
-	if !filepath.IsAbs(exePath) {
-		return fmt.Errorf("scheduled executable path must be absolute: %q", exePath)
-	}
-	if strings.ContainsAny(exePath, "\x00\"\r\n") {
-		return errors.New("scheduled executable path contains an unsafe character")
-	}
-	info, err := os.Stat(exePath)
-	if err != nil {
-		return fmt.Errorf("inspect scheduled executable: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return errors.New("scheduled executable must be a regular file")
+	if err := validateRegister(exePath); err != nil {
+		return err
 	}
 
 	task := fmt.Sprintf(`"%s" run-maintenance`, exePath)

@@ -1,9 +1,20 @@
 # WinForge Project Audit & Optimization Report
 
-**Audit Date:** 2026-08-16  
-**Commit:** c7f86ca  
-**Auditor:** AI Code Assistant  
-**Status:** 90% Complete — Maximum Sandbox-Verifiable Completion
+**Audit Date:** 2026-08-16
+**Original Commit:** c7f86ca
+**Auditor:** AI Code Assistant
+
+> **Update (2026-08-16, later session):** Many findings below have been
+> addressed. See [CHANGELOG.md](CHANGELOG.md) for the full list. Highlights:
+> the Next.js production build is fixed (lazy DB pool), `node_modules/` is
+> excluded from Go tooling, an MIT LICENSE was added, dead code was archived
+> to `archive/`, rate limiting was added to the HTTP API, `alert()` was
+> replaced with toasts, and the web app now has 28 tests. Test packages rose
+> from 18 to 21 (all packages now have tests). The competitive-analysis
+> section below is historical and contains unverified third-party numbers;
+> treat it as aspirational context rather than measured fact.
+
+**Original Status:** 90% Complete — Maximum Sandbox-Verifiable Completion
 
 ---
 
@@ -242,7 +253,7 @@ Write `docs/ADR-003-wasm-lua-only.md`:
 ### High Priority (Immediate Impact)
 
 #### 1. Documentation Improvements
-**Issue:** README.md still references Next.js simulation as primary focus  
+**Issue:** README.md still references Next.js simulation as primary focus
 **Fix:** Update to reflect Go-primary hybrid reality
 
 ```markdown
@@ -283,7 +294,7 @@ irm https://github.com/Warzonesiddiki/winforge/releases/latest/download/winforge
 **Action:** Move to `archive/` directory or delete entirely
 
 #### 3. Simplify Language Narrative
-**Issue:** "13 languages" sounds bloated even though justified  
+**Issue:** "13 languages" sounds bloated even though justified
 **Fix:** Reframe as "Go-primary with optional extensions"
 
 ```markdown
@@ -336,7 +347,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o winforge.exe ./cmd/winforge
 ### Medium Priority (Quality of Life)
 
 #### 5. Add Example Plugins
-**Current:** Plugin system exists but no examples  
+**Current:** Plugin system exists but no examples
 **Create:** `examples/plugins/` directory
 
 ```lua
@@ -347,10 +358,10 @@ return {
   name = "Hello World Pack",
   version = "1.0.0",
   description = "Example plugin showing safe operations",
-  
+
   function init()
     log("Initializing Hello World Pack")
-    
+
     -- Propose registry changes (validated by engine)
     propose_registry_set(
       "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
@@ -358,14 +369,14 @@ return {
       "DWORD",
       0
     )
-    
+
     propose_registry_set(
       "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Search",
       "BingSearchEnabled",
       "DWORD",
       0
     )
-    
+
     log("Proposed 2 telemetry tweaks")
   end
 }
@@ -377,20 +388,20 @@ return {
   (import "winforge" "log" (func $log (param i32 i32)))
   (import "winforge" "propose_registry_set" (func $propose (param i32 i32) (result i32)))
   (import "winforge" "health_score" (func $health (result i32)))
-  
+
   (memory (export "memory") 1)
-  
+
   ;; Store string in memory
   (data (i32.const 0) "Disabling telemetry...")
-  
+
   (func (export "_start")
     ;; Log message
     (call $log (i32.const 0) (i32.const 20))
-    
+
     ;; Get health score
     (call $health)
     drop
-    
+
     ;; Propose registry change
     (i32.const 100)  ;; path pointer
     (i32.const 200)  ;; name pointer
@@ -399,14 +410,14 @@ return {
     call $propose
     drop
   )
-  
+
   (data (i32.const 100) "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection")
   (data (i32.const 200) "AllowTelemetry")
 )
 ```
 
 #### 6. Add Performance Benchmarks
-**Missing:** Before/after metrics  
+**Missing:** Before/after metrics
 **Create:** `benchmarks/` directory with scripts
 
 ```python
@@ -439,34 +450,34 @@ def measure_disk_usage():
 # Common Issues
 
 ## SmartScreen Warning
-**Problem:** "Windows protected your PC" appears on first run  
+**Problem:** "Windows protected your PC" appears on first run
 **Solution:** Click "More info" → "Run anyway" (expected for unsigned app)
 
 ## Elevation Required
-**Problem:** "Access denied" when applying HKLM tweaks  
+**Problem:** "Access denied" when applying HKLM tweaks
 **Solution:** Right-click winforge.exe → "Run as administrator"
 
 ## Lua Plugin Fails
-**Problem:** "lua54.dll not found"  
+**Problem:** "lua54.dll not found"
 **Solution:** Download lua54.dll from Releases, place next to winforge.exe
 
 ## WASM Plugin Skipped
-**Problem:** "WASM runtime unavailable"  
+**Problem:** "WASM runtime unavailable"
 **Solution:** Normal behavior; WASM host deferred. Use Lua plugins instead.
 
 ## Restore Point Failed
-**Problem:** "Cannot create restore point"  
+**Problem:** "Cannot create restore point"
 **Solution:** Ensure System Protection is enabled for C: drive
 
 ## Dashboard Won't Load
-**Problem:** Blank page at localhost:8696  
+**Problem:** Blank page at localhost:8696
 **Solution:** Check firewall allows loopback; try different browser
 ```
 
 ### Low Priority (Polish)
 
 #### 8. Add Screenshots/GIFs
-**Missing:** Visual documentation  
+**Missing:** Visual documentation
 **Create:** `docs/screenshots/` directory
 - Dashboard health gauge
 - Tweaks panel with search/filter
@@ -649,5 +660,5 @@ $ ls -lh /tmp/winforge-verify.exe
 
 ---
 
-**Report End**  
+**Report End**
 *Generated by AI Code Assistant for WinForge Project Audit*
