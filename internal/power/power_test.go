@@ -43,6 +43,23 @@ func TestSetProcessorStateValidatesPercentages(t *testing.T) {
 	}
 }
 
+func TestGuidPartsRoundTrip(t *testing.T) {
+	d1, d2, d3, d4, err := guidParts(SubProcessor) // 54533251-82be-4824-96c1-47b60b740d00
+	if err != nil {
+		t.Fatalf("guidParts(%q) error = %v", SubProcessor, err)
+	}
+	if d1 != 0x54533251 || d2 != 0x82be || d3 != 0x4824 {
+		t.Fatalf("guidParts data1-3 = %08x %04x %04x", d1, d2, d3)
+	}
+	want4 := [8]byte{0x96, 0xc1, 0x47, 0xb6, 0x0b, 0x74, 0x0d, 0x00}
+	if d4 != want4 {
+		t.Fatalf("guidParts data4 = %x, want %x", d4, want4)
+	}
+	if _, _, _, _, err := guidParts("not-a-guid"); err == nil {
+		t.Fatal("guidParts accepted a malformed GUID")
+	}
+}
+
 func TestSetAcValueIndexValidatesIdentifiers(t *testing.T) {
 	if err := SetAcValueIndex("not-a-scheme", SubProcessor, SettingMinProc, 50); err == nil {
 		t.Fatal("SetAcValueIndex() accepted invalid scheme")

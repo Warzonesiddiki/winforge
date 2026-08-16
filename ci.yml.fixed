@@ -1,9 +1,14 @@
-# FIXED CI WORKFLOW — copy to .github/workflows/ci.yml
-# The current GitHub App token lacks the "workflows" permission, so this file
-# cannot be pushed directly to .github/workflows/. Once the App has that
-# permission (or a maintainer copies it), it replaces the stale Go-based
-# workflow that currently fails on every run (it expects go.mod and a web/
-# directory that do not exist in this repo).
+# FIXED CI WORKFLOW — copy to .github/workflows/ci.yml when BLK-3 resolves.
+#
+# The GitHub App token lacks the "workflows" permission, so this file cannot
+# be pushed to .github/workflows/ directly (the push is rejected). Once the
+# App has that permission (or a maintainer copies it manually), this replaces
+# the current workflow. Differences from the live ci.yml:
+#   * new "parity" job — the catalog parity tool must exit 0 (also runs the
+#     converter in dry-run mode to prove it stays idempotent),
+#   * the windows/amd64 cross-compile uploads winforge.exe as an artifact,
+#   * npm typecheck + lint run in CI (the live workflow only checks syntax).
+# The six existing jobs are preserved without regression.
 
 name: CI
 
@@ -16,20 +21,122 @@ on:
 permissions:
   contents: read
 
+env:
+  # WinForge is intentionally stdlib-only, so the module cache is never needed
+  # and the build must succeed with no network access to a module proxy.
+  GOFLAGS: -mod=mod
+  GOPROXY: off
+
 jobs:
-  native:
-    name: Build WinForge.Elite (Windows, .NET 8)
+  test:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-formatted:"
+            echo "$unformatted"
+            gofmt -d .
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      - name: go test -race
+        run: go test -race ./...
+
+  windows:
+    name: Test (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-go@v5
         with:
-          dotnet-version: 8.0.x
-      - name: Build WPF project (Release)
-        run: dotnet build WinForge.Elite/WinForge.Elite.csproj -c Release
+          go-version-file: go.mod
+          check-latest: true
+      # Building and vetting on a real Windows runner is what catches the
+      # GOOS=windows-only code that never compiles during Linux-only checks.
+      - name: go build
+        run: go build ./...
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+
+  cross-compile:
+    name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: 386
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: go build
+        run: go build ./...
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+      - name: go vet
+        run: go vet ./...
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+      - name: Build release binary
+        if: matrix.goarch == 'amd64'
+        run: >
+          go build -trimpath -ldflags="-s -w"
+          -o winforge.exe ./cmd/winforge
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+      - name: Upload winforge.exe
+        if: matrix.goarch == 'amd64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: winforge-windows-amd64
+          path: winforge.exe
+          if-no-files-found: error
+
+  parity:
+    name: Catalog parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Catalog parity (must exit 0)
+        run: python3 tools/catalog_parity.py
+      - name: Converter idempotence (dry-run must not want changes)
+        run: |
+          before="$(sha256sum config/tweaks.json)"
+          python3 tools/web_catalog_to_engine.py --apply
+          after="$(sha256sum config/tweaks.json)"
+          if [ "$before" != "$after" ]; then
+            echo "::error::tools/web_catalog_to_engine.py --apply changed config/tweaks.json — catalog drifted"
+            git diff --stat config/tweaks.json
+            exit 1
+          fi
 
   web:
-    name: Web app checks (Linux, Node 20)
+    name: Web app checks (Node 20)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,17 +150,29 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Validate JSON files
+
+  syntax:
+    name: JSON and JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check JavaScript syntax
         run: |
-          import glob, json, sys
-          ok = True
-          for f in glob.glob("**/*.json", recursive=True):
-              if ".git" in f or "node_modules" in f:
-                  continue
-              try:
-                  json.load(open(f, encoding="utf-8"))
-              except Exception as e:
-                  print(f"::error file={f}::invalid JSON ({e})")
-                  ok = False
-          sys.exit(0 if ok else 1)
-        shell: python
+          status=0
+          while IFS= read -r -d '' file; do
+            node --check "$file" || status=1
+          done < <(find web -name '*.js' -print0)
+          exit $status
+      - name: Check JSON syntax
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$file" \
+              || { echo "::error file=$file::invalid JSON"; status=1; }
+          done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -print0)
+          exit $status
+      - name: Check for whitespace errors
+        run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD

@@ -117,6 +117,65 @@ func (e *Executor) RegistryDeleteValue(hive, path, name string) error {
 	return registry.DeleteValue(registry.Hive(hive), path, name)
 }
 
+// RegistryKeyExists reports whether a key exists.
+func (e *Executor) RegistryKeyExists(hive, path string) (bool, error) {
+	return registry.KeyExists(registry.Hive(hive), path)
+}
+
+// RegistryDeleteKeyTree removes a key and everything under it.
+func (e *Executor) RegistryDeleteKeyTree(hive, path string) error {
+	return registry.DeleteKeyTree(registry.Hive(hive), path)
+}
+
+// netbtInterfacesPath is the documented location of the per-interface NetBT
+// configuration: each subkey is one interface, and its NetbiosOptions value
+// controls NetBIOS over TCP/IP (0 = DHCP setting, 1 = enabled, 2 = disabled).
+const netbtInterfacesPath = `SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces`
+
+// NetbiosGetOptions reads NetbiosOptions from every NetBT interface subkey.
+// Interfaces without the value are reported as 0, matching the documented
+// default ("use the DHCP setting") the connections UI shows for a missing
+// value.
+func (e *Executor) NetbiosGetOptions() (map[string]uint32, error) {
+	names, err := registry.EnumSubkeys(registry.HKEY_LOCAL_MACHINE, netbtInterfacesPath)
+	if err != nil {
+		return nil, fmt.Errorf("enumerate NetBT interfaces: %w", err)
+	}
+	out := make(map[string]uint32, len(names))
+	for _, name := range names {
+		v, err := registry.Dword(registry.HKEY_LOCAL_MACHINE, netbtInterfacesPath+`\`+name, "NetbiosOptions")
+		if err != nil {
+			if errors.Is(err, registry.ErrNotFound) {
+				out[name] = 0
+				continue
+			}
+			return nil, fmt.Errorf("read NetbiosOptions for %s: %w", name, err)
+		}
+		out[name] = v
+	}
+	return out, nil
+}
+
+// NetbiosSetOptions writes one NetbiosOptions value to every NetBT interface
+// subkey — the registry equivalent of calling WMI SetTcpipNetbios on each
+// adapter, without invoking PowerShell.
+func (e *Executor) NetbiosSetOptions(value uint32) error {
+	if value > 2 {
+		return fmt.Errorf("NetbiosOptions must be 0 (DHCP), 1 (enable), or 2 (disable); got %d", value)
+	}
+	names, err := registry.EnumSubkeys(registry.HKEY_LOCAL_MACHINE, netbtInterfacesPath)
+	if err != nil {
+		return fmt.Errorf("enumerate NetBT interfaces: %w", err)
+	}
+	var errs []error
+	for _, name := range names {
+		if err := registry.SetDword(registry.HKEY_LOCAL_MACHINE, netbtInterfacesPath+`\`+name, "NetbiosOptions", value); err != nil {
+			errs = append(errs, fmt.Errorf("interface %s: %w", name, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // maxServiceNameLen is the SCM's limit on a service name (CreateService and
 // OpenService both document a 256-character maximum).
 const maxServiceNameLen = 256
@@ -257,3 +316,21 @@ func (e *Executor) PowerGetActive() (string, error) { return power.Active() }
 
 // PowerSetActive activates a power scheme by GUID.
 func (e *Executor) PowerSetActive(guid string) error { return power.SetActive(guid) }
+
+// PowerHibernateEnabled reports whether hibernation is currently available.
+func (e *Executor) PowerHibernateEnabled() (bool, error) { return power.HibernateEnabled() }
+
+// PowerSetHibernate enables or disables hibernation natively
+// (CallNtPowerInformation SystemReserveHiberFile — no powercfg).
+func (e *Executor) PowerSetHibernate(enable bool) error { return power.SetHibernate(enable) }
+
+// PowerGetProcessorState reads the active scheme's AC min/max processor state.
+func (e *Executor) PowerGetProcessorState() (uint32, uint32, error) {
+	return power.GetProcessorState()
+}
+
+// PowerSetProcessorState sets the active scheme's AC min/max processor state
+// natively (PowerWriteACValueIndex + PowerSetActiveScheme — no powercfg).
+func (e *Executor) PowerSetProcessorState(minPct, maxPct uint32) error {
+	return power.SetProcessorState(minPct, maxPct)
+}

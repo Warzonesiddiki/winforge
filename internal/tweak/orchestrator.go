@@ -3,6 +3,7 @@ package tweak
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -198,6 +199,24 @@ func (o *Orchestrator) applyOp(op config.Operation, dryRun bool) Effect {
 		}
 		return eff
 
+	case config.OpRegistryDeleteKey:
+		exists, err := o.exec.RegistryKeyExists(op.Hive, op.Path)
+		if err != nil {
+			return effectError(eff, err)
+		}
+		// A recursively deleted key cannot be reconstructed from a snapshot,
+		// so PreviousValueCaptured stays false and the audit entry is never
+		// per-row undoable; the tweak's explicit revert list re-creates state.
+		eff.Changed = exists
+		if !dryRun && eff.Changed {
+			eff.attempted = true
+			if err := o.exec.RegistryDeleteKeyTree(op.Hive, op.Path); err != nil {
+				return effectError(eff, err)
+			}
+			eff.Applied = true
+		}
+		return eff
+
 	case config.OpServiceStartMode:
 		mode, err := normalizedServiceStartMode(op)
 		if err != nil {
@@ -250,6 +269,95 @@ func (o *Orchestrator) applyOp(op config.Operation, dryRun bool) Effect {
 		}
 		return eff
 
+	case config.OpPowerHibernate:
+		enable, err := op.BoolValue()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		cur, err := o.exec.PowerHibernateEnabled()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = true
+		eff.PreviousValueType = "power_hibernate"
+		eff.PreviousValue = strconv.FormatBool(cur)
+		eff.NewValue = strconv.FormatBool(enable)
+		eff.Changed = cur != enable
+		if !dryRun && eff.Changed {
+			eff.attempted = true
+			if err := o.exec.PowerSetHibernate(enable); err != nil {
+				return effectError(eff, err)
+			}
+			eff.Applied = true
+		}
+		return eff
+
+	case config.OpPowerProcessorState:
+		ps, err := op.ProcessorStateValue()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		curMin, curMax, err := o.exec.PowerGetProcessorState()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		targetMin, targetMax := curMin, curMax
+		if ps.Min != nil {
+			targetMin = *ps.Min
+		}
+		if ps.Max != nil {
+			targetMax = *ps.Max
+		}
+		if targetMin > targetMax {
+			return effectError(eff, fmt.Errorf("requested minimum processor state %d exceeds maximum %d", targetMin, targetMax))
+		}
+		eff.PreviousValueCaptured = true
+		eff.PreviousValueExists = true
+		eff.PreviousValueType = "power_processor_state"
+		eff.PreviousValue = formatProcessorState(curMin, curMax)
+		eff.NewValue = formatProcessorState(targetMin, targetMax)
+		eff.Changed = targetMin != curMin || targetMax != curMax
+		if !dryRun && eff.Changed {
+			eff.attempted = true
+			if err := o.exec.PowerSetProcessorState(targetMin, targetMax); err != nil {
+				return effectError(eff, err)
+			}
+			eff.Applied = true
+		}
+		return eff
+
+	case config.OpNetbios:
+		val, err := op.NetbiosValue()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		cur, err := o.exec.NetbiosGetOptions()
+		if err != nil {
+			return effectError(eff, err)
+		}
+		changed := false
+		for _, v := range cur {
+			if v != val {
+				changed = true
+				break
+			}
+		}
+		// The per-interface previous values are heterogeneous, so the
+		// snapshot is a summary and the audit entry is not per-row undoable;
+		// the tweak's explicit revert list restores the desired state.
+		eff.PreviousValue = formatNetbiosOptions(cur)
+		eff.NewValue = strconv.FormatUint(uint64(val), 10)
+		eff.Changed = changed
+		if !dryRun && eff.Changed {
+			eff.attempted = true
+			if err := o.exec.NetbiosSetOptions(val); err != nil {
+				return effectError(eff, err)
+			}
+			eff.Applied = true
+		}
+		return eff
+
 	case config.OpServiceStart, config.OpServiceStop, config.OpTaskDisable,
 		config.OpTaskEnable, config.OpTaskDelete, config.OpAppxRemove, config.OpCommand:
 		// These operations either cannot be cheaply read, or are inherently
@@ -268,6 +376,41 @@ func (o *Orchestrator) applyOp(op config.Operation, dryRun bool) Effect {
 	default:
 		return effectError(eff, fmt.Errorf("unknown operation type %q", op.Type))
 	}
+}
+
+// formatProcessorState renders a min/max processor-state pair as "min=X,max=Y"
+// for audit snapshots; parseProcessorState is its inverse.
+func formatProcessorState(minPct, maxPct uint32) string {
+	return fmt.Sprintf("min=%d,max=%d", minPct, maxPct)
+}
+
+func parseProcessorState(s string) (minPct, maxPct uint32, err error) {
+	var mn, mx uint32
+	if _, err := fmt.Sscanf(s, "min=%d,max=%d", &mn, &mx); err != nil {
+		return 0, 0, fmt.Errorf("cannot parse processor state snapshot %q: %w", s, err)
+	}
+	if mn > 100 || mx > 100 || mn > mx {
+		return 0, 0, fmt.Errorf("processor state snapshot %q is out of range", s)
+	}
+	return mn, mx, nil
+}
+
+// formatNetbiosOptions renders per-interface NetbiosOptions values as a
+// deterministic "iface=value" list for audit snapshots.
+func formatNetbiosOptions(m map[string]uint32) string {
+	if len(m) == 0 {
+		return "(no NetBT interfaces)"
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", k, m[k]))
+	}
+	return strings.Join(parts, ",")
 }
 
 func effectError(eff Effect, err error) Effect {
@@ -432,6 +575,26 @@ func validateCapturedEntry(e audit.Entry) error {
 		}
 		_, err := power.Resolve(e.PreviousValue)
 		return err
+	case "power_hibernate":
+		if e.OperationType != config.OpPowerHibernate {
+			return errors.New("hibernation snapshot has an inconsistent operation type")
+		}
+		if e.RegistryHive != "" || e.RegistryPath != "" || e.RegistryName != "" {
+			return errors.New("hibernation snapshot unexpectedly contains a registry target")
+		}
+		if _, err := strconv.ParseBool(e.PreviousValue); err != nil {
+			return fmt.Errorf("hibernation snapshot has invalid previous value: %w", err)
+		}
+		return nil
+	case "power_processor_state":
+		if e.OperationType != config.OpPowerProcessorState {
+			return errors.New("processor-state snapshot has an inconsistent operation type")
+		}
+		if e.RegistryHive != "" || e.RegistryPath != "" || e.RegistryName != "" {
+			return errors.New("processor-state snapshot unexpectedly contains a registry target")
+		}
+		_, _, err := parseProcessorState(e.PreviousValue)
+		return err
 	default:
 		return fmt.Errorf("operation %s has unknown previous value type %q", e.ID, e.PreviousValueType)
 	}
@@ -476,6 +639,18 @@ func (o *Orchestrator) restoreEntry(e audit.Entry) error {
 			return o.exec.ServiceSetStartMode(strings.TrimPrefix(e.Target, "service:"), e.PreviousValue)
 		case "power_scheme":
 			return o.exec.PowerSetActive(e.PreviousValue)
+		case "power_hibernate":
+			enable, err := strconv.ParseBool(e.PreviousValue)
+			if err != nil {
+				return fmt.Errorf("cannot parse previous hibernation state %q: %w", e.PreviousValue, err)
+			}
+			return o.exec.PowerSetHibernate(enable)
+		case "power_processor_state":
+			mn, mx, err := parseProcessorState(e.PreviousValue)
+			if err != nil {
+				return err
+			}
+			return o.exec.PowerSetProcessorState(mn, mx)
 		default:
 			return fmt.Errorf("operation %s has unknown previous value type %q", e.ID, e.PreviousValueType)
 		}
@@ -556,6 +731,8 @@ func (o *Orchestrator) Undo(t config.Tweak) Result {
 			}
 		case config.OpRegistryDelete:
 			err = o.exec.RegistryDeleteValue(op.Hive, op.Path, op.Name)
+		case config.OpRegistryDeleteKey:
+			err = o.exec.RegistryDeleteKeyTree(op.Hive, op.Path)
 		case config.OpServiceStartMode:
 			var mode string
 			mode, err = normalizedServiceStartMode(op)
@@ -570,6 +747,38 @@ func (o *Orchestrator) Undo(t config.Tweak) Result {
 			}
 			if err == nil {
 				err = o.exec.PowerSetActive(guid)
+			}
+		case config.OpPowerHibernate:
+			var enable bool
+			enable, err = op.BoolValue()
+			if err == nil {
+				err = o.exec.PowerSetHibernate(enable)
+			}
+		case config.OpPowerProcessorState:
+			var ps config.ProcessorState
+			ps, err = op.ProcessorStateValue()
+			if err == nil {
+				var curMin, curMax uint32
+				curMin, curMax, err = o.exec.PowerGetProcessorState()
+				if err == nil {
+					if ps.Min != nil {
+						curMin = *ps.Min
+					}
+					if ps.Max != nil {
+						curMax = *ps.Max
+					}
+					if curMin > curMax {
+						err = fmt.Errorf("revert minimum processor state %d exceeds maximum %d", curMin, curMax)
+					} else {
+						err = o.exec.PowerSetProcessorState(curMin, curMax)
+					}
+				}
+			}
+		case config.OpNetbios:
+			var val uint32
+			val, err = op.NetbiosValue()
+			if err == nil {
+				err = o.exec.NetbiosSetOptions(val)
 			}
 		default:
 			err = o.execUnary(op)
@@ -618,7 +827,9 @@ func CanVerify(t config.Tweak) bool {
 		switch op.Type {
 		case config.OpRegistrySetDword, config.OpRegistrySetString,
 			config.OpRegistrySetQword, config.OpRegistryDelete,
-			config.OpServiceStartMode, config.OpPowerScheme:
+			config.OpRegistryDeleteKey, config.OpServiceStartMode,
+			config.OpPowerScheme, config.OpPowerHibernate,
+			config.OpPowerProcessorState, config.OpNetbios:
 		default:
 			return false
 		}
@@ -668,6 +879,11 @@ func (o *Orchestrator) IsApplied(t config.Tweak) bool {
 			if err != nil || exists {
 				return false
 			}
+		case config.OpRegistryDeleteKey:
+			exists, err := o.exec.RegistryKeyExists(op.Hive, op.Path)
+			if err != nil || exists {
+				return false
+			}
 		case config.OpServiceStartMode:
 			mode, err := normalizedServiceStartMode(op)
 			if err != nil {
@@ -689,6 +905,44 @@ func (o *Orchestrator) IsApplied(t config.Tweak) bool {
 			cur, err := o.exec.PowerGetActive()
 			if err != nil || !strings.EqualFold(cur, guid) {
 				return false
+			}
+		case config.OpPowerHibernate:
+			enable, err := op.BoolValue()
+			if err != nil {
+				return false
+			}
+			cur, err := o.exec.PowerHibernateEnabled()
+			if err != nil || cur != enable {
+				return false
+			}
+		case config.OpPowerProcessorState:
+			ps, err := op.ProcessorStateValue()
+			if err != nil {
+				return false
+			}
+			curMin, curMax, err := o.exec.PowerGetProcessorState()
+			if err != nil {
+				return false
+			}
+			if ps.Min != nil && curMin != *ps.Min {
+				return false
+			}
+			if ps.Max != nil && curMax != *ps.Max {
+				return false
+			}
+		case config.OpNetbios:
+			val, err := op.NetbiosValue()
+			if err != nil {
+				return false
+			}
+			cur, err := o.exec.NetbiosGetOptions()
+			if err != nil {
+				return false
+			}
+			for _, v := range cur {
+				if v != val {
+					return false
+				}
 			}
 		}
 	}
@@ -753,6 +1007,14 @@ func opTarget(op config.Operation) string {
 	switch op.Type {
 	case config.OpRegistrySetDword, config.OpRegistrySetString, config.OpRegistrySetQword, config.OpRegistryDelete:
 		return fmt.Sprintf("%s\\%s\\%s", op.Hive, op.Path, op.Name)
+	case config.OpRegistryDeleteKey:
+		return fmt.Sprintf("%s\\%s", op.Hive, op.Path)
+	case config.OpPowerHibernate:
+		return "power:hibernate"
+	case config.OpPowerProcessorState:
+		return "power:processor_state"
+	case config.OpNetbios:
+		return "netbios:interfaces"
 	case config.OpServiceStartMode, config.OpServiceStart, config.OpServiceStop:
 		return "service:" + op.Name
 	case config.OpTaskDisable, config.OpTaskEnable, config.OpTaskDelete:

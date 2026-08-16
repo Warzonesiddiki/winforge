@@ -14,6 +14,15 @@ func list() ([]Plan, error) { return nil, ErrUnsupported }
 // SetProcessorState is unsupported off Windows.
 func setProcessorState(minPct, maxPct uint32) error { return ErrUnsupported }
 
+// GetProcessorState is unsupported off Windows.
+func getProcessorState() (uint32, uint32, error) { return 0, 0, ErrUnsupported }
+
+// SetHibernate is unsupported off Windows.
+func setHibernate(enable bool) error { return ErrUnsupported }
+
+// HibernateEnabled is unsupported off Windows.
+func hibernateEnabled() (bool, error) { return false, ErrUnsupported }
+
 // SetAcValueIndex is unsupported off Windows.
 func setAcValueIndex(scheme, subgroup, setting string, value uint32) error {
 	return ErrUnsupported

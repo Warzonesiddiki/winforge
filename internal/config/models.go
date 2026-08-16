@@ -6,6 +6,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,6 +68,30 @@ const (
 	OpAppxRemove        = "appx_remove"
 	OpCommand           = "command"
 	OpPowerScheme       = "power_scheme"
+
+	// OpPowerHibernate enables (true) or disables (false) hibernation via
+	// CallNtPowerInformation(SystemReserveHiberFile) — the native equivalent
+	// of `powercfg /hibernate on|off`, which the elevated executor refuses.
+	OpPowerHibernate = "power_hibernate"
+
+	// OpPowerProcessorState sets the AC minimum and/or maximum processor
+	// state (percent) of the active power scheme — the native equivalent of
+	// `powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN/…MAX`.
+	OpPowerProcessorState = "power_processor_state"
+
+	// OpNetbios sets NetbiosOptions on every interface under
+	// HKLM\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces —
+	// the documented registry equivalent of WMI SetTcpipNetbios
+	// (0 = use DHCP setting, 1 = enable, 2 = disable).
+	OpNetbios = "netbios"
+
+	// OpRegistryDeleteKey removes a registry key recursively
+	// (RegDeleteTreeW). It exists so a tweak that creates a key (for example
+	// the classic-context-menu CLSID key) can remove that key again on
+	// revert. It is deliberately the only operation that can delete a key,
+	// and validation requires a path at least two components deep so a
+	// catalog line can never name a hive-root child for wholesale deletion.
+	OpRegistryDeleteKey = "registry_delete_key"
 )
 
 // Value helpers decode the raw JSON value into the type an operation expects.
@@ -100,6 +125,61 @@ func (o Operation) QwordValue() (uint64, error) {
 	var n uint64
 	if err := json.Unmarshal(o.Value, &n); err != nil {
 		return 0, fmt.Errorf("operation %q expects a non-negative integer value: %w", o.Type, err)
+	}
+	return n, nil
+}
+
+// BoolValue returns the operation's value as a bool.
+func (o Operation) BoolValue() (bool, error) {
+	var b bool
+	if err := json.Unmarshal(o.Value, &b); err != nil {
+		return false, fmt.Errorf("operation %q expects a boolean value: %w", o.Type, err)
+	}
+	return b, nil
+}
+
+// ProcessorState is the decoded value of a power_processor_state operation.
+// Min and Max are AC processor-state percentages; a nil field means "leave
+// the current value unchanged".
+type ProcessorState struct {
+	Min *uint32 `json:"min,omitempty"`
+	Max *uint32 `json:"max,omitempty"`
+}
+
+// ProcessorStateValue decodes and validates a power_processor_state value.
+// At least one of min/max must be present, every present value must be
+// 0–100, and min must not exceed max when both are present.
+func (o Operation) ProcessorStateValue() (ProcessorState, error) {
+	var ps ProcessorState
+	dec := json.NewDecoder(bytes.NewReader(o.Value))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&ps); err != nil {
+		return ProcessorState{}, fmt.Errorf("operation %q expects {\"min\":0-100,\"max\":0-100}: %w", o.Type, err)
+	}
+	if ps.Min == nil && ps.Max == nil {
+		return ProcessorState{}, fmt.Errorf("operation %q requires at least one of min/max", o.Type)
+	}
+	for name, v := range map[string]*uint32{"min": ps.Min, "max": ps.Max} {
+		if v != nil && *v > 100 {
+			return ProcessorState{}, fmt.Errorf("operation %q %s processor state %d exceeds 100%%", o.Type, name, *v)
+		}
+	}
+	if ps.Min != nil && ps.Max != nil && *ps.Min > *ps.Max {
+		return ProcessorState{}, fmt.Errorf("operation %q minimum processor state %d exceeds maximum %d", o.Type, *ps.Min, *ps.Max)
+	}
+	return ps, nil
+}
+
+// NetbiosValue decodes and validates a netbios operation value: the
+// NetbiosOptions setting written to every NetBT interface (0 = use the DHCP
+// setting, 1 = enable NetBIOS over TCP/IP, 2 = disable it).
+func (o Operation) NetbiosValue() (uint32, error) {
+	n, err := o.DwordValue()
+	if err != nil {
+		return 0, err
+	}
+	if n > 2 {
+		return 0, fmt.Errorf("operation %q expects NetbiosOptions 0 (DHCP), 1 (enable), or 2 (disable); got %d", o.Type, n)
 	}
 	return n, nil
 }
@@ -391,6 +471,19 @@ func validateOperation(o Operation) error {
 		return checkLen("string value", value, maxStringValueLen)
 	case OpRegistryDelete:
 		return requireRegistryTarget()
+	case OpRegistryDeleteKey:
+		if err := requireRegistryTarget(); err != nil {
+			return err
+		}
+		if o.Name != "" {
+			return errors.New("registry_delete_key deletes a key, not a value; name must be empty")
+		}
+		// Refuse to delete a top-level key: a recursive delete of
+		// HKLM\SOFTWARE (or similar) is never a legitimate tweak.
+		if len(strings.Split(strings.Trim(o.Path, "\\"), "\\")) < 2 {
+			return fmt.Errorf("registry_delete_key path %q is too shallow (need at least two components)", o.Path)
+		}
+		return nil
 	case OpServiceStartMode:
 		if strings.TrimSpace(o.Name) == "" {
 			return errors.New("service name is required")
@@ -431,6 +524,15 @@ func validateOperation(o Operation) error {
 			return err
 		}
 		return nil
+	case OpPowerHibernate:
+		_, err := o.BoolValue()
+		return err
+	case OpPowerProcessorState:
+		_, err := o.ProcessorStateValue()
+		return err
+	case OpNetbios:
+		_, err := o.NetbiosValue()
+		return err
 	case OpCommand:
 		command, err := o.StringValue()
 		if err != nil {

@@ -124,8 +124,8 @@ PRIVACY_MAP = {
     ),
     "priv-perm-location": (["atlas-config-app-permissions"], "ConsentStore\\location Value=Deny"),
     "priv-perm-messages": (
-        ["atlas-disallow-message-cloud-sync"],
-        "PARTIAL — AllowMessageSync=0 covers message cloud sync; engine has no ConsentStore\\chat consent op",
+        ["winforge-deny-messaging-access", "atlas-disallow-message-cloud-sync"],
+        "ConsentStore\\chat Value=Deny (machine-wide messaging consent) + AllowMessageSync=0 (message cloud sync)",
     ),
     "priv-perm-account": (["atlas-config-app-permissions"], "ConsentStore\\userAccountInformation Value=Deny"),
     "priv-perm-background": (["atlas-disable-background-apps"], "GlobalUserDisabled=1 + BackgroundAppGlobalToggle=0"),
@@ -142,6 +142,11 @@ PRIVACY_MAP = {
     ),
     "priv-signin-sync": (["atlas-disable-setting-sync"], "SettingSync Groups\\Credentials Enabled=0 + DisableSettingSync policies"),
     "priv-net-llmnr": (["atlas-disable-llmnr", "net-disable-llmnr"], "DNSClient EnableMulticast=0 (both tweaks write the same policy)"),
+    "priv-net-netbios": (
+        ["net-disable-netbios"],
+        "native `netbios` op writes NetbiosOptions=2 to every NetBT\\Parameters\\Interfaces subkey "
+        "(documented registry equivalent of WMI SetTcpipNetbios(2); no PowerShell)",
+    ),
     "priv-wifi-sense": (["net-disable-wifisense"], "WcmSvc\\wifinetworkmanager\\config AutoConnectAllowedOEM=0"),
     "priv-bing-search": (
         ["atlas-search-settings", "tel-disable-web-search", "ui-disable-bing-search"],
@@ -156,32 +161,69 @@ PRIVACY_MAP = {
         "Policies\\...\\WindowsCopilot TurnOffWindowsCopilot=1 (both tweaks write the same policy)",
     ),
     "priv-diagnostic-data-viewer": (
-        ["atlas-disallow-data-collection"],
-        "PARTIAL — DiagTrack EventTranscriptKey EnableEventTranscript=0 stops DDV recording; "
-        "engine lacks the DataCollection\\EnableDiagnosticDataViewer policy op",
+        ["winforge-disable-diagnostic-data-viewer", "atlas-disallow-data-collection"],
+        "DataCollection DisableDiagnosticDataViewer=1 (blocks enabling/launching DDV from Settings; "
+        "documented System policy CSP) + DiagTrack EventTranscriptKey EnableEventTranscript=0 stops DDV recording",
+    ),
+    # --- gaps closed 2026-08-16 by new winforge-* Privacy tweaks (each value
+    # verified against the cited documentation before being added):
+    "priv-perm-camera": (
+        ["winforge-deny-camera-access"],
+        "ConsentStore\\webcam Value=Deny — the ConsentStore key/Value=Deny model is the documented "
+        "CapabilityAccessManager privacy store (same mechanism the engine already uses for location)",
+    ),
+    "priv-perm-mic": (["winforge-deny-microphone-access"], "ConsentStore\\microphone Value=Deny"),
+    "priv-perm-contacts": (["winforge-deny-contacts-access"], "ConsentStore\\contacts Value=Deny"),
+    "priv-perm-calendar": (["winforge-deny-calendar-access"], "ConsentStore\\appointments Value=Deny (the 'appointments' UWP capability is the calendar store)"),
+    "priv-perm-callhistory": (["winforge-deny-callhistory-access"], "ConsentStore\\phoneCallHistory Value=Deny"),
+    "priv-perm-email": (["winforge-deny-email-access"], "ConsentStore\\email Value=Deny"),
+    "priv-perm-notifications": (
+        ["winforge-deny-notifications-access"],
+        "ConsentStore\\userNotificationListener Value=Deny (the notification-listener capability backs 'apps access my notifications')",
+    ),
+    "priv-cloud-clipboard": (
+        ["winforge-disable-cloud-clipboard"],
+        "Policies\\Microsoft\\Windows\\System AllowCrossDeviceClipboard=0 ('Allow Clipboard synchronization across devices' policy)",
+    ),
+    "priv-edge-telemetry": (
+        ["winforge-disable-edge-telemetry"],
+        "Policies\\Microsoft\\Edge DiagnosticData=0 (documented Edge browser policy: 0=off, Edge 122+ on Windows 10/11)",
+    ),
+    "priv-smartscreen": (
+        ["winforge-enforce-smartscreen"],
+        "Policies\\Microsoft\\Windows\\System EnableSmartScreen=1 (SmartScreen policy CSP EnableSmartScreenInShell) — "
+        "the web rule is 'ensure SmartScreen is configured per policy', so the engine enforces it ON",
+    ),
+    "priv-net-mdns": (
+        ["winforge-disable-mdns"],
+        "Dnscache\\Parameters EnableMDNS=0 disables the DNS Client mDNS resolver (widely documented hardening value; "
+        "no GPO exists for it)",
+    ),
+    "priv-net-ncsi": (
+        ["winforge-disable-ncsi-probe"],
+        "Policies NetworkConnectivityStatusIndicator NoActiveProbe=1 ('Manage connections' doc §14)",
+    ),
+    "priv-net-wcn": (
+        ["winforge-disable-wcn"],
+        "WCN\\UI DisableWcnUi=1 + WCN\\Registrars EnableRegistrars=0 (ADMX_WindowsConnectNow policies)",
+    ),
+    "priv-device-metadata": (
+        ["winforge-disable-device-metadata"],
+        "Policies\\Microsoft\\Windows\\Device Metadata PreventDeviceMetadataFromNetwork=1 ('Manage connections' doc §4)",
+    ),
+    "priv-recall": (
+        ["winforge-disable-recall"],
+        "Policies\\Microsoft\\Windows\\WindowsAI DisableAIDataAnalysis=1, HKLM+HKCU (WindowsAI policy CSP: "
+        "1 = disable saving snapshots for Recall; enabling deletes previously saved snapshots)",
     ),
 }
 
 PRIVACY_GAPS = {
     # web rule id: reason there is no engine coverage (verified against config/tweaks.json)
-    "priv-perm-camera": "engine ConsentStore ops cover only appDiagnostics/location/userAccountInformation; no ConsentStore\\webcam op",
-    "priv-perm-mic": "no ConsentStore\\microphone op in the engine catalog",
-    "priv-perm-contacts": "no ConsentStore\\contacts op in the engine catalog",
-    "priv-perm-calendar": "no ConsentStore\\appointments op in the engine catalog",
-    "priv-perm-callhistory": "no ConsentStore\\phoneCallHistory op in the engine catalog",
-    "priv-perm-email": "no ConsentStore\\email op in the engine catalog",
-    "priv-perm-notifications": "no ConsentStore op for notification access in the engine catalog",
-    "priv-cloud-clipboard": "no Clipboard/cloud-sync registry op anywhere in the engine catalog",
-    "priv-edge-telemetry": "no Policies\\Microsoft\\Edge op in the engine catalog",
-    "priv-smartscreen": "no SmartScreen (Explorer/Edge policy) op in the engine catalog",
     "priv-dnt": "web rule is browser-level (Do Not Track header), not an OS registry state — out of engine scope today",
-    "priv-net-netbios": "same documented exclusion as net-disable-netbios: SetTcpipNetbios is WMI-only; native op pending (see CATALOG_PARITY.md)",
-    "priv-net-mdns": "no mDNS disable op in the engine catalog",
-    "priv-net-ncsi": "no NCSI EnableActiveProbing op in the engine catalog",
-    "priv-net-wcn": "no Windows Connect Now op in the engine catalog",
-    "priv-device-metadata": "no PreventDeviceMetadataFromNetwork/DeviceSetupManager op in the engine catalog",
-    "priv-recall": "no Recall/DisableAIDataAnalysis op in the engine catalog",
-    "priv-microsoft-store-ads": "no personalized-ads-in-Store op in the engine catalog (store auto-updates/retail demo are unrelated)",
+    "priv-microsoft-store-ads": "the Store app's 'personalized experiences' toggle has no documented registry/policy "
+    "backing (the Store does not read a registry value for it); the OS-level advertising-ID surface is already "
+    "covered by atlas-disable-advertising-info — no fabricated op will be added",
 }
 
 

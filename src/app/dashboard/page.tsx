@@ -8,6 +8,7 @@ import { MetricsPanel } from "@/components/MetricsPanel";
 import { SystemInfo } from "@/components/SystemInfo";
 import { QuickScan } from "@/components/QuickScan";
 import { HealthPanel } from "@/components/HealthPanel";
+import { EngineStatusCard } from "@/components/EngineStatusCard";
 import { Banner } from "@/components/ui";
 import { PresetButtons } from "./PresetButtons";
 import { PageHeader } from "@/components/PageHeader";
@@ -49,6 +50,10 @@ export default async function DashboardPage() {
           initialTotal={totalTweaks}
           initialPending={pendingUpdates.length}
         />
+      </div>
+
+      <div className="mt-6">
+        <EngineStatusCard />
       </div>
 
       <div className="mt-6 space-y-2">

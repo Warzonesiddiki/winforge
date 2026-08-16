@@ -213,6 +213,20 @@ func (e *stubExecutor) RunCommand(_ string, _ []string) error {
 }
 func (e *stubExecutor) PowerGetActive() (string, error) { return "", nil }
 func (e *stubExecutor) PowerSetActive(_ string) error   { return nil }
+func (e *stubExecutor) RegistryKeyExists(_, _ string) (bool, error) {
+	return false, nil
+}
+func (e *stubExecutor) RegistryDeleteKeyTree(_, _ string) error { return nil }
+func (e *stubExecutor) PowerHibernateEnabled() (bool, error)    { return false, nil }
+func (e *stubExecutor) PowerSetHibernate(_ bool) error          { return nil }
+func (e *stubExecutor) PowerGetProcessorState() (uint32, uint32, error) {
+	return 0, 100, nil
+}
+func (e *stubExecutor) PowerSetProcessorState(_, _ uint32) error { return nil }
+func (e *stubExecutor) NetbiosGetOptions() (map[string]uint32, error) {
+	return map[string]uint32{}, nil
+}
+func (e *stubExecutor) NetbiosSetOptions(_ uint32) error { return nil }
 
 func dwordTweak(id string, val uint32) config.Tweak {
 	return config.Tweak{

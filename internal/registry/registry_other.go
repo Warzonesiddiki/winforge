@@ -24,3 +24,7 @@ func setExpandString(_ Hive, _, _ string, _ string) error { return ErrUnsupporte
 func deleteValue(_ Hive, _, _ string) error { return ErrUnsupported }
 
 func enumSubkeys(_ Hive, _ string) ([]string, error) { return nil, ErrUnsupported }
+
+func keyExists(_ Hive, _ string) (bool, error) { return false, ErrUnsupported }
+
+func deleteKeyTree(_ Hive, _ string) error { return ErrUnsupported }

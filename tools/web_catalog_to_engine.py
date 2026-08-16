@@ -10,11 +10,23 @@ other than SetTcpipNetbios) are skipped and reported — never fabricated.
 Mapping rules:
   HKCU\\<path>: Name = 0x…/n   → registry_set_dword
   HKCU\\<path>: Name = "text"  → registry_set_string
+  HKCU\\<path>: (Default) = …  → registry op with empty name (the Windows
+                                 default value; RegSetValueExW documents that
+                                 a NULL/empty value name addresses it)
   undo "= default"             → registry_delete (restores the Windows default)
+  undo "HK..\\<key> -> removed" → registry_delete_key (recursive; reverts a
+                                 key the apply side created)
   "HKCU\\...\\X"               → expanded via the ABBREV map below (else skipped)
-  powercfg/bcdedit/fsutil …    → command (exe + tokenized args)
-  Disable/Enable-MMAgent …     → powershell -NoProfile -Command wrapper
-  WMI …SetTcpipNetbios(n)      → powershell Get-CimInstance translation
+  bcdedit/fsutil …             → command (exe + tokenized args)
+  powercfg /hibernate on|off   → power_hibernate true|false (native
+                                 CallNtPowerInformation SystemReserveHiberFile)
+  powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN n
+                               → power_processor_state {"min": n} (native
+                                 PowerWriteACValueIndex)
+  WMI …SetTcpipNetbios(n)      → netbios n (native registry writes to
+                                 NetBT\\Parameters\\Interfaces NetbiosOptions —
+                                 no WMI/PowerShell)
+  Disable/Enable-MMAgent …     → SKIPPED (PowerShell-only; security boundary)
   Service A, B -> Mode         → one service_start_mode op per service
   Scheduled Task: path -> X    → task_disable / task_enable
   risk "expert"                → "high" (engine has no expert tier)
@@ -56,6 +68,13 @@ SERVICE_OP = re.compile(r"^Service\s+(?P<names>[A-Za-z0-9_. -]+(?:\s*,\s*[A-Za-z
 TASK_OP = re.compile(r"^Scheduled Task:\s*(?P<path>.+?)\s*->\s*(?P<action>.+)$")
 REG_OP = re.compile(r"^(?P<hive>HKLM|HKCU|HKCR)\\(?P<path>[^:]+):\s*(?P<name>[^=]+?)\s*=\s*(?P<value>.+)$")
 WMI_NETBIOS = re.compile(r"^WMI Win32_NetworkAdapterConfiguration\.SetTcpipNetbios\((\d+)\)$")
+KEY_REMOVED = re.compile(r"^(?P<hive>HKLM|HKCU|HKCR)\\(?P<path>[^:]+?)\s*->\s*removed$")
+HIBERNATE = re.compile(r"^powercfg\s+/hibernate\s+(?P<state>on|off)$", re.IGNORECASE)
+PROC_THROTTLE = re.compile(
+    r"^powercfg\s+-setacvalueindex\s+SCHEME_CURRENT\s+SUB_PROCESSOR\s+"
+    r"(?P<setting>PROCTHROTTLEMIN|PROCTHROTTLEMAX)\s+(?P<pct>\d+)$",
+    re.IGNORECASE,
+)
 
 report = []
 
@@ -88,6 +107,15 @@ def convert_op(raw, tweak_id, is_undo=False):
     """Convert one web operation string to a list of engine op dicts."""
     s = raw.strip()
     ops = []
+    if (m := KEY_REMOVED.match(s)):
+        # "<hive>\<key> -> removed" only appears as the undo of a tweak whose
+        # apply side creates that key, so a recursive key delete restores the
+        # pre-apply state (registry_delete_key refuses shallow paths).
+        if is_undo:
+            ops.append({"type": "registry_delete_key", "hive": m["hive"], "path": m["path"].strip()})
+        else:
+            skip("'-> removed' is an undo narrative, not an apply op", tweak_id, raw)
+        return ops
     if s.startswith(("HKCU\\", "HKLM\\", "HKCR\\")):
         for hive, path, name, value in re.findall(
             r"(HKLM|HKCU|HKCR)\\([^:]+):\s*([^=,]+?)\s*=\s*([^,]+)", s
@@ -98,8 +126,10 @@ def convert_op(raw, tweak_id, is_undo=False):
                 continue
             name = name.strip()
             if name == "(Default)":
-                skip("default value name unsupported by engine registry layer", tweak_id, raw)
-                continue
+                # RegSetValueExW: a NULL/empty value name addresses the key's
+                # unnamed (default) value; the engine passes the empty name
+                # through, so the default value is a plain registry op.
+                name = ""
             if name == "PagingFiles":
                 skip("PagingFiles is REG_MULTI_SZ — a string/dword write would corrupt pagefile config", tweak_id, raw)
                 continue
@@ -112,7 +142,11 @@ def convert_op(raw, tweak_id, is_undo=False):
             if (n := parse_int(value)) is not None:
                 ops.append({"type": "registry_set_dword", "hive": hive, "path": full, "name": name, "value": n})
             else:
-                ops.append({"type": "registry_set_string", "hive": hive, "path": full, "name": name, "value": value.strip().strip('"')})
+                # The seed keeps TS escape sequences (\") in the captured op
+                # string; unescape them before trimming the surrounding quotes
+                # so `(Default) = \"\"` yields the empty string.
+                text = value.strip().replace('\\"', '"').strip('"')
+                ops.append({"type": "registry_set_string", "hive": hive, "path": full, "name": name, "value": text})
         return ops
     if (m := SERVICE_OP.match(s)):
         mode = SERVICE_MODE.get(m["mode"].strip().lower())
@@ -137,7 +171,11 @@ def convert_op(raw, tweak_id, is_undo=False):
             skip(f"unknown task action {m['action']!r}", tweak_id, raw)
         return ops
     if (m := WMI_NETBIOS.match(s)):
-        skip("WMI SetTcpipNetbios requires PowerShell/CIM — engine never invokes PowerShell from its elevated executor (security boundary); needs a native WMI op", tweak_id, raw)
+        # Native equivalent: NetbiosOptions under
+        # HKLM\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces\Tcpip_*
+        # (0 = DHCP setting, 1 = enable, 2 = disable) — the documented registry
+        # backing of Win32_NetworkAdapterConfiguration.SetTcpipNetbios.
+        ops.append({"type": "netbios", "value": int(m[1])})
         return ops
     if s.startswith(("Disable-MMAgent", "Enable-MMAgent")):
         skip("PowerShell-only MMAgent cmdlet — engine never invokes PowerShell from its elevated executor (security boundary)", tweak_id, raw)
@@ -145,8 +183,22 @@ def convert_op(raw, tweak_id, is_undo=False):
     if s.startswith("Appx:"):
         skip("Appx narrative op (engine handles Appx via the debloat catalog)", tweak_id, raw)
         return ops
+    if (m := HIBERNATE.match(s)):
+        # Native equivalent of `powercfg /hibernate on|off`:
+        # CallNtPowerInformation(SystemReserveHiberFile, &BOOLEAN) commits or
+        # decommits the hibernation file.
+        ops.append({"type": "power_hibernate", "value": m["state"].lower() == "on"})
+        return ops
+    if (m := PROC_THROTTLE.match(s)):
+        # Native equivalent of `powercfg -setacvalueindex SCHEME_CURRENT
+        # SUB_PROCESSOR PROCTHROTTLEMIN/MAX n`: PowerWriteACValueIndex on the
+        # processor subgroup (54533251-82be-4824-96c1-47b60b740d00) followed
+        # by PowerSetActiveScheme.
+        field = "min" if m["setting"].upper() == "PROCTHROTTLEMIN" else "max"
+        ops.append({"type": "power_processor_state", "value": {field: int(m["pct"])}})
+        return ops
     if s.lower().startswith("powercfg"):
-        skip("powercfg is not an allowlisted elevated command; the engine exposes native power operations (power_scheme, SetProcessorState)", tweak_id, raw)
+        skip("powercfg is not an allowlisted elevated command and this form has no native mapping (power_scheme/power_hibernate/power_processor_state cover the supported forms)", tweak_id, raw)
         return ops
     # Plain commands: bcdedit, fsutil, … (elevated-executor allowlist)
     try:

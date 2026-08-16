@@ -31,6 +31,7 @@ const (
 
 	keySetValue         = 0x0002
 	keyEnumerateSubKeys = 0x0008
+	keyRead             = 0x20019 // STANDARD_RIGHTS_READ | KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_NOTIFY
 
 	errorFileNotFound = 2
 	errorMoreData     = 234
@@ -48,6 +49,7 @@ var (
 	procRegSetValueExW  = advapi32.NewProc("RegSetValueExW")
 	procRegCreateKeyExW = advapi32.NewProc("RegCreateKeyExW")
 	procRegDeleteValueW = advapi32.NewProc("RegDeleteValueW")
+	procRegDeleteTreeW  = advapi32.NewProc("RegDeleteTreeW")
 	procRegOpenKeyExW   = advapi32.NewProc("RegOpenKeyExW")
 	procRegEnumKeyExW   = advapi32.NewProc("RegEnumKeyExW")
 	procRegCloseKey     = advapi32.NewProc("RegCloseKey")
@@ -313,6 +315,47 @@ func deleteValue(h Hive, path, name string) error {
 		return err
 	}
 	r, _, _ = procRegDeleteValueW.Call(uintptr(k), uintptr(unsafe.Pointer(pname)))
+	if r != 0 {
+		return errnoFrom(r)
+	}
+	return nil
+}
+
+// keyExists reports whether the key at path can be opened for reading.
+func keyExists(h Hive, path string) (bool, error) {
+	ppath, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return false, err
+	}
+	var k syscall.Handle
+	r, _, _ := procRegOpenKeyExW.Call(
+		uintptr(hiveRoot(h)),
+		uintptr(unsafe.Pointer(ppath)),
+		0,
+		uintptr(keyRead),
+		uintptr(unsafe.Pointer(&k)),
+	)
+	if r == errorFileNotFound {
+		return false, nil
+	}
+	if r != 0 {
+		return false, syscall.Errno(r)
+	}
+	procRegCloseKey.Call(uintptr(k))
+	return true, nil
+}
+
+// deleteKeyTree removes path and everything under it via RegDeleteTreeW,
+// which deletes the subkeys and values of the specified key recursively.
+func deleteKeyTree(h Hive, path string) error {
+	ppath, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	r, _, _ := procRegDeleteTreeW.Call(
+		uintptr(hiveRoot(h)),
+		uintptr(unsafe.Pointer(ppath)),
+	)
 	if r != 0 {
 		return errnoFrom(r)
 	}

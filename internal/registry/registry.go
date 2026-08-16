@@ -118,3 +118,30 @@ func EnumSubkeys(h Hive, path string) ([]string, error) {
 	}
 	return enumSubkeys(h, path)
 }
+
+// KeyExists reports whether the key at path exists. It opens the key with
+// read access only.
+func KeyExists(h Hive, path string) (bool, error) {
+	if err := validateHive(h); err != nil {
+		return false, err
+	}
+	return keyExists(h, path)
+}
+
+// DeleteKeyTree removes the key at path together with all of its subkeys and
+// values (RegDeleteTreeW). Deleting a missing key returns ErrNotFound. This is
+// the most destructive registry primitive in the engine: callers are expected
+// to restrict it to keys their own tweaks created (the config layer enforces a
+// minimum path depth so a hive-root child cannot be deleted wholesale).
+func DeleteKeyTree(h Hive, path string) error {
+	if err := validateHive(h); err != nil {
+		return err
+	}
+	return deleteKeyTree(h, path)
+}
+
+// Note on default (unnamed) values: the Windows registry documentation for
+// RegSetValueExW, RegGetValueW, and RegDeleteValueW specifies that a NULL or
+// empty value name addresses the key's unnamed ("(Default)") value. The
+// functions above therefore support default-value access by passing an empty
+// name — no separate API is needed.
