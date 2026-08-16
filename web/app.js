@@ -1,6 +1,32 @@
 // WinForge dashboard — zero-dependency single-page app.
 const $ = (sel) => document.querySelector(sel);
 
+// toast shows a non-blocking notification at the bottom-right of the window.
+// It replaces window.alert(), which blocked the UI and could not be styled.
+// kind is "info" (default), "success", or "error".
+function toast(message, kind = "info", ttl = 5000) {
+  const container = $("#toasts");
+  if (!container) {
+    // Fall back to console if the container is missing.
+    console[kind === "error" ? "error" : "log"](message);
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.textContent = message;
+  container.appendChild(el);
+  const remove = () => {
+    el.classList.add("fadeout");
+    setTimeout(() => el.remove(), 200);
+  };
+  const timer = setTimeout(remove, ttl);
+  el.addEventListener("click", () => {
+    clearTimeout(timer);
+    remove();
+  });
+  return el;
+}
+
 // ADR-002: the engine requires a per-instance session token on every
 // mutating request. Fetch it once (loopback + same-origin only) and attach it
 // as X-WinForge-Token; non-mutating GETs don't need it.
@@ -143,7 +169,7 @@ async function loadTweaks() {
         else await api("/api/tweaks/undo", { method: "POST", body: JSON.stringify({ id }) });
       } catch (err) {
         el.checked = !el.checked;
-        alert(`${t.name}: ${err.message}`);
+        toast(`${t.name}: ${err.message}`, "error");
       }
     });
   });
@@ -330,7 +356,7 @@ function setupMaintenance() {
     const source = $("#iso-source").value.trim();
     const output = $("#iso-output").value.trim();
     const editions = $("#iso-editions").value.split(",").map((s) => s.trim()).filter(Boolean);
-    if (!source || !output) { alert("Source and output are required"); return; }
+    if (!source || !output) { toast("Source and output are required", "error"); return; }
     log.textContent = "Building ISO…\n";
     try {
       const job = await api("/api/iso/build", {
@@ -356,7 +382,7 @@ function setupMaintenance() {
 
   const feature = async (enable) => {
     const name = $("#feature-name").value.trim();
-    if (!name) { alert("Enter a feature name"); return; }
+    if (!name) { toast("Enter a feature name", "error"); return; }
     const log = maintenanceLog();
     log.textContent = `${enable ? "Enabling" : "Disabling"} feature ${name}…\n`;
     try {
@@ -398,7 +424,7 @@ async function loadHistory() {
         await api("/api/history/undo", { method: "POST", body: JSON.stringify({ id: b.dataset.undo }) });
         loadHistory();
       } catch (err) {
-        alert(err.message);
+        toast(err.message, "error");
       }
     })
   );

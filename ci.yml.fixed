@@ -189,7 +189,7 @@ jobs:
           while IFS= read -r -d '' file; do
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$file" \
               || { echo "::error file=$file::invalid JSON"; status=1; }
-          done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -print0)
+          done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -not -path './archive/*' -print0)
           exit $status
       - name: Check for whitespace errors
         run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD

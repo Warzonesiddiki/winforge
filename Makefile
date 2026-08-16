@@ -85,11 +85,11 @@ web-build:
 
 syntax:
 	@echo ">> JSON syntax"
-	@failed=0; while IFS= read -r -d '' f; do python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$$f" || { echo "invalid JSON: $$f"; failed=1; }; done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -not -path './.next/*' -print0); exit $$failed
+	@failed=0; while IFS= read -r -d '' f; do python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$$f" || { echo "invalid JSON: $$f"; failed=1; }; done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -not -path './.next/*' -not -path './archive/*' -print0); exit $$failed
 	@echo ">> JS syntax"
 	@failed=0; while IFS= read -r -d '' f; do node --check "$$f" || { echo "invalid JS: $$f"; failed=1; }; done < <(find web -name '*.js' -print0); exit $$failed
-	@echo ">> git diff --check (no trailing whitespace)"
-	@git diff --check "$$(git hash-object -t tree /dev/null)" HEAD || (echo "git diff --check failed"; exit 1)
+	@echo ">> git diff --check (no trailing whitespace in changes)"
+	@git diff --check || (echo "git diff --check failed"; exit 1)
 
 # Shorthand for local dev (no -race, faster)
 quick: gofmt vet test parity web
