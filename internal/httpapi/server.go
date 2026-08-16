@@ -6,6 +6,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,13 +64,14 @@ type job struct {
 
 // Server implements http.Handler for the dashboard and API.
 type Server struct {
-	App        *app.App
-	mux        *http.ServeMux
-	elevated   bool
-	mu         sync.Mutex
-	mutationMu sync.Mutex
-	jobs       map[string]*job
-	seq        int
+	App          *app.App
+	mux          *http.ServeMux
+	elevated     bool
+	sessionToken string
+	mu           sync.Mutex
+	mutationMu   sync.Mutex
+	jobs         map[string]*job
+	seq          int
 }
 
 // New creates the HTTP server.
@@ -79,7 +81,11 @@ func New(a *app.App) *Server {
 }
 
 func newServer(a *app.App, elevated bool) *Server {
-	s := &Server{App: a, elevated: elevated, jobs: map[string]*job{}}
+	token, err := newSessionToken()
+	if err != nil {
+		panic("httpapi: cannot generate session token: " + err.Error())
+	}
+	s := &Server{App: a, elevated: elevated, sessionToken: token, jobs: map[string]*job{}}
 	s.mux = s.routes()
 	return s
 }
@@ -89,6 +95,7 @@ func (s *Server) routes() *http.ServeMux {
 
 	mux.HandleFunc("GET /api/status", s.handleStatus)
 	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/session-token", s.handleSessionToken)
 	mux.HandleFunc("GET /api/tweaks", s.handleListTweaks)
 	mux.HandleFunc("POST /api/tweaks/apply", s.handleApplyTweak)
 	mux.HandleFunc("POST /api/tweaks/undo", s.handleUndoTweak)
@@ -154,9 +161,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, fmt.Errorf("cross-origin mutation rejected"))
 			return
 		}
+		// ADR-002: mutating requests must carry the per-instance session
+		// token, closing the "any local process can POST to loopback" gap
+		// that same-origin leaves open for non-browser clients.
+		provided := r.Header.Get(sessionTokenHeader)
+		if provided == "" ||
+			subtle.ConstantTimeCompare([]byte(provided), []byte(s.sessionToken)) != 1 {
+			writeErr(w, http.StatusUnauthorized, errInvalidToken)
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	}
 	s.mux.ServeHTTP(w, r)
+}
+
+// handleSessionToken returns the per-instance session token a same-origin
+// client must echo in X-WinForge-Token on mutations. It is a read endpoint and
+// is itself reachable only from loopback (and same-origin when called from a
+// browser). The embedded dashboard fetches it on load; the Next.js bridge
+// fetches it through the /engine proxy.
+func (s *Server) handleSessionToken(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"token": s.sessionToken})
 }
 
 func isMutation(method string) bool {

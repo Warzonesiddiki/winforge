@@ -2,6 +2,10 @@
 
 - **Status:** Design accepted; spike executed and verified 2026-08-16.
   Not yet a product feature — this document is the Phase 4 blueprint.
+  **Re-scoped 2026-08-16:** see
+  [`WASM_REALSCOPE_2026-08-16.md`](./WASM_REALSCOPE_2026-08-16.md) for the
+  evidence-based decision not to ship an unverified Windows-only binding in
+  the W1 session (Lua is the first scriptable tier); the target is unchanged.
 - **Relationship to Lua packs:** Lua (`native/build-lua.sh`, `lua54.dll`) is
   the *convenient* plugin tier for trusted community packs. WASM is the
   *strong-isolation* tier for third-party packs that must not be able to touch
