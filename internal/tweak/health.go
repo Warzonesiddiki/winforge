@@ -14,12 +14,19 @@ type Health struct {
 	BloatwareCount     int `json:"bloatwareCount"`
 }
 
-// ComputeHealth applies the health algorithm:
+// ComputeHealth applies the ENGINE health algorithm:
 //
-//	100 - (unapplied_low * 2) - (unapplied_medium * 5) - (bloatware * 3)
+//	100 - (unapplied_low * 2) - (unapplied_medium * 5) - (unapplied_high * 10) - (bloatware * 3)
 //
-// Unapplied high-risk tweaks additionally subtract 10 each. The score is
-// clamped to [0, 100].
+// The score is clamped to [0, 100].
+//
+// This is intentionally different from the Next.js simulation's formula in
+// src/lib/health.ts (baseline 50 with capped bonuses and penalties). The two
+// surfaces score different inputs — the engine reads real registry/service
+// state, the web app reads a simulated PostgreSQL catalog — so they are not
+// expected to produce identical numbers. Each formula has tests pinning its
+// behavior. Do not "align" them without updating both implementations and
+// their tests together.
 func ComputeHealth(tweaks []config.Tweak, applied map[string]bool, bloatware int) Health {
 	h := Health{
 		Score:          100,

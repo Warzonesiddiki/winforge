@@ -5,15 +5,18 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"winforge/internal/app"
@@ -51,7 +54,48 @@ func newFlagSet(name string) *flag.FlagSet {
 // listenAndServe runs the dashboard server. It is a variable so tests can
 // exercise serve's argument validation without binding a socket; production
 // never reassigns it.
-var listenAndServe = func(srv *http.Server) error { return srv.ListenAndServe() }
+//
+// Production installs a signal handler so Ctrl+C / SIGTERM triggers a
+// graceful Shutdown (in-flight requests and async jobs get a chance to
+// finish) instead of killing the process mid-mutation. The test seam is
+// replaced entirely, so that wiring does not run under tests.
+var listenAndServe = func(srv *http.Server) error {
+	return serveWithShutdown(srv)
+}
+
+// shutdownTimeout bounds how long graceful shutdown waits for in-flight
+// requests to drain before closing connections forcefully.
+const shutdownTimeout = 10 * time.Second
+
+// serveWithShutdown runs srv and tears it down gracefully on SIGINT/SIGTERM.
+// http.ErrServerClosed is the normal "we asked it to stop" outcome and is
+// reported as nil.
+func serveWithShutdown(srv *http.Server) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
+		} else {
+			serveErr <- nil
+		}
+	}()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+		fmt.Fprintln(out, "\nShutting down…")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("graceful shutdown: %w", err)
+		}
+		return nil
+	}
+}
 
 // Run executes the CLI with the given arguments (excluding the program name).
 func Run(args []string) error {

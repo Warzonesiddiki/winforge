@@ -26,6 +26,10 @@ env:
   # and the build must succeed with no network access to a module proxy.
   GOFLAGS: -mod=mod
   GOPROXY: off
+  # Go source lives in cmd/ and internal/ plus the root package (embed.go).
+  # Scoping packages explicitly keeps `go test ./...` from walking
+  # node_modules/, where npm deps (e.g. flatted) ship .go files.
+  GO_PKGS: ./cmd/... ./internal/... .
 
 jobs:
   test:
@@ -39,19 +43,19 @@ jobs:
           check-latest: true
       - name: gofmt
         run: |
-          unformatted="$(gofmt -l .)"
+          unformatted="$(gofmt -l cmd internal embed.go)"
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofmt-formatted:"
             echo "$unformatted"
-            gofmt -d .
+            gofmt -d cmd internal embed.go
             exit 1
           fi
       - name: go vet
-        run: go vet ./...
+        run: go vet $GO_PKGS
       - name: go test
-        run: go test ./...
+        run: go test $GO_PKGS
       - name: go test -race
-        run: go test -race ./...
+        run: go test -race $GO_PKGS
 
   windows:
     name: Test (Windows)
@@ -65,11 +69,11 @@ jobs:
       # Building and vetting on a real Windows runner is what catches the
       # GOOS=windows-only code that never compiles during Linux-only checks.
       - name: go build
-        run: go build ./...
+        run: go build $GO_PKGS
       - name: go vet
-        run: go vet ./...
+        run: go vet $GO_PKGS
       - name: go test
-        run: go test ./...
+        run: go test $GO_PKGS
 
   cross-compile:
     name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -91,24 +95,28 @@ jobs:
           go-version-file: go.mod
           check-latest: true
       - name: go build
-        run: go build ./...
+        run: go build $GO_PKGS
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
       - name: go vet
-        run: go vet ./...
+        run: go vet $GO_PKGS
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
       - name: Build release binary
         if: matrix.goarch == 'amd64'
         run: >
-          go build -trimpath -ldflags="-s -w"
+          go build -trimpath
+          -ldflags="-s -w -X winforge/internal/app.Version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
           -o winforge.exe ./cmd/winforge
         env:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
+      - name: Verify PE header
+        if: matrix.goarch == 'amd64'
+        run: head -c 2 winforge.exe | od -An -tx1 | grep -q "4d 5a"
       - name: Upload winforge.exe
         if: matrix.goarch == 'amd64'
         uses: actions/upload-artifact@v4
@@ -150,6 +158,15 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Unit tests
+        run: npm test
+      # The production build must succeed with no DATABASE_URL (the DB pool is
+      # lazily constructed so build-time page collection does not need a live
+      # PostgreSQL instance).
+      - name: Production build (no DATABASE_URL)
+        run: npm run build
+        env:
+          DATABASE_URL: ""
 
   syntax:
     name: JSON and JavaScript syntax

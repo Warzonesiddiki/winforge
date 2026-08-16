@@ -24,6 +24,26 @@ build/
 target/
 .gradle/
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Next.js build output
+.next/
+out/
+next-env.d.ts
+
+# Go build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+winforge
+winforge.exe
+
+# Test binary
+*.test
+
 # System files
 .DS_Store
 Thumbs.db

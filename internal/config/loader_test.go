@@ -317,6 +317,19 @@ func TestProcessorStateValueDecoding(t *testing.T) {
 	}
 }
 
+func TestValidateRiskAcceptsExpertAndNormalizesToHigh(t *testing.T) {
+	raw := `{"tweaks":[
+		{"id":"expert-tweak","name":"Expert","category":"privacy","description":"d","risk":"expert",
+		 "reversible":true,
+		 "operations":[{"type":"registry_set_dword","hive":"HKLM","path":"A","name":"B","value":1}],
+		 "revert":[{"type":"registry_delete","hive":"HKLM","path":"A","name":"B"}]}
+	]}`
+	c := loadTweaks(t, raw)
+	if got := c.Tweaks[0].Risk; got != RiskHigh {
+		t.Fatalf("expert risk normalized to %q, want %q", got, RiskHigh)
+	}
+}
+
 func TestValidateSuppliesFallbackName(t *testing.T) {
 	cfg := &TweakConfig{Tweaks: []Tweak{{
 		ID:         "winforge-example-tweak",

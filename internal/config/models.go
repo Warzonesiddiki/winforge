@@ -590,13 +590,19 @@ func displayName(id string) string {
 }
 
 // ValidateRisk normalizes/validates the risk level.
+//
+// The web catalog uses four tiers (low/medium/high/expert); the engine
+// collapses "expert" to RiskHigh because the health-score and UI only
+// distinguish three tiers and expert is semantically "highest". This keeps a
+// catalog entry copied verbatim from the web seed from failing validation
+// before the converter has had a chance to normalize it.
 func (t *Tweak) ValidateRisk() error {
 	switch strings.ToLower(string(t.Risk)) {
 	case "low":
 		t.Risk = RiskLow
 	case "medium":
 		t.Risk = RiskMedium
-	case "high":
+	case "high", "expert":
 		t.Risk = RiskHigh
 	case "":
 		t.Risk = RiskLow
