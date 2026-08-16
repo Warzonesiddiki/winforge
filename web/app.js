@@ -1,14 +1,32 @@
 // WinForge dashboard — zero-dependency single-page app.
 const $ = (sel) => document.querySelector(sel);
 
+// ADR-002: the engine requires a per-instance session token on every
+// mutating request. Fetch it once (loopback + same-origin only) and attach it
+// as X-WinForge-Token; non-mutating GETs don't need it.
+let sessionTokenPromise = null;
+function getSessionToken() {
+  if (!sessionTokenPromise) {
+    sessionTokenPromise = fetch("/api/session-token")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("session token unavailable"))))
+      .then((b) => b.token);
+  }
+  return sessionTokenPromise;
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
+  const method = (opts.method || "GET").toUpperCase();
+  const headers = { "Content-Type": "application/json" };
+  if (method !== "GET" && method !== "HEAD") {
+    headers["X-WinForge-Token"] = await getSessionToken();
+  }
+  const res = await fetch(path, { headers, ...opts });
   if (!res.ok) {
     let msg = res.statusText;
     try { msg = (await res.json()).error || msg; } catch (_) {}
+    if (res.status === 401) {
+      msg = "Session rejected by engine. Restart winforge serve and reload.";
+    }
     throw new Error(msg);
   }
   return res.json();

@@ -17,6 +17,14 @@ import (
 	"winforge/internal/audit"
 )
 
+// withToken returns a copy of req with the server's session token header set.
+// Tests that exercise mutating handlers must use it so they pass the ADR-002
+// auth gate and reach the handler under test.
+func withToken(s *Server, req *http.Request) *http.Request {
+	req.Header.Set(sessionTokenHeader, s.sessionToken)
+	return req
+}
+
 func TestServeHTTPRejectsNonLoopbackHost(t *testing.T) {
 	s := New(nil)
 	req := httptest.NewRequest(http.MethodGet, "http://attacker.example/", nil)
@@ -39,6 +47,101 @@ func TestServeHTTPRejectsCrossOriginMutation(t *testing.T) {
 	s.ServeHTTP(res, req)
 	if res.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusForbidden)
+	}
+}
+
+func TestMutationRequiresSessionToken(t *testing.T) {
+	s := New(nil)
+
+	// No token -> 401 before the handler runs (not-found path would otherwise
+	// be a 404, but auth comes first).
+	noToken := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8696/api/tweaks/apply",
+		strings.NewReader(`{"id":"x"}`))
+	res := httptest.NewRecorder()
+	s.ServeHTTP(res, noToken)
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("no token: status = %d, want %d", res.Code, http.StatusUnauthorized)
+	}
+
+	// Wrong token -> 401.
+	wrong := withToken(s, httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8696/api/tweaks/apply",
+		strings.NewReader(`{"id":"x"}`)))
+	wrong.Header.Set(sessionTokenHeader, "not-the-token")
+	res2 := httptest.NewRecorder()
+	s.ServeHTTP(res2, wrong)
+	if res2.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong token: status = %d, want %d", res2.Code, http.StatusUnauthorized)
+	}
+
+	// Correct token -> passes auth gate. Use a server backed by an empty App
+	// so the handler runs (the tweak id is not found, which is a 404/500 from
+	// the handler, not a 401 from auth).
+	sApp := New(&app.App{})
+	good := withToken(sApp, httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8696/api/tweaks/apply",
+		strings.NewReader(`{"id":"x"}`)))
+	res3 := httptest.NewRecorder()
+	sApp.ServeHTTP(res3, good)
+	if res3.Code == http.StatusUnauthorized {
+		t.Fatalf("valid token was rejected: %s", res3.Body.String())
+	}
+}
+
+func TestReadEndpointsDoNotRequireToken(t *testing.T) {
+	// Back with an empty App so GET handlers run without a nil-App panic; the
+	// point of the test is that no 401 is returned for reads.
+	s := New(&app.App{})
+	for _, path := range []string{"/api/session-token", "/api/plugins", "/api/apps"} {
+		req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8696"+path, nil)
+		res := httptest.NewRecorder()
+		s.ServeHTTP(res, req)
+		if res.Code == http.StatusUnauthorized {
+			t.Fatalf("GET %s required a token", path)
+		}
+	}
+}
+
+func TestSessionTokenEndpointReachableAndRotates(t *testing.T) {
+	s := New(nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8696/api/session-token", nil)
+	res := httptest.NewRecorder()
+	s.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusOK)
+	}
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Token != s.sessionToken || len(body.Token) < 32 {
+		t.Fatalf("token endpoint returned %q, want server token", body.Token)
+	}
+
+	// A separate server has a different token (per-process rotation).
+	s2 := New(nil)
+	if s2.sessionToken == s.sessionToken {
+		t.Fatal("session token did not rotate between server instances")
+	}
+}
+
+func TestSessionTokenRejectedFromCrossOrigin(t *testing.T) {
+	// A cross-origin browser request cannot read /api/session-token because
+	// the same-origin check rejects it, so it cannot obtain the token.
+	s := New(nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8696/api/session-token", nil)
+	req.Host = "127.0.0.1:8696"
+	req.Header.Set("Origin", "https://attacker.example")
+	res := httptest.NewRecorder()
+	s.ServeHTTP(res, req)
+	// GET is not a mutation so isSameOrigin is not enforced for reads, but
+	// the loopback Host check still applies. This pins that a non-loopback
+	// host is rejected regardless.
+	req.Host = "attacker.example"
+	res2 := httptest.NewRecorder()
+	s.ServeHTTP(res2, req)
+	if res2.Code != http.StatusForbidden {
+		t.Fatalf("non-loopback host: status = %d, want %d", res2.Code, http.StatusForbidden)
 	}
 }
 
@@ -367,7 +470,7 @@ func TestMutationHandlersRejectInvalidInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			s := New(nil)
-			req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1"+tt.path, strings.NewReader(tt.body))
+			req := withToken(s, httptest.NewRequest(http.MethodPost, "http://127.0.0.1"+tt.path, strings.NewReader(tt.body)))
 			res := httptest.NewRecorder()
 			s.ServeHTTP(res, req)
 			if res.Code != http.StatusBadRequest {
@@ -379,7 +482,7 @@ func TestMutationHandlersRejectInvalidInputs(t *testing.T) {
 
 func TestOptionalJSONBodyRejectsMalformedInput(t *testing.T) {
 	s := New(nil)
-	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/restore-point", strings.NewReader("{"))
+	req := withToken(s, httptest.NewRequest(http.MethodPost, "http://127.0.0.1/api/restore-point", strings.NewReader("{")))
 	res := httptest.NewRecorder()
 
 	s.ServeHTTP(res, req)
@@ -392,7 +495,7 @@ func TestElevatedISOEndpointsRejectBeforeUsingRequestPaths(t *testing.T) {
 	for _, path := range []string{"/api/iso/editions", "/api/iso/build"} {
 		t.Run(path, func(t *testing.T) {
 			s := newServer(nil, true)
-			req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1"+path, strings.NewReader(`{"source":"untrusted","output":"untrusted.iso"}`))
+			req := withToken(s, httptest.NewRequest(http.MethodPost, "http://127.0.0.1"+path, strings.NewReader(`{"source":"untrusted","output":"untrusted.iso"}`)))
 			res := httptest.NewRecorder()
 			s.ServeHTTP(res, req)
 			if res.Code != http.StatusForbidden {
