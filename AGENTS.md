@@ -19,9 +19,9 @@ power-user suite (inspired by Chris Titus Tech's Windows Utility). Two parts:
 History: repo went Go (PRs #3–#8) → Next.js simulation + WPF scaffold (PR #10) →
 back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 
-## 2. Architecture decision (final): 10-language hybrid, Go primary
+## 2. Architecture decision (final): 13-language hybrid, Go primary (v4: best-of-best, zero compromise)
 
-`docs/LANGUAGE_SELECTION.md` v3 is the authority. Roles:
+`docs/LANGUAGE_SELECTION.md` v4 is the authority. Roles:
 
 | Language | Role | Status |
 |---|---|---|
@@ -35,6 +35,9 @@ back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 | Python | Catalog tooling (`tools/`), build/test automation | ✅ in use |
 | Bun/TS | UI dev server, packaging fallback | scaffold in `runtime/` |
 | Node SEA | Packaging fallback | verified available |
+| SQL (Drizzle) | Audit/history + Next.js catalog DB | ✅ in-repo — 11 tables, drizzle-kit |
+| YAML/JSON | Playbooks & catalog source (Atlas) | ✅ 129/129 Atlas YAML verified |
+| Inno Setup | Installer & signing flow | ✅ Phase 4 — isobuilder models it |
 
 **Archived**: WPF Phase 1 (`WinForge.Elite/`) — dormant due to BLK-1/7.
 **Excluded with evidence**: Rust, Deno, Flutter, Java, FPC, Nim, Tcl, Electron (BLK-8).
