@@ -121,7 +121,48 @@
 - [ ] 10.2 `schedule` registers the weekly task (visible in Task Scheduler);
       `unschedule` removes it.
 
-## 11. ISO builder (needs real Windows media; else N/A)
+## 11. Lua plugin runtime (added 2026-08-16 — first Windows validation)
+
+Requires `lua54.dll` (built by `native/build-lua.sh`, 456 KB PE32+) placed
+next to `winforge.exe`. Plugins live in `%LOCALAPPDATA%\WinForge\plugins\<id>\`
+with a `manifest.json` declaring `"type":"lua"` and a `pack.lua`.
+
+- [ ] 11.1 **Happy path**: drop `examples/plugins/example-lua-pack` into the
+      plugins dir. Non-elevated `winforge.exe list` shows
+      `example-lua-tweak`; applying it writes
+      `HKCU\Software\WinForge\Example\LuaMarker = 1`; undo deletes it. The
+      audit log records both.
+- [ ] 11.2 **No DLL**: remove `lua54.dll`. `list` still succeeds and JSON
+      plugins load; the Lua pack is skipped best-effort (no crash, no error
+      dialog).
+- [ ] 11.3 **Elevation boundary**: running elevated ignores the plugins dir
+      entirely (the Lua pack's tweak must NOT appear), matching existing
+      JSON-plugin behavior.
+- [ ] 11.4 **Hostile: bad hive**: a script calling
+      `winforge.registry.set("HKEY_BOGUS", ...)` fails with "invalid registry
+      hive" and the plugin loads no tweaks.
+- [ ] 11.5 **Hostile: oversized string**: a >16 KiB string value is rejected
+      by the strict validator before any write.
+- [ ] 11.6 **Hostile: protected service**:
+      `winforge.service.set_start_mode("WinDefend","disabled")` is refused at
+      apply time by the protected-service guard (same guard as catalog
+      tweaks); a malformed name (`"WinDefend "`) is rejected before the SCM.
+- [ ] 11.7 **Hostile: unknown API / privileged op**: a script that forges a
+      `command`/`appx_remove`/`task_disable` operation handle is rejected
+      ("not allowed in plugins"); `os`, `io`, `debug`, `package`, `loadfile`,
+      `require` are nil.
+- [ ] 11.8 **Hostile: runaway loop**: `while true do end` is terminated by the
+      instruction-count hook (`lua_sethook LUA_MASKCOUNT`, budget 10M) with a
+      "script exceeded the instruction budget" error; the process remains
+      stable and subsequent `list` runs work. **Verify no crash/GPF** — the
+      hook longjmps out of a Go callback (see the "Longjmp note" in
+      `internal/plugin/lua_windows.go`); confirm the goroutine/OS-thread
+      handling leaves the process usable afterward.
+- [ ] 11.9 **DLL search path**: verify with Process Monitor (or by placing a
+      decoy `lua54.dll` in the CWD) that WinForge loads lua54.dll ONLY from
+      next to the exe / the data directory, never PATH or the CWD.
+
+## 12. ISO builder (needs real Windows media; else N/A)
 
 - [ ] 11.1 `winforge.exe build-iso --source <mounted-iso-dir> --list-editions`
       lists editions via dism.

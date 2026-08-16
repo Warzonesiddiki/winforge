@@ -30,8 +30,8 @@ back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 | PowerShell | Windows recipes (Appx/winget/DISM/schtasks/DNS) — engine models natively | recipes documented, engine-native where possible |
 | Zig 0.16 | Companion: compile C deps (Lua, wasm3), Lite CLI fallback | scaffold in `native/` |
 | C via zig cc | Vendored libs | verified capable |
-| Lua 5.4 | Community-pack plugins | DLL build verified, integration pending |
-| WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified, integration pending |
+| Lua 5.4 | Community-pack plugins | DLL build verified; **in-engine binding LANDED 2026-08-16** (Windows LazyDLL host; platform-independent logic tested on Linux via a fake host) |
+| WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified; integration pending |
 | Python | Catalog tooling (`tools/`), build/test automation | ✅ in use |
 | Bun/TS | UI dev server, packaging fallback | scaffold in `runtime/` |
 | Node SEA | Packaging fallback | verified available |
@@ -149,6 +149,20 @@ git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
   empty name address the key's default value (documented RegSetValueExW
   semantics).
 - Engine risk tiers: low/medium/high (no "expert" — maps to high).
+- **Plugins** (`internal/plugin`): JSON plugins (`tweaks.json`) and, as of
+  2026-08-16, **Lua packs** (`manifest.json` `"type":"lua"`, `pack.lua`). Lua
+  is Windows-only: a cgo-free `syscall.LoadDLL` host binds a bundled
+  `lua54.dll` (next to the exe or the data dir, never PATH). The whitelisted
+  API (`winforge.registry.set/delete`, `winforge.service.set_start_mode`,
+  `winforge.log`, `winforge.tweak{...}:commit()`, `winforge.revert`) builds
+  `config.Operation`s through `config.ValidateOperationForPlugin`; a closed
+  plugin op-type whitelist forbids command/appx/task/power/netbios/delete-key.
+  `os/io/debug/package/loadfile/load/loadstring/require/dofile` are removed and
+  a `LUA_MASKCOUNT` hook (budget 10M) aborts runaway scripts. On Linux (or with
+  no DLL) Lua plugins are skipped best-effort; all platform-independent logic
+  is unit-tested with a fake `ScriptHost`. Runtime behavior is BLK-6
+  (checklist §11). Elevated processes ignore all plugins (UAC boundary). See
+  `docs/LUA_PLUGIN_PLAN.md` and `examples/plugins/example-lua-pack/`.
 
 ## 8. Blocker register
 
@@ -226,14 +240,29 @@ Done (2026-08-16, this session):
     `src/components/EngineStatusCard.tsx` live engine card on the dashboard
     (polls /engine/api/status+health, graceful offline fallback).
 
+Done (2026-08-16, this session — arena/01a00a47-winforge, W1 Lua binding):
+- **Lua in-engine binding LANDED.** `internal/plugin/lua.go` (platform-
+  independent API + strict validation + op whitelist), `lua_windows.go`
+  (cgo-free syscall.LoadDLL/NewCallback host, absolute-path DLL lookup,
+  removed dangerous globals, LUA_MASKCOUNT runaway hook), `lua_other.go`
+  (non-Windows ErrLuaUnavailable stub). Manifest gains `"type":"lua"` +
+  `"script":"pack.lua"`. Every proposed op runs through
+  `config.ValidateOperationForPlugin`; scripts can only propose registry
+  dword/string/qword sets, registry value deletes, and service start-mode
+  changes (command/appx/task/power/netbios/delete-key are forbidden). Sample
+  at `examples/plugins/example-lua-pack/`. 24 plugin tests (incl. all hostile
+  cases) pass on Linux; windows `go vet` + `go test -c` + 6.74 MB PE clean.
+  Windows runtime behavior is BLK-6 (new checklist §11). Elevated processes
+  still ignore all plugins.
+
 Next (prioritized):
 1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
-   covers the four new native ops and the 17 new privacy tweaks.
+   covers the four new native ops, the 17 new privacy tweaks, AND the Lua
+   plugin runtime (checklist §11).
 2. CI modernization when `workflows` permission lands (copy ci.yml.fixed).
-3. Lua in-engine binding per docs/LUA_PLUGIN_PLAN.md (Windows LazyDLL path);
-   WASM sandbox implementation per docs/WASM_PLUGIN_SANDBOX.md (Phase 4).
+3. WASM sandbox implementation per docs/WASM_PLUGIN_SANDBOX.md (Phase 4).
 4. UI↔engine bridge phase 2: POST routes through /engine/* (needs a CSRF/auth
-   story in the engine first — see ADR-001 consequences).
+   story in the engine first — ADR-002 before coding — see ADR-001 consequences).
 
 ## 10. Gotchas & lessons (each cost time once)
 

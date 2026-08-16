@@ -8,7 +8,6 @@
 package plugin
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -103,17 +102,42 @@ type Plugin struct {
 	Version     string         `json:"version"`
 	Description string         `json:"description,omitempty"`
 	Author      string         `json:"author,omitempty"`
+	Type        string         `json:"type,omitempty"`
 	Dir         string         `json:"dir"`
 	Tweaks      []config.Tweak `json:"-"`
+	ScriptLogs  []string       `json:"-"`
 }
 
 // Manifest is the shape of a plugin's manifest.json. All fields are optional
 // except, by convention, name.
+//
+// Type selects how the plugin contributes tweaks:
+//   - "" / "json" (default): a tweaks.json file is read and validated.
+//   - "lua": a Lua script (Script, default "pack.lua") is executed against the
+//     whitelisted winforge.* API and the tweaks it proposes are validated.
+//     Lua plugins are loaded only on Windows with a bundled lua54.dll.
 type Manifest struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
 	Description string `json:"description"`
 	Author      string `json:"author"`
+	Type        string `json:"type"`
+	Script      string `json:"script"`
+}
+
+// Manifest plugin types.
+const (
+	ManifestTypeJSON = "json"
+	ManifestTypeLua  = "lua"
+)
+
+// Options controls plugin discovery.
+type Options struct {
+	// LuaDLLDirs lists directories searched (in order) for lua54.dll when a
+	// manifest declares "type":"lua". The executable directory and the WinForge
+	// data directory are the intended values; the DLL is loaded by absolute
+	// path, never via the DLL search path.
+	LuaDLLDirs []string
 }
 
 // Discover scans root for plugin directories and loads each valid plugin.
@@ -123,6 +147,12 @@ type Manifest struct {
 // parse or validate, are skipped (best-effort). The returned slice is ordered
 // by directory name. A missing root yields an empty result, not an error.
 func Discover(root string) ([]Plugin, error) {
+	return DiscoverWithOptions(root, Options{})
+}
+
+// DiscoverWithOptions is Discover with explicit options (notably the
+// directories searched for lua54.dll).
+func DiscoverWithOptions(root string, opts Options) ([]Plugin, error) {
 	entries, err := readPluginDirectories(root)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -139,7 +169,7 @@ func Discover(root string) ([]Plugin, error) {
 		if _, err := os.Stat(filepath.Join(dir, "manifest.json")); err != nil {
 			continue // not a plugin directory
 		}
-		p, err := load(dir, name)
+		p, err := load(dir, name, opts)
 		if err != nil {
 			continue // best-effort: skip broken plugins
 		}
@@ -156,14 +186,19 @@ func Discover(root string) ([]Plugin, error) {
 }
 
 // load reads and validates a single plugin directory.
-func load(dir, id string) (Plugin, error) {
+func load(dir, id string, opts Options) (Plugin, error) {
 	b, err := readPluginFile(filepath.Join(dir, "manifest.json"))
 	if err != nil {
 		return Plugin{}, err
 	}
 	var m Manifest
-	if err := json.Unmarshal(b, &m); err != nil {
+	if err := config.DecodeJSON(b, &m); err != nil {
 		return Plugin{}, fmt.Errorf("parse manifest.json: %w", err)
+	}
+
+	manifestType := strings.ToLower(strings.TrimSpace(m.Type))
+	if manifestType == "" {
+		manifestType = ManifestTypeJSON
 	}
 
 	p := Plugin{
@@ -172,30 +207,84 @@ func load(dir, id string) (Plugin, error) {
 		Version:     m.Version,
 		Description: m.Description,
 		Author:      m.Author,
+		Type:        manifestType,
 		Dir:         dir,
 	}
 	if p.Name == "" {
 		p.Name = id
 	}
 
-	// tweaks.json is optional.
+	switch manifestType {
+	case ManifestTypeLua:
+		if err := loadLuaPlugin(&p, dir, m, opts); err != nil {
+			return Plugin{}, err
+		}
+	case ManifestTypeJSON:
+		if err := loadJSONPlugin(&p, dir); err != nil {
+			return Plugin{}, err
+		}
+	default:
+		return Plugin{}, fmt.Errorf("unknown plugin type %q", m.Type)
+	}
+	return p, nil
+}
+
+// loadJSONPlugin reads the optional tweaks.json and validates it.
+func loadJSONPlugin(p *Plugin, dir string) error {
 	tb, err := readPluginFile(filepath.Join(dir, "tweaks.json"))
 	switch {
 	case err == nil:
 		var tc config.TweakConfig
 		if err := config.DecodeJSON(tb, &tc); err != nil {
-			return Plugin{}, fmt.Errorf("parse tweaks.json: %w", err)
+			return fmt.Errorf("parse tweaks.json: %w", err)
 		}
 		if err := tc.Validate(); err != nil {
-			return Plugin{}, fmt.Errorf("validate tweaks.json: %w", err)
+			return fmt.Errorf("validate tweaks.json: %w", err)
 		}
 		p.Tweaks = tc.Tweaks
 	case os.IsNotExist(err):
 		// no tweaks; plugin still valid
 	default:
-		return Plugin{}, err
+		return err
 	}
-	return p, nil
+	return nil
+}
+
+// loadLuaPlugin runs the plugin's Lua script against the whitelisted winforge
+// API and validates every tweak it proposes. The script is located at
+// dir/<script> (default pack.lua).
+func loadLuaPlugin(p *Plugin, dir string, m Manifest, opts Options) error {
+	scriptName := strings.TrimSpace(m.Script)
+	if scriptName == "" {
+		scriptName = "pack.lua"
+	}
+	if filepath.Base(scriptName) != scriptName {
+		return fmt.Errorf("lua script %q must be a file name, not a path", scriptName)
+	}
+	source, err := readPluginFile(filepath.Join(dir, scriptName))
+	if err != nil {
+		return fmt.Errorf("read lua script: %w", err)
+	}
+
+	// The Lua runtime is optional: on non-Windows hosts, or when lua54.dll is
+	// not bundled, the plugin is skipped best-effort (Discovery continues).
+	host, err := newScriptHost(opts.LuaDLLDirs)
+	if err != nil {
+		return fmt.Errorf("lua runtime: %w", err)
+	}
+	tweaks, logs, err := host.Run(string(source))
+	p.ScriptLogs = logs
+	if err != nil {
+		return fmt.Errorf("run lua script: %w", err)
+	}
+	// Re-validate the whole set through the strict loader so a hostile script
+	// cannot bypass per-tweak checks (duplicate ids, empty operations, etc.).
+	cfg := config.TweakConfig{Tweaks: tweaks}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("validate lua tweaks: %w", err)
+	}
+	p.Tweaks = tweaks
+	return nil
 }
 
 // MergeTweaks appends extra tweaks to base, skipping any id already present

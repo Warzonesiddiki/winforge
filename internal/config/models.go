@@ -428,6 +428,14 @@ func checkOperationLimits(o Operation) error {
 	return nil
 }
 
+// ValidateOperationForPlugin exposes the strict loader's per-operation
+// validator to the plugin runtime, so a script-proposed operation is rejected
+// by exactly the same rules as one loaded from tweaks.json (bad hive, shallow
+// registry_delete_key path, oversized string value, unknown op type, etc.).
+func ValidateOperationForPlugin(o Operation) error {
+	return validateOperation(o)
+}
+
 func validateOperation(o Operation) error {
 	if err := checkOperationLimits(o); err != nil {
 		return err
