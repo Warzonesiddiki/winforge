@@ -75,3 +75,21 @@ on [Keep a Changelog](https://keepachangelog.com/).
   `.github/workflows/ci.yml` once the GitHub App is granted the
   `workflows` permission (BLK-3). Until then it is the canonical CI
   definition and is mirrored by `make verify`.
+
+### Documentation
+
+- `docs/TROUBLESHOOTING.md` covering SmartScreen, elevation, missing DLLs,
+  restore points, dashboard connection, session tokens, 429s, and the
+  DATABASE_URL build requirement.
+- `docs/ADR-003-wasm-lua-only.md` recording the decision to ship WASM
+  validation only and defer the Windows C host.
+- GitHub issue templates (bug report, feature request) and a pull request
+  template with the full verification checklist.
+- Added a dated addendum to `AUDIT_REPORT.md` flagging resolved findings
+  and noting that the competitive-analysis numbers are unverified.
+
+### Tooling
+
+- `tools/verify_binary.py`: static PE32+ verifier (architecture, embedded
+  assets, stamped version) wired into the Makefile and CI. Replaces the
+  two-byte MZ header check.
