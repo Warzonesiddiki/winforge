@@ -47,7 +47,7 @@ vet-windows:
 build-windows:
 	@echo ">> GOOS=windows go build -> PE"
 	@GOOS=windows GOARCH=amd64 CGO_ENABLED=0 $(GO) build -trimpath -ldflags="$(LDFLAGS)" -o /tmp/winforge-verify.exe ./cmd/winforge
-	@head -c 2 /tmp/winforge-verify.exe | od -An -tx1 | grep -q "4d 5a" || (echo "not a PE (missing MZ)"; exit 1)
+	@python3 tools/verify_binary.py /tmp/winforge-verify.exe --version $(VERSION)
 	@echo "PE OK: $$(ls -lh /tmp/winforge-verify.exe | awk '{print $$5}') (version $(VERSION))"
 
 parity:

@@ -1,9 +1,20 @@
 # WinForge Project Audit & Optimization Report
 
 **Audit Date:** 2026-08-16
-**Commit:** c7f86ca
+**Original Commit:** c7f86ca
 **Auditor:** AI Code Assistant
-**Status:** 90% Complete — Maximum Sandbox-Verifiable Completion
+
+> **Update (2026-08-16, later session):** Many findings below have been
+> addressed. See [CHANGELOG.md](CHANGELOG.md) for the full list. Highlights:
+> the Next.js production build is fixed (lazy DB pool), `node_modules/` is
+> excluded from Go tooling, an MIT LICENSE was added, dead code was archived
+> to `archive/`, rate limiting was added to the HTTP API, `alert()` was
+> replaced with toasts, and the web app now has 28 tests. Test packages rose
+> from 18 to 21 (all packages now have tests). The competitive-analysis
+> section below is historical and contains unverified third-party numbers;
+> treat it as aspirational context rather than measured fact.
+
+**Original Status:** 90% Complete — Maximum Sandbox-Verifiable Completion
 
 ---
 

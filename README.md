@@ -30,6 +30,7 @@ Download the latest `winforge.exe` from the
 
 See [QUICKSTART.md](QUICKSTART.md) for details, including the SmartScreen warning
 on first run (the project is unsigned by design — see [SECURITY.md](SECURITY.md)).
+Common problems are documented in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## The Go Engine (the product)
 

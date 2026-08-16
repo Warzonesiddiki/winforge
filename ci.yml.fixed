@@ -114,9 +114,10 @@ jobs:
           GOOS: windows
           GOARCH: amd64
           CGO_ENABLED: "0"
-      - name: Verify PE header
+      - name: Verify PE header and embedded assets
         if: matrix.goarch == 'amd64'
-        run: head -c 2 winforge.exe | od -An -tx1 | grep -q "4d 5a"
+        run: |
+          python3 tools/verify_binary.py winforge.exe --version "${{ github.ref_name }}-${GITHUB_SHA::7}"
       - name: Upload winforge.exe
         if: matrix.goarch == 'amd64'
         uses: actions/upload-artifact@v4
