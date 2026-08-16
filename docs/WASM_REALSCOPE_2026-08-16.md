@@ -90,3 +90,26 @@ next session should either (a) implement it on a Windows-capable runner /
 real hardware where the binding can be executed and crash/fuel/memory cases
 proven, or (b) explicitly decide to accept Lua as the only scriptable tier
 and close W2. The W3 bridge work proceeds regardless.
+## Update 2026-08-16 (arena/01a00ac0-winforge) — platform-independent tier LANDED
+
+The decision above is **unchanged** (no unverified Windows C binding ships).
+What changed: the platform-independent half of item 5 in "What is required"
+has been landed as a sandbox-verifiable commit:
+
+- `internal/plugin/wasm.go` (whitelisted proposal API + strict validation +
+  op whitelist + `validateWasmModule` magic/version/size checks),
+  `wasm_other.go` (non-Windows `ErrWasmUnavailable`), `wasm_windows.go`
+  (DLL-search stub for `wasmtime.dll` by absolute path, deliberately returns
+  `ErrWasmUnavailable` until verified — honest about the missing binding),
+  `wasm_test.go` (24 wasmAPI hostile-case tests + 6 discovery tests with a
+  fake `WasmHost`), and `examples/plugins/example-wasm-pack/` (8-byte minimal
+  wasm + `pack.wat.example` spike). Windows `go vet` + `go test -c` + 6.5 MB PE
+  clean; 18/18 packages `go test -race` green.
+
+The remaining gate is exactly as described: the ~30–35-function Windows C
+binding with fuel + linear-memory + callback handling, which still requires
+a Windows runner and a §13 smoke execution before it can merge. The checklist
+section was added in this session as §13 (WASM DLL-search stub verification).
+
+No fabrication, no unverified security-boundary code ships; the strong-isolation
+tier now has a tested, bounded proposal surface ready for the future host.

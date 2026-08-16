@@ -1,0 +1,45 @@
+;; Example WinForge WASM pack (WAT source).
+;;
+;; This is the *intended* source for pack.wasm. Real packs are compiled
+;; elsewhere (TinyGo, Rust wasm32-unknown-unknown, or wat2wasm) — WinForge
+;; only needs to RUN .wasm, never to build it (see docs/WASM_PLUGIN_SANDBOX.md).
+;;
+;; The guest sees ONLY these host imports (capability-limited):
+;;   winforge.health_score           () -> i32
+;;   winforge.tweak_is_applied       (ptr,len) -> i32
+;;   winforge.propose_registry_set   (ptr,len) -> i32
+;;   winforge.log                    (ptr,len)
+;;
+;; The pack below calls propose_registry_set with a JSON description of a
+;; registry_set_dword operation. Every proposal is validated through
+;; config.ValidateOperationForPlugin with the same closed whitelist as Lua:
+;; only registry dword/qword/string, registry delete, service start_mode.
+;; Fuel metering (10M) terminates runaway guests.
+;;
+;; Build elsewhere:
+;;   wat2wasm pack.wat -o pack.wasm   # or TinyGo/Rust
+;;
+;; The shipped pack.wasm is a minimal valid module (magic + version) that
+;; passes the platform-independent validator. A real pack would be ~1-5 KiB.
+
+(module
+  (import "winforge" "health_score" (func $health_score (result i32)))
+  (import "winforge" "log" (func $log (param i32 i32)))
+  ;; WASM linear memory — strings are passed as (ptr,len) into this memory,
+  ;; bounded by limits.go (16 KiB per string, same as registry value caps).
+  (memory (export "memory") 1)
+  ;; Dummy data: JSON for a registry_set_dword operation
+  (data (i32.const 0) "{\"type\":\"registry_set_dword\",\"hive\":\"HKCU\",\"path\":\"Software\\\\WinForge\\\\Example\",\"name\":\"WasmMarker\",\"value\":1}")
+  (func (export "propose") (result i32)
+    ;; In the real host, this would call winforge.propose_registry_set(0, len)
+    ;; and then commit a tweak. The stub pack.wasm simply returns 0.
+    i32.const 0)
+  ;; classify() demo from docs/WASM_PLUGIN_SANDBOX.md — proves host injection:
+  (func (export "classify") (result i32)
+    (if (result i32) (i32.ge_s (call $health_score) (i32.const 80))
+      (then (i32.const 2))
+      (else
+        (if (result i32) (i32.ge_s (call $health_score) (i32.const 50))
+          (then (i32.const 1))
+          (else (i32.const 0))))))
+)

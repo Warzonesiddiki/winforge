@@ -116,6 +116,11 @@ type Plugin struct {
 //   - "lua": a Lua script (Script, default "pack.lua") is executed against the
 //     whitelisted winforge.* API and the tweaks it proposes are validated.
 //     Lua plugins are loaded only on Windows with a bundled lua54.dll.
+//   - "wasm": a WASM module (Module, default "pack.wasm") is instantiated
+//     with the whitelisted winforge.* host imports and the tweaks it proposes
+//     are validated. WASM plugins are the strong-isolation tier for hostile
+//     packs; the Windows runtime requires wasmtime.dll (see
+//     docs/WASM_PLUGIN_SANDBOX.md and docs/WASM_REALSCOPE_2026-08-16.md).
 type Manifest struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
@@ -123,12 +128,14 @@ type Manifest struct {
 	Author      string `json:"author"`
 	Type        string `json:"type"`
 	Script      string `json:"script"`
+	Module      string `json:"module"`
 }
 
 // Manifest plugin types.
 const (
 	ManifestTypeJSON = "json"
 	ManifestTypeLua  = "lua"
+	ManifestTypeWasm = "wasm"
 )
 
 // Options controls plugin discovery.
@@ -138,6 +145,9 @@ type Options struct {
 	// data directory are the intended values; the DLL is loaded by absolute
 	// path, never via the DLL search path.
 	LuaDLLDirs []string
+	// WasmDLLDirs lists directories searched (in order) for wasmtime.dll when
+	// a manifest declares "type":"wasm". Same absolute-path discipline as Lua.
+	WasmDLLDirs []string
 }
 
 // Discover scans root for plugin directories and loads each valid plugin.
@@ -219,6 +229,10 @@ func load(dir, id string, opts Options) (Plugin, error) {
 		if err := loadLuaPlugin(&p, dir, m, opts); err != nil {
 			return Plugin{}, err
 		}
+	case ManifestTypeWasm:
+		if err := loadWasmPlugin(&p, dir, m, opts); err != nil {
+			return Plugin{}, err
+		}
 	case ManifestTypeJSON:
 		if err := loadJSONPlugin(&p, dir); err != nil {
 			return Plugin{}, err
@@ -282,6 +296,50 @@ func loadLuaPlugin(p *Plugin, dir string, m Manifest, opts Options) error {
 	cfg := config.TweakConfig{Tweaks: tweaks}
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("validate lua tweaks: %w", err)
+	}
+	p.Tweaks = tweaks
+	return nil
+}
+
+// loadWasmPlugin validates and runs the plugin's WASM module against the
+// whitelisted winforge host imports. The module is located at dir/<module>
+// (default pack.wasm, falling back to Script for alias compatibility).
+func loadWasmPlugin(p *Plugin, dir string, m Manifest, opts Options) error {
+	moduleName := strings.TrimSpace(m.Module)
+	if moduleName == "" {
+		moduleName = strings.TrimSpace(m.Script)
+	}
+	if moduleName == "" {
+		moduleName = "pack.wasm"
+	}
+	if filepath.Base(moduleName) != moduleName {
+		return fmt.Errorf("wasm module %q must be a file name, not a path", moduleName)
+	}
+	moduleBytes, err := readPluginFile(filepath.Join(dir, moduleName))
+	if err != nil {
+		return fmt.Errorf("read wasm module: %w", err)
+	}
+	if len(moduleBytes) > maxWasmModuleBytes {
+		return fmt.Errorf("wasm module %q exceeds %d-byte limit (%d bytes)", moduleName, maxWasmModuleBytes, len(moduleBytes))
+	}
+	if err := validateWasmModule(moduleBytes); err != nil {
+		return fmt.Errorf("validate wasm module: %w", err)
+	}
+
+	// The WASM runtime is optional: on non-Windows hosts, or when wasmtime.dll
+	// is not bundled, the plugin is skipped best-effort.
+	host, err := newWasmHost(opts.WasmDLLDirs)
+	if err != nil {
+		return fmt.Errorf("wasm runtime: %w", err)
+	}
+	tweaks, logs, err := host.Run(moduleBytes)
+	p.ScriptLogs = logs
+	if err != nil {
+		return fmt.Errorf("run wasm module: %w", err)
+	}
+	cfg := config.TweakConfig{Tweaks: tweaks}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("validate wasm tweaks: %w", err)
 	}
 	p.Tweaks = tweaks
 	return nil

@@ -1,0 +1,8 @@
+{
+  "name": "Example WASM Pack",
+  "version": "1.0.0",
+  "description": "Demonstrates the whitelisted winforge.* WASM host imports. Strong-isolation alternative to Lua. Not applied until wasmtime.dll is present.",
+  "author": "WinForge",
+  "type": "wasm",
+  "module": "pack.wasm"
+}
