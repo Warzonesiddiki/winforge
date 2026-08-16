@@ -6785,6 +6785,457 @@
       ]
     },
     {
+      "id": "winforge-deny-camera-access",
+      "name": "Restrict Camera Access",
+      "category": "Privacy",
+      "description": "Denies app access to the camera machine-wide (CapabilityAccessManager ConsentStore\\webcam).",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\webcam",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-microphone-access",
+      "name": "Restrict Microphone Access",
+      "category": "Privacy",
+      "description": "Denies app access to the microphone machine-wide (CapabilityAccessManager ConsentStore\\microphone).",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-contacts-access",
+      "name": "Restrict Contacts Access",
+      "category": "Privacy",
+      "description": "Denies app access to contacts machine-wide (CapabilityAccessManager ConsentStore\\contacts).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\contacts",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\contacts",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-calendar-access",
+      "name": "Restrict Calendar Access",
+      "category": "Privacy",
+      "description": "Denies app access to the calendar machine-wide (CapabilityAccessManager ConsentStore\\appointments).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\appointments",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\appointments",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-callhistory-access",
+      "name": "Restrict Call History Access",
+      "category": "Privacy",
+      "description": "Denies app access to call history machine-wide (CapabilityAccessManager ConsentStore\\phoneCallHistory).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\phoneCallHistory",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\phoneCallHistory",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-email-access",
+      "name": "Restrict Email Access",
+      "category": "Privacy",
+      "description": "Denies app access to email machine-wide (CapabilityAccessManager ConsentStore\\email).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\email",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\email",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-notifications-access",
+      "name": "Restrict Notification Access",
+      "category": "Privacy",
+      "description": "Denies app access to system notifications machine-wide (CapabilityAccessManager ConsentStore\\userNotificationListener).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userNotificationListener",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userNotificationListener",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-deny-messaging-access",
+      "name": "Restrict Messaging Access",
+      "category": "Privacy",
+      "description": "Denies app access to text/MMS messaging machine-wide (CapabilityAccessManager ConsentStore\\chat).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\chat",
+          "name": "Value",
+          "value": "Deny"
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\chat",
+          "name": "Value"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-mdns",
+      "name": "Disable mDNS",
+      "category": "Privacy",
+      "description": "Disables the DNS Client's multicast DNS resolver (Dnscache EnableMDNS=0), stopping mDNS discovery broadcasts on UDP 5353.",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+          "name": "EnableMDNS",
+          "value": 0
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters",
+          "name": "EnableMDNS"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-ncsi-probe",
+      "name": "Disable NCSI Active Probing",
+      "category": "Privacy",
+      "description": "Stops Windows Network Connectivity Status Indicator from actively probing Microsoft servers (NoActiveProbe=1). Network status may show as limited.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator",
+          "name": "NoActiveProbe",
+          "value": 1
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\NetworkConnectivityStatusIndicator",
+          "name": "NoActiveProbe"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-wcn",
+      "name": "Disable Windows Connect Now",
+      "category": "Privacy",
+      "description": "Turns off the Windows Connect Now wizards (DisableWcnUi=1) and disables WCN registrar operations over all media (EnableRegistrars=0).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WCN\\UI",
+          "name": "DisableWcnUi",
+          "value": 1
+        },
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WCN\\Registrars",
+          "name": "EnableRegistrars",
+          "value": 0
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WCN\\UI",
+          "name": "DisableWcnUi"
+        },
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WCN\\Registrars",
+          "name": "EnableRegistrars"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-device-metadata",
+      "name": "Disable Device Metadata Downloads",
+      "category": "Privacy",
+      "description": "Prevents Windows from retrieving device metadata from the Internet (PreventDeviceMetadataFromNetwork=1).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata",
+          "name": "PreventDeviceMetadataFromNetwork",
+          "value": 1
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\Device Metadata",
+          "name": "PreventDeviceMetadataFromNetwork"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-recall",
+      "name": "Disable Recall (AI Snapshots)",
+      "category": "Privacy",
+      "description": "Turns off saving snapshots for use with Recall (WindowsAI DisableAIDataAnalysis=1, machine and user policy). Previously saved snapshots are deleted when the policy is enabled.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "value": 1
+        },
+        {
+          "type": "registry_set_dword",
+          "hive": "HKCU",
+          "path": "Software\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis",
+          "value": 1
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis"
+        },
+        {
+          "type": "registry_delete",
+          "hive": "HKCU",
+          "path": "Software\\Policies\\Microsoft\\Windows\\WindowsAI",
+          "name": "DisableAIDataAnalysis"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-cloud-clipboard",
+      "name": "Disable Cloud Clipboard Sync",
+      "category": "Privacy",
+      "description": "Prevents clipboard contents from synchronizing across devices (AllowCrossDeviceClipboard=0).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "AllowCrossDeviceClipboard",
+          "value": 0
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "AllowCrossDeviceClipboard"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-edge-telemetry",
+      "name": "Disable Edge Telemetry",
+      "category": "Privacy",
+      "description": "Turns off required and optional Microsoft Edge diagnostic data collection (Edge policy DiagnosticData=0; Edge 122+ on Windows 10/11).",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "DiagnosticData",
+          "value": 0
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Edge",
+          "name": "DiagnosticData"
+        }
+      ]
+    },
+    {
+      "id": "winforge-enforce-smartscreen",
+      "name": "Enforce SmartScreen Policy",
+      "category": "Privacy",
+      "description": "Explicitly configures Microsoft Defender SmartScreen for Explorer via policy (EnableSmartScreen=1) so its state is enforced rather than user-toggled.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "EnableSmartScreen",
+          "value": 1
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+          "name": "EnableSmartScreen"
+        }
+      ]
+    },
+    {
+      "id": "winforge-disable-diagnostic-data-viewer",
+      "name": "Disable Diagnostic Data Viewer",
+      "category": "Privacy",
+      "description": "Prevents users from enabling and launching the Diagnostic Data Viewer from the Diagnostics & feedback Settings page (DataCollection DisableDiagnosticDataViewer=1).",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_dword",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+          "name": "DisableDiagnosticDataViewer",
+          "value": 1
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete",
+          "hive": "HKLM",
+          "path": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+          "name": "DisableDiagnosticDataViewer"
+        }
+      ]
+    },
+    {
       "id": "perf-game-mode",
       "name": "Enable Game Mode",
       "category": "Performance",
@@ -7097,6 +7548,30 @@
       ]
     },
     {
+      "id": "ui-classic-context",
+      "name": "Classic Right-Click Context Menu",
+      "category": "UI",
+      "description": "Restores the full Windows 10-style context menu in Windows 11.",
+      "risk": "low",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "registry_set_string",
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32",
+          "name": "",
+          "value": ""
+        }
+      ],
+      "revert": [
+        {
+          "type": "registry_delete_key",
+          "hive": "HKCU",
+          "path": "SOFTWARE\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}"
+        }
+      ]
+    },
+    {
       "id": "ui-hide-taskview",
       "name": "Hide Task View Button",
       "category": "UI",
@@ -7171,6 +7646,26 @@
           "path": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient",
           "name": "EnableMulticast",
           "value": 1
+        }
+      ]
+    },
+    {
+      "id": "net-disable-netbios",
+      "name": "Disable NetBIOS over TCP/IP",
+      "category": "Network",
+      "description": "Disables legacy NetBIOS name resolution on all adapters.",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "netbios",
+          "value": 2
+        }
+      ],
+      "revert": [
+        {
+          "type": "netbios",
+          "value": 0
         }
       ]
     },
@@ -7530,6 +8025,26 @@
       ]
     },
     {
+      "id": "pwr-hibernation",
+      "name": "Disable Hibernation",
+      "category": "Power",
+      "description": "Disables hibernation and removes hiberfil.sys to reclaim disk space.",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "power_hibernate",
+          "value": false
+        }
+      ],
+      "revert": [
+        {
+          "type": "power_hibernate",
+          "value": true
+        }
+      ]
+    },
+    {
       "id": "pwr-fast-startup",
       "name": "Disable Fast Startup",
       "category": "Power",
@@ -7578,6 +8093,30 @@
           "path": "SYSTEM\\CurrentControlSet\\Control\\Power",
           "name": "USBSelectiveSuspend",
           "value": 1
+        }
+      ]
+    },
+    {
+      "id": "pwr-processor-mgmt",
+      "name": "Maximize Processor Power Management",
+      "category": "Power",
+      "description": "Sets minimum processor state to reduce ramp-up latency under load.",
+      "risk": "medium",
+      "reversible": true,
+      "operations": [
+        {
+          "type": "power_processor_state",
+          "value": {
+            "min": 50
+          }
+        }
+      ],
+      "revert": [
+        {
+          "type": "power_processor_state",
+          "value": {
+            "min": 5
+          }
         }
       ]
     },

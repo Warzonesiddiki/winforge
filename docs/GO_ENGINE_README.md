@@ -236,9 +236,29 @@ Administrator would cross the UAC security boundary.
 ### Operation types
 
 `registry_set_dword`, `registry_set_qword`, `registry_set_string`,
-`registry_delete`, `service_start_mode`, `service_start`, `service_stop`,
-`task_disable`, `task_enable`, `task_delete`, `appx_remove`, `power_scheme`,
-and `command`.
+`registry_delete`, `registry_delete_key`, `service_start_mode`,
+`service_start`, `service_stop`, `task_disable`, `task_enable`, `task_delete`,
+`appx_remove`, `power_scheme`, `power_hibernate`, `power_processor_state`,
+`netbios`, and `command`.
+
+Native op notes:
+
+- `registry_delete_key` deletes a key recursively (`RegDeleteTreeW`); the
+  loader requires a path at least two components deep, and catalog usage is
+  restricted to reverting keys the tweak's apply side created. Registry ops
+  with an empty `name` address the key's default (unnamed) value, per the
+  documented `RegSetValueExW`/`RegGetValueW`/`RegDeleteValueW` semantics.
+- `power_hibernate` (bool) commits/decommits the hibernation file via
+  `CallNtPowerInformation(SystemReserveHiberFile)`; state is verified with
+  `IsPwrHibernateAllowed`. Native equivalent of `powercfg /hibernate on|off`.
+- `power_processor_state` (`{"min":0-100,"max":0-100}`, either optional) sets
+  the active scheme's AC processor state via `PowerWriteACValueIndex` +
+  `PowerSetActiveScheme`, and reads back via `PowerGetActiveScheme` +
+  `PowerReadACValueIndex`.
+- `netbios` (0=DHCP, 1=enable, 2=disable) writes `NetbiosOptions` to every
+  interface under `HKLM\SYSTEM\...\NetBT\Parameters\Interfaces` — the
+  documented registry equivalent of WMI `SetTcpipNetbios`, with no
+  PowerShell/WMI involvement.
 
 ---
 

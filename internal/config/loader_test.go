@@ -264,6 +264,15 @@ func TestValidateRejectsMalformedOperations(t *testing.T) {
 		{"bad power scheme", Operation{Type: OpPowerScheme, Value: json.RawMessage(`"not-a-scheme"`)}},
 		{"shell command", Operation{Type: OpCommand, Value: json.RawMessage(`"cmd.exe & whoami"`)}},
 		{"missing task path", Operation{Type: OpTaskDisable}},
+		{"non-bool hibernate", Operation{Type: OpPowerHibernate, Value: json.RawMessage(`1`)}},
+		{"processor state without min or max", Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{}`)}},
+		{"processor state above 100", Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":101}`)}},
+		{"processor state min above max", Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":90,"max":50}`)}},
+		{"processor state unknown field", Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":5,"boost":1}`)}},
+		{"netbios out of range", Operation{Type: OpNetbios, Value: json.RawMessage(`3`)}},
+		{"netbios non-integer", Operation{Type: OpNetbios, Value: json.RawMessage(`"disable"`)}},
+		{"delete key with value name", Operation{Type: OpRegistryDeleteKey, Hive: "HKCU", Path: `Software\Vendor\Key`, Name: "Value"}},
+		{"delete key too shallow", Operation{Type: OpRegistryDeleteKey, Hive: "HKLM", Path: "SOFTWARE"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -272,6 +281,39 @@ func TestValidateRejectsMalformedOperations(t *testing.T) {
 				t.Fatalf("operation was accepted: %+v", tt.op)
 			}
 		})
+	}
+}
+
+func TestValidateAcceptsNativePowerAndNetbiosOperations(t *testing.T) {
+	ops := []Operation{
+		{Type: OpPowerHibernate, Value: json.RawMessage(`false`)},
+		{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":50}`)},
+		{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":5,"max":100}`)},
+		{Type: OpNetbios, Value: json.RawMessage(`2`)},
+		{Type: OpRegistryDeleteKey, Hive: "HKCU", Path: `Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}`},
+	}
+	cfg := &TweakConfig{Tweaks: []Tweak{{ID: "native-ops", Operations: ops}}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil", err)
+	}
+}
+
+func TestProcessorStateValueDecoding(t *testing.T) {
+	op := Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":5,"max":100}`)}
+	ps, err := op.ProcessorStateValue()
+	if err != nil {
+		t.Fatalf("ProcessorStateValue() error = %v", err)
+	}
+	if ps.Min == nil || *ps.Min != 5 || ps.Max == nil || *ps.Max != 100 {
+		t.Fatalf("ProcessorStateValue() = %+v, want min=5 max=100", ps)
+	}
+	partial := Operation{Type: OpPowerProcessorState, Value: json.RawMessage(`{"min":50}`)}
+	ps, err = partial.ProcessorStateValue()
+	if err != nil {
+		t.Fatalf("partial ProcessorStateValue() error = %v", err)
+	}
+	if ps.Min == nil || *ps.Min != 50 || ps.Max != nil {
+		t.Fatalf("partial ProcessorStateValue() = %+v, want min=50 max=nil", ps)
 	}
 }
 

@@ -6,6 +6,7 @@ package power
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -67,6 +68,37 @@ func Resolve(aliasOrGUID string) (string, error) {
 	return strings.ToLower(s), nil
 }
 
+// guidParts splits a canonical 8-4-4-4-12 GUID string into the binary fields
+// of the Win32 GUID structure (Data1..Data4). It is portable so the parsing
+// logic is unit-testable off Windows; only the syscalls that consume the
+// result are Windows-specific.
+func guidParts(s string) (data1 uint32, data2, data3 uint16, data4 [8]byte, err error) {
+	if !isGUID(s) {
+		return 0, 0, 0, data4, fmt.Errorf("invalid GUID %q", s)
+	}
+	p1, err := strconv.ParseUint(s[0:8], 16, 32)
+	if err != nil {
+		return 0, 0, 0, data4, fmt.Errorf("invalid GUID %q: %w", s, err)
+	}
+	p2, err := strconv.ParseUint(s[9:13], 16, 16)
+	if err != nil {
+		return 0, 0, 0, data4, fmt.Errorf("invalid GUID %q: %w", s, err)
+	}
+	p3, err := strconv.ParseUint(s[14:18], 16, 16)
+	if err != nil {
+		return 0, 0, 0, data4, fmt.Errorf("invalid GUID %q: %w", s, err)
+	}
+	tail := s[19:23] + s[24:36]
+	for i := 0; i < 8; i++ {
+		b, parseErr := strconv.ParseUint(tail[i*2:i*2+2], 16, 8)
+		if parseErr != nil {
+			return 0, 0, 0, data4, fmt.Errorf("invalid GUID %q: %w", s, parseErr)
+		}
+		data4[i] = byte(b)
+	}
+	return uint32(p1), uint16(p2), uint16(p3), data4, nil
+}
+
 // isGUID reports whether s is a canonical 8-4-4-4-12 hexadecimal GUID.
 func isGUID(s string) bool {
 	hex := "0123456789abcdefABCDEF"
@@ -103,6 +135,22 @@ func SetActive(scheme string) error {
 
 // List enumerates all power schemes, newest first.
 func List() ([]Plan, error) { return list() }
+
+// SetHibernate enables or disables hibernation by committing or decommitting
+// the hibernation file, via CallNtPowerInformation(SystemReserveHiberFile) —
+// the documented native equivalent of `powercfg /hibernate on|off`. Requires
+// elevation (the call returns STATUS_ACCESS_DENIED otherwise).
+func SetHibernate(enable bool) error { return setHibernate(enable) }
+
+// HibernateEnabled reports whether hibernation is currently available, via
+// IsPwrHibernateAllowed: TRUE when the machine supports S4 and Hiberfil.sys
+// is present, FALSE otherwise.
+func HibernateEnabled() (bool, error) { return hibernateEnabled() }
+
+// GetProcessorState returns the AC minimum and maximum processor state
+// (percent) of the active power scheme, read natively via
+// PowerGetActiveScheme + PowerReadACValueIndex.
+func GetProcessorState() (minPct, maxPct uint32, err error) { return getProcessorState() }
 
 // SetProcessorState sets the minimum and maximum processor state (percent) of
 // the current scheme and applies the change immediately.

@@ -13,23 +13,31 @@ import (
 
 // mockExecutor is an in-memory Executor used to verify orchestration logic.
 type mockExecutor struct {
-	dwords        map[string]uint32
-	qwords        map[string]uint64
-	strings       map[string]string
-	expandStrings map[string]string
-	startModes    map[string]string
-	commands      []string
-	activePlan    string
-	mutationErr   error
+	dwords         map[string]uint32
+	qwords         map[string]uint64
+	strings        map[string]string
+	expandStrings  map[string]string
+	startModes     map[string]string
+	keys           map[string]bool
+	commands       []string
+	activePlan     string
+	hibernate      bool
+	procMin        uint32
+	procMax        uint32
+	netbiosOptions map[string]uint32
+	mutationErr    error
 }
 
 func newMock() *mockExecutor {
 	return &mockExecutor{
-		dwords:        map[string]uint32{},
-		qwords:        map[string]uint64{},
-		strings:       map[string]string{},
-		expandStrings: map[string]string{},
-		startModes:    map[string]string{},
+		dwords:         map[string]uint32{},
+		qwords:         map[string]uint64{},
+		strings:        map[string]string{},
+		expandStrings:  map[string]string{},
+		startModes:     map[string]string{},
+		keys:           map[string]bool{},
+		netbiosOptions: map[string]uint32{},
+		procMax:        100,
 	}
 }
 
@@ -139,6 +147,50 @@ func (m *mockExecutor) PowerSetActive(guid string) error {
 		return m.mutationErr
 	}
 	m.activePlan = guid
+	return nil
+}
+func (m *mockExecutor) RegistryKeyExists(hive, path string) (bool, error) {
+	return m.keys[hive+"\\"+path], nil
+}
+func (m *mockExecutor) RegistryDeleteKeyTree(hive, path string) error {
+	if m.mutationErr != nil {
+		return m.mutationErr
+	}
+	delete(m.keys, hive+"\\"+path)
+	return nil
+}
+func (m *mockExecutor) PowerHibernateEnabled() (bool, error) { return m.hibernate, nil }
+func (m *mockExecutor) PowerSetHibernate(enable bool) error {
+	if m.mutationErr != nil {
+		return m.mutationErr
+	}
+	m.hibernate = enable
+	return nil
+}
+func (m *mockExecutor) PowerGetProcessorState() (uint32, uint32, error) {
+	return m.procMin, m.procMax, nil
+}
+func (m *mockExecutor) PowerSetProcessorState(minPct, maxPct uint32) error {
+	if m.mutationErr != nil {
+		return m.mutationErr
+	}
+	m.procMin, m.procMax = minPct, maxPct
+	return nil
+}
+func (m *mockExecutor) NetbiosGetOptions() (map[string]uint32, error) {
+	out := make(map[string]uint32, len(m.netbiosOptions))
+	for k, v := range m.netbiosOptions {
+		out[k] = v
+	}
+	return out, nil
+}
+func (m *mockExecutor) NetbiosSetOptions(value uint32) error {
+	if m.mutationErr != nil {
+		return m.mutationErr
+	}
+	for k := range m.netbiosOptions {
+		m.netbiosOptions[k] = value
+	}
 	return nil
 }
 
@@ -312,6 +364,148 @@ func TestPowerSchemeOp(t *testing.T) {
 	res2 := o.Apply(tw, false)
 	if res2.Changed != 0 {
 		t.Errorf("second apply should change nothing, got %d changed", res2.Changed)
+	}
+}
+
+func TestPowerHibernateOp(t *testing.T) {
+	exec := newMock()
+	exec.hibernate = true
+	o := NewOrchestrator(exec, nil)
+	tw := config.Tweak{
+		ID:         "hib",
+		Risk:       config.RiskMedium,
+		Reversible: true,
+		Operations: []config.Operation{{Type: config.OpPowerHibernate, Value: json.RawMessage(`false`)}},
+		Revert:     []config.Operation{{Type: config.OpPowerHibernate, Value: json.RawMessage(`true`)}},
+	}
+
+	dry := o.Apply(tw, true)
+	if dry.Failed != 0 || dry.Changed != 1 || exec.hibernate != true {
+		t.Fatalf("dry-run: failed=%d changed=%d hibernate=%v", dry.Failed, dry.Changed, exec.hibernate)
+	}
+	res := o.Apply(tw, false)
+	if res.Failed != 0 || exec.hibernate {
+		t.Fatalf("apply: failed=%d hibernate=%v, want disabled", res.Failed, exec.hibernate)
+	}
+	if !o.IsApplied(tw) {
+		t.Fatal("IsApplied = false after apply")
+	}
+	// Re-apply is a no-op.
+	res = o.Apply(tw, false)
+	if res.Changed != 0 {
+		t.Fatalf("re-apply changed=%d, want 0", res.Changed)
+	}
+	if und := o.Undo(tw); und.Failed != 0 || !exec.hibernate {
+		t.Fatalf("undo: failed=%d hibernate=%v, want enabled", und.Failed, exec.hibernate)
+	}
+}
+
+func TestPowerProcessorStateOp(t *testing.T) {
+	exec := newMock()
+	exec.procMin, exec.procMax = 5, 100
+	o := NewOrchestrator(exec, nil)
+	tw := config.Tweak{
+		ID:         "proc",
+		Risk:       config.RiskMedium,
+		Reversible: true,
+		Operations: []config.Operation{{Type: config.OpPowerProcessorState, Value: json.RawMessage(`{"min":50}`)}},
+		Revert:     []config.Operation{{Type: config.OpPowerProcessorState, Value: json.RawMessage(`{"min":5}`)}},
+	}
+
+	dry := o.Apply(tw, true)
+	if dry.Failed != 0 || dry.Changed != 1 || exec.procMin != 5 {
+		t.Fatalf("dry-run: failed=%d changed=%d min=%d", dry.Failed, dry.Changed, exec.procMin)
+	}
+	if dry.Effects[0].PreviousValue != "min=5,max=100" || dry.Effects[0].NewValue != "min=50,max=100" {
+		t.Fatalf("dry-run effect = %q -> %q", dry.Effects[0].PreviousValue, dry.Effects[0].NewValue)
+	}
+	res := o.Apply(tw, false)
+	if res.Failed != 0 || exec.procMin != 50 || exec.procMax != 100 {
+		t.Fatalf("apply: failed=%d min=%d max=%d", res.Failed, exec.procMin, exec.procMax)
+	}
+	if !o.IsApplied(tw) {
+		t.Fatal("IsApplied = false after apply")
+	}
+	if und := o.Undo(tw); und.Failed != 0 || exec.procMin != 5 || exec.procMax != 100 {
+		t.Fatalf("undo: failed=%d min=%d max=%d", und.Failed, exec.procMin, exec.procMax)
+	}
+	// A partial op whose implied min exceeds the current max fails cleanly.
+	exec.procMax = 40
+	bad := config.Tweak{
+		ID:         "bad",
+		Risk:       config.RiskMedium,
+		Operations: []config.Operation{{Type: config.OpPowerProcessorState, Value: json.RawMessage(`{"min":50}`)}},
+	}
+	if res := o.Apply(bad, false); res.Failed != 1 {
+		t.Fatalf("apply with min>current max: failed=%d, want 1", res.Failed)
+	}
+}
+
+func TestNetbiosOp(t *testing.T) {
+	exec := newMock()
+	exec.netbiosOptions = map[string]uint32{"Tcpip_{AAA}": 0, "Tcpip_{BBB}": 1}
+	o := NewOrchestrator(exec, nil)
+	tw := config.Tweak{
+		ID:         "netbios",
+		Risk:       config.RiskMedium,
+		Reversible: true,
+		Operations: []config.Operation{{Type: config.OpNetbios, Value: json.RawMessage(`2`)}},
+		Revert:     []config.Operation{{Type: config.OpNetbios, Value: json.RawMessage(`0`)}},
+	}
+
+	dry := o.Apply(tw, true)
+	if dry.Failed != 0 || dry.Changed != 1 {
+		t.Fatalf("dry-run: failed=%d changed=%d", dry.Failed, dry.Changed)
+	}
+	if want := "Tcpip_{AAA}=0,Tcpip_{BBB}=1"; dry.Effects[0].PreviousValue != want {
+		t.Fatalf("dry-run previous = %q, want %q", dry.Effects[0].PreviousValue, want)
+	}
+	res := o.Apply(tw, false)
+	if res.Failed != 0 {
+		t.Fatalf("apply failed: %v", res.Failure())
+	}
+	for name, v := range exec.netbiosOptions {
+		if v != 2 {
+			t.Fatalf("interface %s = %d, want 2", name, v)
+		}
+	}
+	if !o.IsApplied(tw) {
+		t.Fatal("IsApplied = false after apply")
+	}
+	if res := o.Apply(tw, false); res.Changed != 0 {
+		t.Fatalf("re-apply changed=%d, want 0", res.Changed)
+	}
+	if und := o.Undo(tw); und.Failed != 0 || exec.netbiosOptions["Tcpip_{AAA}"] != 0 {
+		t.Fatalf("undo: failed=%d options=%v", und.Failed, exec.netbiosOptions)
+	}
+}
+
+func TestRegistryDeleteKeyOp(t *testing.T) {
+	exec := newMock()
+	const path = `Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32`
+	exec.keys["HKCU\\"+path] = true
+	o := NewOrchestrator(exec, nil)
+	tw := config.Tweak{
+		ID:   "delkey",
+		Risk: config.RiskLow,
+		Operations: []config.Operation{
+			{Type: config.OpRegistryDeleteKey, Hive: "HKCU", Path: path},
+		},
+	}
+
+	dry := o.Apply(tw, true)
+	if dry.Failed != 0 || dry.Changed != 1 || !exec.keys["HKCU\\"+path] {
+		t.Fatalf("dry-run: failed=%d changed=%d exists=%v", dry.Failed, dry.Changed, exec.keys["HKCU\\"+path])
+	}
+	res := o.Apply(tw, false)
+	if res.Failed != 0 || exec.keys["HKCU\\"+path] {
+		t.Fatalf("apply: failed=%d exists=%v", res.Failed, exec.keys["HKCU\\"+path])
+	}
+	if !o.IsApplied(tw) {
+		t.Fatal("IsApplied = false after key deletion")
+	}
+	if res := o.Apply(tw, false); res.Changed != 0 {
+		t.Fatalf("re-apply changed=%d, want 0", res.Changed)
 	}
 }
 

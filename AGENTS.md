@@ -136,10 +136,18 @@ git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
   allowlisted system executables (dism, w32tm, lodctr, winmgmt, rundll32,
   wevtutil, fsutil, setx, bcdedit, netsh). PowerShell/powercfg/wmic are
   DELIBERATELY refused (`TestRunCommandElevationBoundary`). The converter must
-  never emit such commands. 7 web tweaks are excluded for exactly these reasons
-  (documented in CATALOG_PARITY.md).
-- Engine op types: registry_set_dword/_string/_qword, registry_delete, command,
-  service_start/_stop/_start_mode, task_enable/_disable, power_scheme.
+  never emit such commands. 3 web tweaks remain excluded for exactly these
+  reasons (documented in CATALOG_PARITY.md); 4 former exclusions were retired
+  2026-08-16 by native ops (power_hibernate, power_processor_state, netbios,
+  registry_delete_key + default-value registry writes).
+- Engine op types: registry_set_dword/_string/_qword, registry_delete,
+  registry_delete_key (RegDeleteTreeW, loader requires depth ≥ 2), command,
+  service_start/_stop/_start_mode, task_enable/_disable, power_scheme,
+  power_hibernate (CallNtPowerInformation SystemReserveHiberFile),
+  power_processor_state (PowerWrite/ReadACValueIndex + PowerSetActiveScheme),
+  netbios (NetBT\Parameters\Interfaces NetbiosOptions). Registry ops with an
+  empty name address the key's default value (documented RegSetValueExW
+  semantics).
 - Engine risk tiers: low/medium/high (no "expert" — maps to high).
 
 ## 8. Blocker register
@@ -175,16 +183,57 @@ Done (2026-08-15, arena/01a0075d-winforge):
 - Full verification battery re-run green on fresh sandbox (Go 1.22.12 source
   bootstrap, npm reinstall).
 
+Done (2026-08-16, this session):
+- Native ops shipped: `power_hibernate` (CallNtPowerInformation
+  SystemReserveHiberFile + IsPwrHibernateAllowed), `power_processor_state`
+  (PowerGetActiveScheme/PowerRead-/PowerWriteACValueIndex/PowerSetActiveScheme
+  — powercfg fully replaced for processor state), `netbios` (NetbiosOptions on
+  every NetBT\Parameters\Interfaces subkey — the documented registry backing
+  of WMI SetTcpipNetbios), `registry_delete_key` (RegDeleteTreeW; loader
+  refuses paths < 2 components). Default-value registry writes work via empty
+  `name` (documented RegSetValueExW/RegGetValueW/RegDeleteValueW semantics).
+- Converter upgraded: emits the new op types; `(Default)` → empty name;
+  undo `-> removed` → registry_delete_key; TS `\"` unescaping fixed;
+  idempotent (0 diffs on the 56 previously-merged tweaks).
+- Catalog: 219 → **240** tweaks: 4 web merges (ui-classic-context,
+  net-disable-netbios, pwr-hibernation, pwr-processor-mgmt) + **17 hand-written
+  winforge-* Privacy tweaks** closing documented privacy gaps (8 ConsentStore
+  Deny caps incl. chat; mdns EnableMDNS=0; NCSI NoActiveProbe=1; WCN
+  DisableWcnUi/EnableRegistrars; PreventDeviceMetadataFromNetwork; Recall
+  DisableAIDataAnalysis HKLM+HKCU; AllowCrossDeviceClipboard=0; Edge
+  DiagnosticData=0; EnableSmartScreen=1; DisableDiagnosticDataViewer=1 —
+  every value verified against learn.microsoft.com/policy CSP docs).
+  Exclusions 7 → **3** (perf-pagefile, perf-memcompression, exp-classic-paint).
+  Privacy triage: **38 equivalent · 0 partial · 2 gaps** (priv-dnt =
+  browser-level; priv-microsoft-store-ads = no documented registry backing).
+- Full battery re-verified green (fmt/vet linux+windows/18-pkg tests+race/
+  PE cross-compile 6.67 MB/typecheck/lint/parity exit 0/whitespace).
+- Backlog areas D–H covered with committed artifacts:
+  - **D**: `docs/WINDOWS_SMOKE_CHECKLIST.md` — full BLK-6 checklist incl.
+    first-validation items for the 4 new native ops + new privacy tweaks.
+  - **E**: `ci.yml.fixed` rewritten — now the live Go CI + parity job
+    (parity exit 0 + converter-idempotence SHA check) + winforge.exe artifact
+    upload + npm typecheck/lint job (old version built the archived WPF).
+  - **F**: `native/build-lua.sh` — Lua 5.4.7 via zig cc → liblua54.so (Linux,
+    executed: 6*7=42 via ctypes) + lua54.dll (PE verified). Binding plan +
+    the cgo tension documented in `docs/LUA_PLUGIN_PLAN.md` (Windows LazyDLL
+    binding keeps stdlib-only; Linux dlopen would need cgo → deferred).
+  - **G**: `docs/WASM_PLUGIN_SANDBOX.md` — design + executed spike (wat guest
+    importing winforge.health_score host fn ran under wasmtime; win_amd64
+    wheel's _wasmtime.dll re-verified as PE).
+  - **H**: `docs/ADR-001-ui-engine-bridge.md` (option a: Next rewrites) +
+    `/engine/:path*` proxy in `next.config.ts` +
+    `src/components/EngineStatusCard.tsx` live engine card on the dashboard
+    (polls /engine/api/status+health, graceful offline fallback).
+
 Next (prioritized):
-1. Windows runtime smoke checklist (BLK-6) on a real machine.
-2. CI modernization when `workflows` permission lands (ci.yml.fixed / adapt
-   ci/github-actions-ci.yml).
-3. Native ops to retire exclusions: power_hibernate, power_processor_state
-   (SetProcessorState exists), registry `(Default)`-value writes, native WMI
-   SetTcpipNetbios; then ConsentStore coverage for the 7 priv-perm-* gaps +
-   the other 11 documented privacy gaps (mdns/ncsi/wcn/recall/edge/etc.).
-4. Lua plugin integration (DLL build verified) + WASM sandbox (Phase 4).
-5. Next.js UI ↔ engine HTTP API bridge (localhost:8696).
+1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
+   covers the four new native ops and the 17 new privacy tweaks.
+2. CI modernization when `workflows` permission lands (copy ci.yml.fixed).
+3. Lua in-engine binding per docs/LUA_PLUGIN_PLAN.md (Windows LazyDLL path);
+   WASM sandbox implementation per docs/WASM_PLUGIN_SANDBOX.md (Phase 4).
+4. UI↔engine bridge phase 2: POST routes through /engine/* (needs a CSRF/auth
+   story in the engine first — see ADR-001 consequences).
 
 ## 10. Gotchas & lessons (each cost time once)
 
