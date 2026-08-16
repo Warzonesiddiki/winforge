@@ -47,6 +47,10 @@ coverage.*
 desktop.ini
 localdata/
 native/out/
+
+# Next.js build output / generated types
+.next/
+next-env.d.ts
 node_modules/
 obj/
 packages/

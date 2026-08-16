@@ -255,14 +255,51 @@ Done (2026-08-16, this session — arena/01a00a47-winforge, W1 Lua binding):
   Windows runtime behavior is BLK-6 (new checklist §11). Elevated processes
   still ignore all plugins.
 
+Done (2026-08-16, W3 engine mutation auth — PR #16, ADR-002):
+- **Session-token auth on every mutation.** Per-instance 32-byte crypto/rand
+  base64url token; all POST/PUT/PATCH/DELETE require `X-WinForge-Token`
+  (constant-time compare); GETs stay open; new `GET /api/session-token`.
+  Enforced in `internal/httpapi/server.go` **after** the loopback-Host and
+  same-origin checks and **before** body decode; token helpers live in
+  `internal/httpapi/auth.go`. `web/app.js` fetches + sends the token;
+  `src/lib/engine-client.ts` is the reusable Next-side client (caches the
+  token, invalidates on 401). Tests: token required/wrong/accepted, reads
+  open, endpoint serves + rotates, cross-origin/loopback still enforced.
+  Windows verification is checklist §12.
+
+Done (2026-08-16, W2 WASM re-scope — NOT shipped, evidence recorded):
+- `docs/WASM_REALSCOPE_2026-08-16.md`: wasmtime 47's C API is ~980 symbols /
+  ~28 MB .so; a minimal host subset is ~30–35 functions with manual handle
+  ownership + C→Go callbacks; there is **no cgo-free Linux path to execute
+  it**, and BLK-6 means no Windows runtime to verify a security-boundary
+  binding. Design in `docs/WASM_PLUGIN_SANDBOX.md` is unchanged and lists
+  exactly what is needed. **Do not ship an unverified binding** — Lua is the
+  first scriptable tier.
+
+Done (2026-08-16, W6 memcompression research CLOSED):
+- `perf-memcompression` stays excluded, now **with evidence** (see
+  `docs/CATALOG_PARITY.md`): the only documented mechanism is PowerShell
+  `Disable-MMAgent -MemoryCompression` (refused by the executor allowlist);
+  no documented registry value exists; the kernel path
+  `NtSetSystemInformation(SystemMemoryCompressionInformation)` is
+  undocumented and build-varying. Do not reopen without a citable source.
+
+Done (2026-08-16, W3 phase 2 — Next UI wiring):
+- `src/components/EngineTweaks.tsx` — live engine tweak panel (search,
+  category filter, applied-only filter, apply/undo buttons) driven entirely
+  through `src/lib/engine-client.ts`, so every mutation carries the ADR-002
+  token. Mounted on the dashboard under the engine status card; renders
+  nothing when the engine is offline, so the simulation is unaffected.
+
 Next (prioritized):
 1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
-   covers the four new native ops, the 17 new privacy tweaks, AND the Lua
-   plugin runtime (checklist §11).
+   covers the four new native ops, the 17 new privacy tweaks, the Lua
+   plugin runtime (§11), AND session-token auth incl. the Next UI (§12).
 2. CI modernization when `workflows` permission lands (copy ci.yml.fixed).
-3. WASM sandbox implementation per docs/WASM_PLUGIN_SANDBOX.md (Phase 4).
-4. UI↔engine bridge phase 2: POST routes through /engine/* (needs a CSRF/auth
-   story in the engine first — ADR-002 before coding — see ADR-001 consequences).
+3. WASM tier: implement on a Windows-capable runner per the two WASM docs,
+   or formally accept Lua-only and close W2 with explicit evidence.
+4. W6 housekeeping: watch for a documented `priv-microsoft-store-ads` policy
+   (do NOT fabricate); WPF archive governance proposal needs user approval.
 
 ## 10. Gotchas & lessons (each cost time once)
 
