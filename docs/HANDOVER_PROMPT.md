@@ -74,13 +74,34 @@ plus Python catalog tooling in `tools/`, plus Zig (`native/`) and Bun
   BLK-6 (new `docs/WINDOWS_SMOKE_CHECKLIST.md` §11). Elevated processes still
   ignore all plugins. See `docs/LUA_PLUGIN_PLAN.md`.
 
+**Update (2026-08-16, second session — arena/01a00a47-winforge, PRs #15/#16):**
+- **W1 Lua binding MERGED (#15)** — `internal/plugin/lua{,_windows,_other}.go`,
+  manifest `type=lua`/`script`, cgo-free Windows `syscall.LoadDLL` host, strict
+  op validation/whitelist, LUA_MASKCOUNT runaway hook. 24 tests; windows
+  `go vet`+`go test -c`+6.74 MB PE clean. Runtime is BLK-6 (checklist §11).
+- **W3 engine mutation auth MERGED (#16)** — ADR-002: per-instance
+  crypto/rand session token required in `X-WinForge-Token` on all mutations
+  (GETs open); `GET /api/session-token`; constant-time compare;
+  `web/app.js` + `src/lib/engine-client.ts` attach it. Closes the
+  "engine trusts loopback callers" gap ahead of phase-2 UI POSTs.
+- **W2 WASM re-scoped with evidence** (`docs/WASM_REALSCOPE_2026-08-16.md`):
+  wasmtime 47 C API is ~980 symbols/28 MB; minimal binding ~30–35 functions
+  with C→Go callbacks, no cgo-free Linux execution, BLK-6. No unverified
+  binding shipped; design unchanged, needs a Windows runner.
+- **W6 memcompression research closed**: no documented Win32/registry
+  backing; only `Disable-MMAgent -MemoryCompression` (PowerShell, refused by
+  the allowlist) or undocumented `NtSetSystemInformation`. Exclusion stands
+  with evidence in CATALOG_PARITY.md.
+
 **Next steps, in priority order:**
 1. Windows smoke checklist execution (BLK-6, needs real hardware) — now
-   includes the Lua runtime (§11).
+   includes the Lua runtime (§11) and token auth.
 2. `ci.yml.fixed` → `.github/workflows/ci.yml` the moment BLK-3 clears.
-3. WASM plugin tier implementation (`docs/WASM_PLUGIN_SANDBOX.md`, Phase 4).
-4. UI↔engine bridge phase 2 (POSTs through /engine/*; requires an engine
-   CSRF/auth design first — write ADR-002 before coding; see ADR-001).
+3. WASM plugin tier: implement on a Windows-capable runner per
+   `docs/WASM_PLUGIN_SANDBOX.md` + `docs/WASM_REALSCOPE_2026-08-16.md` (or
+   formally accept Lua-only).
+4. UI↔engine bridge phase 2: wire Next UI POST buttons through
+   `src/lib/engine-client.ts` (the ADR-002 token auth is in place).
 
 **Hard rules (from the project owner):**
 - ZERO fabrication: verify every claim by executing build/test/parse before

@@ -31,7 +31,7 @@ back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 | Zig 0.16 | Companion: compile C deps (Lua, wasm3), Lite CLI fallback | scaffold in `native/` |
 | C via zig cc | Vendored libs | verified capable |
 | Lua 5.4 | Community-pack plugins | DLL build verified; **in-engine binding LANDED 2026-08-16** (Windows LazyDLL host; platform-independent logic tested on Linux via a fake host) |
-| WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified; integration pending |
+| WebAssembly | Sandbox for hostile plugins | wasmtime DLL/spike verified; **re-scoped 2026-08-16** (no unverified binding — see `docs/WASM_REALSCOPE_2026-08-16.md`) |
 | Python | Catalog tooling (`tools/`), build/test automation | ✅ in use |
 | Bun/TS | UI dev server, packaging fallback | scaffold in `runtime/` |
 | Node SEA | Packaging fallback | verified available |
@@ -257,12 +257,15 @@ Done (2026-08-16, this session — arena/01a00a47-winforge, W1 Lua binding):
 
 Next (prioritized):
 1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
-   covers the four new native ops, the 17 new privacy tweaks, AND the Lua
-   plugin runtime (checklist §11).
+   covers the four new native ops, the 17 new privacy tweaks, the Lua plugin
+   runtime (§11), AND token-auth behavior.
 2. CI modernization when `workflows` permission lands (copy ci.yml.fixed).
-3. WASM sandbox implementation per docs/WASM_PLUGIN_SANDBOX.md (Phase 4).
-4. UI↔engine bridge phase 2: POST routes through /engine/* (needs a CSRF/auth
-   story in the engine first — ADR-002 before coding — see ADR-001 consequences).
+3. WASM sandbox: implement on a Windows-capable runner per
+   docs/WASM_PLUGIN_SANDBOX.md + docs/WASM_REALSCOPE_2026-08-16.md (or
+   formally accept Lua-only).
+4. UI↔engine bridge phase 2: wire Next UI POST buttons through
+   `src/lib/engine-client.ts` (the CSRF/session-token auth from ADR-002 is
+   now in place; see ADR-001).
 
 ## 10. Gotchas & lessons (each cost time once)
 

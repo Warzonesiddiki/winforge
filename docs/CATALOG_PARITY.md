@@ -127,7 +127,7 @@ backing for the Store app's personalized-experiences toggle — adding an op wou
 | Web tweak | Reason it is NOT in the engine catalog |
 |---|---|
 | `perf-pagefile` | `PagingFiles` is a REG_MULTI_SZ value; a string/dword write would corrupt the pagefile configuration. |
-| `perf-memcompression` | MMAgent cmdlets are PowerShell-only, and the engine's elevated executor **never invokes PowerShell** (allowlist security boundary — see `TestRunCommandElevationBoundary`). Needs a native winapi op (the backing NT API for memory compression is undocumented). |
+| `perf-memcompression` | MMAgent cmdlets are PowerShell-only, and the engine's elevated executor **never invokes PowerShell** (allowlist security boundary — see `TestRunCommandElevationBoundary`). **Research spike (2026-08-16):** there is no documented Win32/registry backing for memory compression — `Disable-MMAgent -MemoryCompression` is the only supported interface, and the only non-PowerShell route would be the undocumented `NtSetSystemInformation(SystemMemoryCompressionInformation, …)` (varying, un-documented info-class layout across builds). Shipping that would be fabrication/unsupported, so the exclusion **stands**. |
 | `exp-classic-paint` | The web op is narrative text; Appx lifecycle is handled natively by the engine's bloatware catalog. |
 
 ### AtlasOS metadata backfill (tools/atlas_metadata.py)
