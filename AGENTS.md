@@ -373,8 +373,21 @@ Next (prioritized):
    or formally accept Lua-only and close W2 with explicit evidence.
 4. W6 housekeeping: watch for a documented `priv-microsoft-store-ads` policy
    (do NOT fabricate).
-5. Add tests for `internal/platform` and `internal/scheduler` (zero-test packages).
-6. Replace `alert()` in `web/app.js` with inline toast/notification UI.
+5. Add tests for `internal/winapi` (now done — validate.go extracted and tested).
+6. ~~Replace `alert()` in `web/app.js` with inline toast/notification UI~~ DONE.
+
+Done (2026-08-16, continuation):
+- **HTTP API rate limiting** — token-bucket limiter on mutating requests
+  (5 req/s sustained, burst 15, 429 + Retry-After). GETs unlimited.
+  Defense-in-depth behind session token / same-origin / loopback checks.
+- **winapi tests** — extracted `validateSystemFileName` into a platform-
+  independent file; 8 cross-platform test cases + Windows-only backslash test.
+- **platform & scheduler tests** — both previously zero-test packages now
+  have 3 and 8 tests respectively; `validateRegister` extracted from the
+  Windows-only scheduler file.
+- **Toast notifications** — replaced all `window.alert()` calls in
+  `web/app.js` with a non-blocking toast system (#toasts container, CSS
+  animations, click-to-dismiss, error/success/info variants).
 
 ## 10. Gotchas & lessons (each cost time once)
 
