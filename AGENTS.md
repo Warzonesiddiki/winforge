@@ -31,7 +31,7 @@ back to **Go-primary hybrid** (this line of work, merged 2026-08-16).
 | Zig 0.16 | Companion: compile C deps (Lua, wasm3), Lite CLI fallback | scaffold in `native/` |
 | C via zig cc | Vendored libs | verified capable |
 | Lua 5.4 | Community-pack plugins | DLL build verified; **in-engine binding LANDED 2026-08-16** (Windows LazyDLL host; platform-independent logic tested on Linux via a fake host) |
-| WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified; integration pending |
+| WebAssembly | Sandbox for hostile plugins | wasmtime DLL verified; **platform-independent tier LANDED 2026-08-16** (`wasm.go` + fake host, 24 wasm tests; Windows C binding deferred per `WASM_REALSCOPE_2026-08-16.md`, DLL-search stub in `wasm_windows.go`) |
 | Python | Catalog tooling (`tools/`), build/test automation | ✅ in use |
 | Bun/TS | UI dev server, packaging fallback | scaffold in `runtime/` |
 | Node SEA | Packaging fallback | verified available |
@@ -150,19 +150,26 @@ git diff --check "$(git hash-object -t tree /dev/null)" HEAD   # no output
   semantics).
 - Engine risk tiers: low/medium/high (no "expert" — maps to high).
 - **Plugins** (`internal/plugin`): JSON plugins (`tweaks.json`) and, as of
-  2026-08-16, **Lua packs** (`manifest.json` `"type":"lua"`, `pack.lua`). Lua
-  is Windows-only: a cgo-free `syscall.LoadDLL` host binds a bundled
-  `lua54.dll` (next to the exe or the data dir, never PATH). The whitelisted
-  API (`winforge.registry.set/delete`, `winforge.service.set_start_mode`,
-  `winforge.log`, `winforge.tweak{...}:commit()`, `winforge.revert`) builds
-  `config.Operation`s through `config.ValidateOperationForPlugin`; a closed
-  plugin op-type whitelist forbids command/appx/task/power/netbios/delete-key.
-  `os/io/debug/package/loadfile/load/loadstring/require/dofile` are removed and
-  a `LUA_MASKCOUNT` hook (budget 10M) aborts runaway scripts. On Linux (or with
-  no DLL) Lua plugins are skipped best-effort; all platform-independent logic
-  is unit-tested with a fake `ScriptHost`. Runtime behavior is BLK-6
-  (checklist §11). Elevated processes ignore all plugins (UAC boundary). See
-  `docs/LUA_PLUGIN_PLAN.md` and `examples/plugins/example-lua-pack/`.
+  2026-08-16, **Lua packs** (`manifest.json` \"type\":\"lua\"`, `pack.lua`) and
+  **WASM packs** (`manifest.json` \"type\":\"wasm\"`, `pack.wasm`). Lua is
+  Windows-only: a cgo-free `syscall.LoadDLL` host binds a bundled
+  `lua54.dll` (next to the exe or the data dir, never PATH). WASM is the
+  strong-isolation tier: a `WasmHost` with fuel metering (10M) and bounded
+  linear-memory strings; platform-independent proposal/validation (24 wasm
+  tests) mirrors Lua and is tested on Linux via a fake `WasmHost`; the
+  Windows wasmtime C binding is deferred per `WASM_REALSCOPE_2026-08-16.md`
+  (DLL-search stub in `wasm_windows.go` returns `ErrWasmUnavailable` until
+  verified on real Windows). Both tiers share the same whitelisted API
+  (`registry.set/delete`, `service.set_start_mode`, `log`,
+  `tweak{...}:commit()`, `revert`) which builds `config.Operation`s through
+  `config.ValidateOperationForPlugin`; a closed plugin op-type whitelist
+  forbids command/appx/task/power/netbios/delete-key. `os/io/debug/package/...`
+  are removed for Lua and the WASM linear memory is bounded; runaway guests
+  are terminated (Lua `LUA_MASKCOUNT` 10M hook, WASM fuel). On Linux (or with
+  no DLL) both tiers are skipped best-effort; elevated processes ignore all
+  plugins (UAC boundary). See `docs/LUA_PLUGIN_PLAN.md`,
+  `docs/WASM_PLUGIN_SANDBOX.md`, `examples/plugins/example-lua-pack/` and
+  `examples/plugins/example-wasm-pack/`.
 
 ## 8. Blocker register
 
@@ -291,12 +298,33 @@ Done (2026-08-16, W3 phase 2 — Next UI wiring):
   token. Mounted on the dashboard under the engine status card; renders
   nothing when the engine is offline, so the simulation is unaffected.
 
+Done (2026-08-16, W2 platform-independent tier — arena/01a00ac0-winforge):
+- **WASM proposal/validation LANDED** (Linux-verifiable, no Windows binding).
+  `internal/plugin/wasm.go` (platform-independent `wasmAPI` + strict validation
+  + op whitelist mirroring Lua), `wasm_windows.go` (DLL-search stub for
+  `wasmtime.dll` by absolute path, deliberately returns `ErrWasmUnavailable`
+  until the Windows C binding is verified on real hardware — see
+  `WASM_REALSCOPE_2026-08-16.md`), `wasm_other.go` (non-Windows stub).
+  Manifest gains \"type\":\"wasm\" + \"module\":\"pack.wasm\" (alias
+  \"script\" accepted). Module validation: WASM magic `\\x00asm` + version 1,
+  4 MiB cap. Same closed whitelist as Lua (registry dword/qword/string,
+  registry delete, service start_mode; command/appx/task/power/netbios/delete-key
+  forbidden). Fuel budget 10M (wasmtime metering). `internal/app/app.go`
+  passes both `LuaDLLDirs` and `WasmDLLDirs` (exe dir + data dir). Sample at
+  `examples/plugins/example-wasm-pack/` (8-byte minimal wasm + `pack.wat.example`
+  spike). 24 wasmAPI tests + 6 discovery tests (bad hive/oversized/fractional/
+  path-traversal/magic/bogus-tweaks) pass on Linux; windows `go vet` + `go test -c`
+  + 6.5 MB PE clean. No unverified C binding ships — the security-boundary
+  binding remains gated on Windows hardware.
+
 Next (prioritized):
 1. Windows runtime smoke checklist (BLK-6) on a real machine — now also
    covers the four new native ops, the 17 new privacy tweaks, the Lua
-   plugin runtime (§11), AND session-token auth incl. the Next UI (§12).
+   plugin runtime (§11), session-token auth incl. the Next UI (§12), AND the
+   WASM DLL-search stub (§13 — WASM host unavailable until verified).
 2. CI modernization when `workflows` permission lands (copy ci.yml.fixed).
-3. WASM tier: implement on a Windows-capable runner per the two WASM docs,
+3. WASM tier Windows binding: implement `wasmtime` C host (~30–35 funcs) on a
+   Windows-capable runner per the two WASM docs, execute the §13 checklist,
    or formally accept Lua-only and close W2 with explicit evidence.
 4. W6 housekeeping: watch for a documented `priv-microsoft-store-ads` policy
    (do NOT fabricate); WPF archive governance proposal needs user approval.

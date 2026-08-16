@@ -143,9 +143,12 @@ func newApp(dataDir string, elevated bool) (*App, error) {
 	// win on id collisions. Elevated processes deliberately ignore this
 	// user-writable extension point (see the security boundary above).
 	//
-	// Lua packs are supported only when a lua54.dll is bundled next to the
-	// executable (the shipping location) or in the data directory (a developer
-	// override). The DLL is loaded by absolute path, never the DLL search path.
+	// Lua and WASM packs are supported only when their respective DLLs are
+	// bundled next to the executable (the shipping location) or in the data
+	// directory (a developer override). Each DLL is loaded by absolute path,
+	// never the DLL search path. WASM is the strong-isolation tier; see
+	// docs/WASM_REALSCOPE_2026-08-16.md (platform-independent validation now
+	// lands, Windows binding deferred until BLK-6 hardware is available).
 	var plugins []plugin.Plugin
 	if !elevated {
 		var dllDirs []string
@@ -157,7 +160,10 @@ func newApp(dataDir string, elevated bool) (*App, error) {
 		if dataAbs, absErr := filepath.Abs(dataDir); absErr == nil {
 			dllDirs = append(dllDirs, dataAbs)
 		}
-		plugins, err = plugin.DiscoverWithOptions(filepath.Join(dataDir, "plugins"), plugin.Options{LuaDLLDirs: dllDirs})
+		plugins, err = plugin.DiscoverWithOptions(filepath.Join(dataDir, "plugins"), plugin.Options{
+			LuaDLLDirs:  dllDirs,
+			WasmDLLDirs: dllDirs,
+		})
 		if err != nil {
 			return nil, err
 		}

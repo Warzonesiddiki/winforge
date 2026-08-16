@@ -196,11 +196,39 @@ http://localhost:8696 (same origin) for these. "Mutation" = POST/PUT/PATCH/DELET
       reuse the old token on a mutation → **401**. The Next client must
       recover automatically (it drops its cache on 401 and re-fetches).
 
-## 13. ISO builder (needs real Windows media; else N/A)
+## 13. WASM plugin runtime (added 2026-08-16 — platform-independent tier, DLL-search stub)
 
-- [ ] 13.1 `winforge.exe build-iso --source <mounted-iso-dir> --list-editions`
+Requires `wasmtime.dll` (extracted from the wasmtime 47.0.1 `win_amd64` wheel,
+~28 MB PE) placed next to `winforge.exe`. Plugins live in
+`%LOCALAPPDATA%\\WinForge\\plugins\\<id>\\` with a `manifest.json`
+declaring `"type":"wasm"` and a `pack.wasm`. The full C host is NOT yet
+implemented (see `docs/WASM_REALSCOPE_2026-08-16.md`); this checklist covers
+the honest stub that the platform-independent tier landed on 2026-08-16.
+
+- [ ] 13.1 **No DLL (current build)**: drop `examples/plugins/example-wasm-pack`
+      into the plugins dir with NO `wasmtime.dll` present. Non-elevated
+      `winforge.exe list` succeeds; the WASM pack is skipped best-effort (no
+      crash, no dialog), JSON + Lua plugins still load. `wasmtime.dll` search
+      is absolute-path only — verify with Process Monitor that no PATH/CWD probe
+      occurs.
+- [ ] 13.2 **DLL present but host not yet implemented**: place an extracted
+      `wasmtime.dll` next to the exe. `list` still skips the WASM pack
+      best-effort with a clear "WASM runtime not yet implemented" message
+      (the stub in `wasm_windows.go` deliberately refuses to call an unverified
+      binding). No crash, subsequent `list` runs still work.
+- [ ] 13.3 **Hostile: bad magic / oversized**: a plugin whose `pack.wasm` is
+      not `\\x00asm\\x01\\x00\\x00\\x00` (or >4 MiB) is rejected during
+      discovery; `list` succeeds and the plugin loads no tweaks (covered by
+      `TestDiscoverWasmPluginRejectsInvalidModule` on Linux).
+- [ ] 13.4 **Elevation boundary** (when the real host lands): running elevated
+      ignores the plugins dir entirely (the WASM pack's tweak must NOT appear),
+      matching Lua and JSON behavior.
+
+## 14. ISO builder (needs real Windows media; else N/A)
+
+- [ ] 14.1 `winforge.exe build-iso --source <mounted-iso-dir> --list-editions`
       lists editions via dism.
-- [ ] 13.2 A slim build completes and the output ISO boots in a VM.
+- [ ] 14.2 A slim build completes and the output ISO boots in a VM.
 
 ## Sign-off
 
