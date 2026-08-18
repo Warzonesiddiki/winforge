@@ -11,21 +11,28 @@ import {
   tweaks,
   windowsUpdates,
 } from "@/db/schema";
+import { escapeHtml } from "@/lib/export-safety";
 import { computeHealthReport } from "@/lib/health";
 import { and, desc, eq, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-function table(headers: string[], rows: string[][]) {
+type TableCell = string | { safeHtml: string };
+
+function table(headers: string[], rows: TableCell[][]) {
+  const renderCell = (cell: TableCell) =>
+    typeof cell === "string" ? escapeHtml(cell) : cell.safeHtml;
+
   return `
   <table>
-    <thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
-    <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+    <thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${renderCell(c)}</td>`).join("")}</tr>`).join("")}</tbody>
   </table>`;
 }
 
-function statusBadge(ok: boolean, onText: string, offText: string) {
-  return `<span style="color:${ok ? "#10b981" : "#ef4444"};font-weight:600">${ok ? onText : offText}</span>`;
+function statusBadge(ok: boolean, onText: string, offText: string): TableCell {
+  const text = escapeHtml(ok ? onText : offText);
+  return { safeHtml: `<span style="color:${ok ? "#10b981" : "#ef4444"};font-weight:600">${text}</span>` };
 }
 
 export async function GET() {
@@ -65,7 +72,7 @@ export async function GET() {
 <p class="muted">Generated ${new Date().toISOString()}</p>
 
 <div class="score">${health.score}/100</div>
-<p>${health.quickWins.map((w) => `• ${w}`).join("<br>")}</p>
+<p>${health.quickWins.map((w) => `• ${escapeHtml(w)}`).join("<br>")}</p>
 
 <div class="grid">
   <div class="card"><b>${health.bloatwareCount}</b><span>Bloatware</span></div>
@@ -136,5 +143,11 @@ ${history.length === 0 ? '<p class="muted">No operations logged yet</p>' : table
 <p class="muted" style="margin-top:32px">WinForge Elite v2.0 — Simulation control center. All changes are reversible via History → Undo or snapshots.</p>
 </body></html>`;
 
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
