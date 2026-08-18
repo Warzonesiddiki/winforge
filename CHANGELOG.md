@@ -7,6 +7,10 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Security
 
+- Escaped dynamic values in HTML audit reports, added restrictive report CSP
+  headers, and neutralized spreadsheet formulas in CSV history exports.
+- Updated Next.js to 16.3.1, PostCSS to 8.5.26, and the matching Next.js ESLint
+  configuration, clearing all known production dependency advisories.
 - Added a token-bucket rate limiter (5 req/s sustained, burst 15) on all
   mutating HTTP API endpoints, returning 429 with `Retry-After` when
   exceeded. This is defense-in-depth behind the existing loopback bind,
@@ -35,6 +39,11 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Windows CI no longer executes the non-Windows scheduler-stub assertion.
+- Installer validation now works from a clean checkout without writing the
+  ignored `dist/winforge.iss` artifact.
+- `make verify` now uses the `go` binary from `PATH` by default instead of a
+  sandbox-specific `/tmp` bootstrap path.
 - **Next.js production build no longer requires `DATABASE_URL`** — the
   PostgreSQL pool and Drizzle instance are now constructed lazily, so
   `npm run build` succeeds in environments without a live database.

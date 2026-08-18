@@ -1,11 +1,11 @@
 # WinForge — verification battery (mirrors ci.yml.fixed)
 # Usage: make verify  # runs the exact checks CI runs, locally
-# Requires: Go 1.22 (from /tmp/gobootstrap/go1.22/bin), python3, node, npm
+# Requires: Go 1.22+, python3, node, npm
 # GOPROXY=off GOFLAGS=-mod=mod everywhere — stdlib-only, no network.
 
 SHELL := bash
 
-GO ?= /tmp/gobootstrap/go1.22/bin/go
+GO ?= go
 GOPROXY ?= off
 GOFLAGS ?= -mod=mod
 export GOPROXY
