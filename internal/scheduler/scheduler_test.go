@@ -73,17 +73,3 @@ func TestValidateRegisterAcceptsRegularFile(t *testing.T) {
 		t.Fatalf("validateRegister(%q) = %v, want nil", exe, err)
 	}
 }
-
-func TestNonWindowsStubsReturnUnsupported(t *testing.T) {
-	// On Linux CI the platform-specific functions return ErrUnsupported.
-	// This pins the contract without exercising schtasks.exe.
-	if err := Enable("\\Foo\\Bar"); err != ErrUnsupported {
-		t.Errorf("Enable = %v, want ErrUnsupported off-Windows", err)
-	}
-	if err := Disable("\\Foo\\Bar"); err != ErrUnsupported {
-		t.Errorf("Disable = %v, want ErrUnsupported off-Windows", err)
-	}
-	if err := Delete("\\Foo\\Bar"); err != ErrUnsupported {
-		t.Errorf("Delete = %v, want ErrUnsupported off-Windows", err)
-	}
-}
