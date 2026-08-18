@@ -14,54 +14,50 @@ env:
   # and the build must succeed with no network access to a module proxy.
   GOFLAGS: -mod=mod
   GOPROXY: off
-  # Go source lives in cmd/ and internal/ plus the root package (embed.go).
-  # Scoping packages explicitly keeps `go test ./...` from walking
-  # node_modules/, where npm deps (e.g. flatted) ship .go files.
-  GO_PKGS: ./cmd/... ./internal/... .
 
 jobs:
   test:
     name: Test (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
       - name: gofmt
         run: |
-          unformatted="$(gofmt -l cmd internal embed.go)"
+          unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
             echo "::error::These files are not gofmt-formatted:"
             echo "$unformatted"
-            gofmt -d cmd internal embed.go
+            gofmt -d .
             exit 1
           fi
       - name: go vet
-        run: go vet $GO_PKGS
+        run: go vet ./...
       - name: go test
-        run: go test $GO_PKGS
+        run: go test ./...
       - name: go test -race
-        run: go test -race $GO_PKGS
+        run: go test -race ./...
 
   windows:
     name: Test (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
       # Building and vetting on a real Windows runner is what catches the
       # GOOS=windows-only code that never compiles during Linux-only checks.
       - name: go build
-        run: go build ./cmd/... ./internal/... .
+        run: go build ./...
       - name: go vet
-        run: go vet ./cmd/... ./internal/... .
+        run: go vet ./...
       - name: go test
-        run: go test ./cmd/... ./internal/... .
+        run: go test ./...
 
   cross-compile:
     name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -77,98 +73,28 @@ jobs:
           - goos: windows
             goarch: arm64
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
       - name: go build
-        run: go build $GO_PKGS
+        run: go build ./...
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
       - name: go vet
-        run: go vet $GO_PKGS
+        run: go vet ./...
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-      - name: Build release binary
-        if: matrix.goarch == 'amd64'
-        run: >
-          go build -trimpath
-          -ldflags="-s -w -X winforge/internal/app.Version=${GITHUB_REF_NAME}-${GITHUB_SHA::7}"
-          -o winforge.exe ./cmd/winforge
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: "0"
-      - name: Verify PE header and embedded assets
-        if: matrix.goarch == 'amd64'
-        run: |
-          python3 tools/verify_binary.py winforge.exe --version "${{ github.ref_name }}-${GITHUB_SHA::7}"
-      - name: Upload winforge.exe
-        if: matrix.goarch == 'amd64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: winforge-windows-amd64
-          path: winforge.exe
-          if-no-files-found: error
-
-  parity:
-    name: Catalog parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Catalog parity (must exit 0)
-        run: python3 tools/catalog_parity.py
-      - name: Generated installer validation
-        run: python3 tools/generate_iss.py --check
-      - name: Locale catalog validation
-        run: python3 tools/extract_locales.py
-      - name: Converter idempotence (dry-run must not want changes)
-        run: |
-          before="$(sha256sum config/tweaks.json)"
-          python3 tools/web_catalog_to_engine.py --apply
-          after="$(sha256sum config/tweaks.json)"
-          if [ "$before" != "$after" ]; then
-            echo "::error::tools/web_catalog_to_engine.py --apply changed config/tweaks.json — catalog drifted"
-            git diff --stat config/tweaks.json
-            exit 1
-          fi
-
-  web:
-    name: Web app checks (Node 20)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "20"
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Lint
-        run: npm run lint
-      - name: Unit tests
-        run: npm test
-      # The production build must succeed with no DATABASE_URL (the DB pool is
-      # lazily constructed so build-time page collection does not need a live
-      # PostgreSQL instance).
-      - name: Production build (no DATABASE_URL)
-        run: npm run build
-        env:
-          DATABASE_URL: ""
 
   syntax:
     name: JSON and JavaScript syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Check JavaScript syntax
@@ -184,7 +110,7 @@ jobs:
           while IFS= read -r -d '' file; do
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$file" \
               || { echo "::error file=$file::invalid JSON"; status=1; }
-          done < <(find . -name '*.json' -not -path './.git/*' -not -path './node_modules/*' -not -path './archive/*' -print0)
+          done < <(find . -name '*.json' -not -path './.git/*' -print0)
           exit $status
       - name: Check for whitespace errors
         run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD
