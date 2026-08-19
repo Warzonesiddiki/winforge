@@ -1,14 +1,8 @@
-# FIXED CI WORKFLOW — copy to .github/workflows/ci.yml when BLK-3 resolves.
+# STAGED CI WORKFLOW — copy to .github/workflows/ci.yml when BLK-3 resolves.
 #
-# The GitHub App token lacks the "workflows" permission, so this file cannot
-# be pushed to .github/workflows/ directly (the push is rejected). Once the
-# App has that permission (or a maintainer copies it manually), this replaces
-# the current workflow. Differences from the live ci.yml:
-#   * new "parity" job — the catalog parity tool must exit 0 (also runs the
-#     converter in dry-run mode to prove it stays idempotent),
-#   * the windows/amd64 cross-compile uploads winforge.exe as an artifact,
-#   * npm typecheck + lint run in CI (the live workflow only checks syntax).
-# The six existing jobs are preserved without regression.
+# The connected GitHub App currently lacks the `workflows` permission. This
+# file is the authoritative expanded workflow until the app can update files
+# under .github/workflows/.
 
 name: CI
 
@@ -36,8 +30,8 @@ jobs:
     name: Test (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           check-latest: true
@@ -61,19 +55,19 @@ jobs:
     name: Test (Windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           check-latest: true
       # Building and vetting on a real Windows runner is what catches the
       # GOOS=windows-only code that never compiles during Linux-only checks.
       - name: go build
-        run: go build $GO_PKGS
+        run: go build ./cmd/... ./internal/... .
       - name: go vet
-        run: go vet $GO_PKGS
+        run: go vet ./cmd/... ./internal/... .
       - name: go test
-        run: go test $GO_PKGS
+        run: go test ./cmd/... ./internal/... .
 
   cross-compile:
     name: Cross-compile (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -89,8 +83,8 @@ jobs:
           - goos: windows
             goarch: arm64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           check-latest: true
@@ -130,9 +124,13 @@ jobs:
     name: Catalog parity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Catalog parity (must exit 0)
         run: python3 tools/catalog_parity.py
+      - name: Generated installer validation
+        run: python3 tools/generate_iss.py --check
+      - name: Locale catalog validation
+        run: python3 tools/extract_locales.py
       - name: Converter idempotence (dry-run must not want changes)
         run: |
           before="$(sha256sum config/tweaks.json)"
@@ -148,13 +146,15 @@ jobs:
     name: Web app checks (Node 20)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -173,8 +173,8 @@ jobs:
     name: JSON and JavaScript syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
       - name: Check JavaScript syntax

@@ -19,7 +19,7 @@ Validation:
 
 Usage:
   python3 tools/generate_iss.py               # writes dist/winforge.iss
-  python3 tools/generate_iss.py --check       # validates existing iss without overwriting
+  python3 tools/generate_iss.py --check       # validates existing or generated ISS without overwriting
   python3 tools/generate_iss.py --version 1.2.3  # override version
 """
 
@@ -224,23 +224,37 @@ def validate_iss(path: Path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", help="override version string")
-    parser.add_argument("--check", action="store_true", help="validate existing dist/winforge.iss without overwriting")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate the existing output, or validate freshly generated content without writing it",
+    )
     parser.add_argument("--output", help="output path", default=str(OUT))
     args = parser.parse_args()
 
     out_path = Path(args.output)
 
     if args.check:
-        if not out_path.exists():
-            print(f"Missing {out_path} — run without --check to generate", file=sys.stderr)
-            sys.exit(1)
-        errs = validate_iss(out_path)
+        checked_path = out_path
+        generated_check = not out_path.exists()
+        if generated_check:
+            # dist/ is intentionally ignored, so a clean checkout has no ISS
+            # artifact. Validate deterministic generated content in a temporary
+            # directory rather than making `--check` fail or dirtying the tree.
+            import tempfile
+
+            check_dir = tempfile.TemporaryDirectory(prefix="winforge-iss-")
+            checked_path = Path(check_dir.name) / "winforge.iss"
+            checked_path.write_text(generate_iss(read_version(args.version)), encoding="utf-8")
+
+        errs = validate_iss(checked_path)
         if errs:
-            print(f"ISS validation FAILED for {out_path}:", file=sys.stderr)
+            print(f"ISS validation FAILED for {checked_path}:", file=sys.stderr)
             for e in errs:
                 print(f"  - {e}", file=sys.stderr)
             sys.exit(1)
-        print(f"ISS validation PASSED: {out_path} ({out_path.stat().st_size} bytes)")
+        source = "generated content" if generated_check else str(out_path)
+        print(f"ISS validation PASSED: {source} ({checked_path.stat().st_size} bytes)")
         # Also validate with python xml? Not needed for ISS — just JSON check
         # Check that config/tweaks.json is valid JSON (catalog must be parseable)
         try:

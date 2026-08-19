@@ -2,15 +2,9 @@ import { db } from "@/db";
 import { ensureSeeded } from "@/db/seed";
 import { operationHistory } from "@/db/schema";
 import { desc } from "drizzle-orm";
+import { csvEscape } from "@/lib/export-safety";
 
 export const dynamic = "force-dynamic";
-
-function csvEscape(value: string) {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
 
 export async function GET() {
   await ensureSeeded();

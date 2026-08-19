@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { ensureSeeded } from "@/db/seed";
 import { privacyRules } from "@/db/schema";
+import { escapeHtml } from "@/lib/export-safety";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +17,16 @@ export async function GET() {
   const rows = Array.from(byCategory.entries())
     .map(
       ([category, items]) => `
-      <h2>${category}</h2>
+      <h2>${escapeHtml(category)}</h2>
       <table>
         <thead><tr><th>Rule</th><th>Description</th><th>Risk</th><th>Status</th></tr></thead>
         <tbody>
           ${items
             .map(
               (r) => `<tr>
-                <td>${r.name}</td>
-                <td>${r.description}</td>
-                <td>${r.risk}</td>
+                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.description)}</td>
+                <td>${escapeHtml(r.risk)}</td>
                 <td style="color:${r.enabled ? "#10b981" : "#ef4444"}">${r.enabled ? "Hardened" : "Not Applied"}</td>
               </tr>`
             )
@@ -53,5 +54,11 @@ export async function GET() {
   ${rows}
   </body></html>`;
 
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  return new Response(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
